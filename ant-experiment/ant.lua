@@ -7,7 +7,6 @@ Ticker = Ticker or 'ANT-AO-EXP1'
 Denomination = Denomination or 1
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
-
 -- Set the initial token balance to 1 and give it to the process owner
 if not Balances then
     Balances = {}
@@ -30,7 +29,7 @@ end
 
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
     ao.send(
-        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination), Data = json.econde(Controllers) } })
+        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) } })
 end)
 
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
@@ -88,7 +87,7 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 
     if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
 
-    if msg.From == Owner and Balances[msg.From] >= 1 then
+    if msg.From == env.Process.Owner and Balances[msg.From] >= 1 then
         Balances[msg.From] = 0
         Balances[msg.Tags.Recipient] = 1 -- single token only in this process
         Controllers = {}                 -- empty previous controller list
@@ -103,12 +102,12 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
             -- Send Debit-Notice to the Sender
             ao.send({
                 Target = msg.From,
-                Tags = { Action = 'ANT-Debit-Notice', Recipient = msg.Tags.Recipient, Quantity = '1' }
+                Tags = { Action = 'Debit-Notice', Recipient = msg.Tags.Recipient, Quantity = '1' }
             })
             -- Send Credit-Notice to the Recipient
             ao.send({
                 Target = msg.Tags.Recipient,
-                Tags = { Action = 'ANT-Credit-Notice', Sender = msg.From, Quantity = '1' }
+                Tags = { Action = 'Credit-Notice', Sender = msg.From, Quantity = '1' }
             })
         end
     else
@@ -122,11 +121,18 @@ end)
 Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), function(msg, env)
     local isValidRecord, responseMsg = validateSetRecord(msg)
     if isValidRecord then
-        if msg.From == env.Process.owner or Controllers[msg.From] then
+        if msg.From == env.Process.Id or Controllers[msg.From] then
             Records[msg.Tags.SubDomain] = {
                 transactionId = msg.Tags.TransactionId,
                 ttlSeconds = msg.Tags.TtlSeconds
             }
+            if not msg.Tags.Cast then
+                -- Send SetRecord-Notice to the Sender if cast is not provided
+                ao.send({
+                    Target = msg.From,
+                    Tags = { Action = 'SetRecord-Notice', SubDomain = msg.Tags.SubDomain, TransactionId = msg.Tags.TransactionId, TtlSeconds = msg.Tags.TtlSeconds }
+                })
+            end
         else
             ao.send({
                 Target = msg.From,
@@ -142,9 +148,16 @@ Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), 
 end)
 
 Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'RemoveRecord'), function(msg, env)
-    if msg.From == Owner or Controllers[msg.From] then
+    if msg.From == env.Process.Id or Controllers[msg.From] then
         if Records[msg.Tags.SubDomain] then
             Records[msg.Tags.SubDomain] = nil
+            if not msg.Tags.Cast then
+                -- Send SetRecord-Notice to the Sender if cast is not provided
+                ao.send({
+                    Target = msg.From,
+                    Tags = { Action = 'RemoveRecord-Notice', SubDomain = msg.Tags.SubDomain }
+                })
+            end
         else
             ao.send({
                 Target = msg.From,
@@ -160,29 +173,47 @@ Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'RemoveReco
 end)
 
 Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'SetController'), function(msg, env)
-    if not stringMatchesPattern(msg.Tags.Target, "^[a-zA-Z0-9_-]{43}$") then
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'SetController-Error', ['Message-Id'] = msg.Id, Error = "Invalid target ID pattern." }
-        })
-    elseif msg.From == Owner then
+    if msg.From == env.Process.Id then
         Controllers[msg.Tags.Target] = true
         if not msg.Tags.Cast then
-            -- Send SetController notice to the Sender
+            -- Send SetController-Notice to the Sender if cast is not provided
             ao.send({
                 Target = msg.From,
-                Tags = { Action = 'ANT-SetController-Notice', Recipient = msg.Tags.Target }
+                Tags = { Action = 'SetController-Notice', Target = msg.Tags.Target }
             })
-            -- Send SetController Notice to the Recipient
+            -- Send SetController-Notice to the Target
             ao.send({
                 Target = msg.Tags.Target,
-                Tags = { Action = 'ANT-SetController-Notice', Sender = msg.From }
+                Tags = { Action = 'SetController-Notice', Sender = msg.From, Target = msg.Tags.Target }
             })
         end
     else
         ao.send({
             Target = msg.From,
             Tags = { Action = 'SetController-Error', ['Message-Id'] = msg.Id, Error = NON_PROCESS_OWNER_CONTROLLER_MESSAGE }
+        })
+    end
+end)
+
+Handlers.add('removeController', Handlers.utils.hasMatchingTag('Action', 'RemoveController'), function(msg, env)
+    if msg.From == env.Process.Id then
+        Controllers[msg.Tags.Target] = nil
+        if not msg.Tags.Cast then
+            -- Send RemoveController-Notice to the Sender if cast is not provided
+            ao.send({
+                Target = msg.From,
+                Tags = { Action = 'RemoveController-Notice', Target = msg.Tags.Target }
+            })
+            -- Send RemoveController-Notice to the Target
+            ao.send({
+                Target = msg.Tags.Target,
+                Tags = { Action = 'RemoveController-Notice', Sender = msg.From, Target = msg.Tags.Target }
+            })
+        end
+    else
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'RemoveController-Error', ['Message-Id'] = msg.Id, Error = NON_PROCESS_OWNER_CONTROLLER_MESSAGE }
         })
     end
 end)
@@ -198,18 +229,19 @@ function validateSetRecord(msg)
     end
 
     -- Validate subDomain (Record)
-    if not stringMatchesPattern(msg.Tags.SubDomain, "^([a-zA-Z0-9][a-zA-Z0-9-_]{0,59}[a-zA-Z0-9]|[a-zA-Z0-9]{1})$") then
+    if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
         return false, "Record (subDomain) pattern is invalid."
     end
+
 
     if msg.Tags.SubDomain == 'www' then
         return false, "Invalid ArNS Record Subdomain"
     end
 
     -- Validate transactionId
-    if not stringMatchesPattern(msg.Tags.TransactionId, "^[a-zA-Z0-9_-]{43}$") then
-        return false, "TransactionId pattern is invalid."
-    end
+    -- if not validArweaveId(msg.Tags.TransactionId) then
+    --    return false, "TransactionId pattern is invalid."
+    -- end
 
     -- Validate ttlSeconds
     local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
@@ -221,7 +253,8 @@ function validateSetRecord(msg)
     return true, "Valid"
 end
 
--- Utility function to check if a string matches a given Lua pattern
-function stringMatchesPattern(s, pattern)
-    return string.match(s, pattern) ~= nil
+-- Utility function to check if a string matches an arweave id
+function validArweaveId(inputString)
+    local pattern = "^[a-zA-Z0-9-_]{43}$"
+    return string.match(inputString, pattern) ~= nil
 end

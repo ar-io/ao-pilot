@@ -1,0 +1,29 @@
+{
+  "name": "ao-pilot",
+  "version": "1.0.0",
+  "description": "ANT contracts on the AO network",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ar-io/ao-pilot.git"
+  },
+  "keywords": [
+    "ao",
+    "arweave",
+    "contract",
+    "smartcontract"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ar-io/ao-pilot/issues"
+  },
+  "homepage": "https://github.com/ar-io/ao-pilot#readme",
+  "devDependencies": {
+    "@permaweb/aoconnect": "^0.0.45",
+    "arlocal": "^1.1.65"
+  }
+}

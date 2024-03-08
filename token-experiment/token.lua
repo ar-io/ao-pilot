@@ -82,7 +82,7 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
         end
     else
         ao.send({
-            Target = msg.Tags.From,
+            Target = msg.From,
             Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Balance!' }
         })
     end
@@ -97,7 +97,7 @@ Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(m
         Balances[env.Process.Id] = Balances[env.Process.Id] + qty
     else
         ao.send({
-            Target = msg.Tags.From,
+            Target = msg.From,
             Tags = {
                 Action = 'Mint-Error',
                 ['Message-Id'] = msg.Id,

@@ -10,7 +10,7 @@ Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 -- Set the initial token balance to 1 and give it to the process owner
 if not Balances then
     Balances = {}
-    Balances[ao.id] = 1
+    Balances[Owner] = 1
 end
 
 -- Set empty controllers
@@ -25,11 +25,19 @@ if not Records then
         transactionId = 'UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk',
         ttlSeconds = 3600
     }
+    Records['dapp'] = {
+        transactionId = 'qrWdhy_PxrniBUlYn0macF-YbNgbmnmV5OVSrVRxxV8',
+        ttlSeconds = 3600
+    }
+    Records['logo'] = {
+        transactionId = 'KKmRbIfrc7wiLcG0zvY1etlO0NBx1926dSCksxCIN3A',
+        ttlSeconds = 3600
+    }
 end
 
-Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
+Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     ao.send(
-        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) } })
+        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) } })
 end)
 
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
@@ -52,22 +60,15 @@ Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
     function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
 
 Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), function(msg)
-    -- If no SubDomain is provided, then return the root balance
-    if (msg.Tags.Target and Records[msg.Tags.Target]) then
-        local record = Records[msg.Tags.Target]
-        local ttlSeconds = record.ttlSeconds
-        local subDomain = msg.Tags.Target
+    if msg.Tags.SubDomain and Records[msg.Tags.SubDomain] then
         ao.send({
             Target = msg.From,
-            Tags = { Target = msg.From, SubDomain = subDomain, TtlSeconds = ttlSeconds, Data = json.encode(record) }
+            Tags = { SubDomain = msg.Tags.SubDomain, TransactionId = Records[msg.Tags.SubDomain].transactionId, TtlSeconds = tostring(Records[msg.Tags.SubDomain].ttlSeconds) }
         })
-    elseif Records['@'] then
-        local record = Records['@']
-        local ttlSeconds = record.ttlSeconds
-        local subDomain = '@'
+    elseif Records['@'] then -- If no SubDomain is provided, then return the root subdomain
         ao.send({
             Target = msg.From,
-            Tags = { Target = msg.From, SubDomain = subDomain, TtlSeconds = ttlSeconds, Data = json.encode(record) }
+            Tags = { SubDomain = '@', TransactionId = Records['@'].transactionId, TtlSeconds = tostring(Records['@'].ttlSeconds) }
         })
     else
         ao.send({
@@ -87,8 +88,15 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 
     if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
 
-    if msg.From == env.Process.Owner and Balances[msg.From] >= 1 then
-        Balances[msg.From] = 0
+    if not msg.From == env.Process.Id or not msg.From == Owner or not Balances[msg.From] == 1 then
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = NON_PROCESS_OWNER_CONTROLLER_MESSAGE }
+        })
+    else
+        Balances[Owner] = nil
+        Balances[env.Process.Id] = nil
+        Balances[msg.From] = nil
         Balances[msg.Tags.Recipient] = 1 -- single token only in this process
         Controllers = {}                 -- empty previous controller list
         Owner = msg.Tags.Recipient       -- change ownership to the new recipient
@@ -102,26 +110,21 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
             -- Send Debit-Notice to the Sender
             ao.send({
                 Target = msg.From,
-                Tags = { Action = 'Debit-Notice', Recipient = msg.Tags.Recipient, Quantity = '1' }
+                Tags = { Action = 'ANT-Debit-Notice', Recipient = msg.Tags.Recipient, Quantity = '1' }
             })
             -- Send Credit-Notice to the Recipient
             ao.send({
                 Target = msg.Tags.Recipient,
-                Tags = { Action = 'Credit-Notice', Sender = msg.From, Quantity = '1' }
+                Tags = { Action = 'ANT-Credit-Notice', Sender = msg.From, Quantity = '1' }
             })
         end
-    else
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Balance!' }
-        })
     end
 end)
 
 Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), function(msg, env)
     local isValidRecord, responseMsg = validateSetRecord(msg)
     if isValidRecord then
-        if msg.From == env.Process.Id or Controllers[msg.From] then
+        if msg.From == env.Process.Id then
             Records[msg.Tags.SubDomain] = {
                 transactionId = msg.Tags.TransactionId,
                 ttlSeconds = msg.Tags.TtlSeconds
@@ -131,6 +134,23 @@ Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), 
                 ao.send({
                     Target = msg.From,
                     Tags = { Action = 'SetRecord-Notice', SubDomain = msg.Tags.SubDomain, TransactionId = msg.Tags.TransactionId, TtlSeconds = msg.Tags.TtlSeconds }
+                })
+            end
+        elseif Controllers[msg.From] then
+            Records[msg.Tags.SubDomain] = {
+                transactionId = msg.Tags.TransactionId,
+                ttlSeconds = msg.Tags.TtlSeconds
+            }
+            if not msg.Tags.Cast then
+                -- Send SetRecord-Notice to the Sender if cast is not provided
+                ao.send({
+                    Target = msg.From,
+                    Tags = { Action = 'SetRecord-Notice', SubDomain = msg.Tags.SubDomain, TransactionId = msg.Tags.TransactionId, TtlSeconds = msg.Tags.TtlSeconds }
+                })
+                -- Send SetRecord-Notice to the Owner if cast is not provided
+                ao.send({
+                    Target = env.Process.Id,
+                    Tags = { Action = 'SetRecord-Notice', Controller = msg.From, SubDomain = msg.Tags.SubDomain, TransactionId = msg.Tags.TransactionId, TtlSeconds = msg.Tags.TtlSeconds }
                 })
             end
         else

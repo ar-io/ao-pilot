@@ -24,6 +24,16 @@
   "homepage": "https://github.com/ar-io/ao-pilot#readme",
   "devDependencies": {
     "@permaweb/aoconnect": "^0.0.45",
-    "arlocal": "^1.1.65"
+    "@types/jest": "^29.5.12",
+    "arlocal": "^1.1.65",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.2"
+  },
+  "dependencies": {
+    "@ardrive/turbo-sdk": "^1.4.1",
+    "arbundles": "^0.11.0",
+    "arweave": "^1.14.4"
   }
 }

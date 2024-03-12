@@ -24,8 +24,16 @@ export async function readANTState() {
         message: messageId,
         process: processId
     })
-
+    console.log(`chain message results:`)
     console.dir(res, { depth: 30 })
+
+    const dryRead = await dryrun({
+        process: processId,
+        tags: [{ name: "Action", value: "Info" }],
+
+    })
+    console.log(`dry run results:`)
+    console.dir(dryRead, { depth: 30 })
 }
 
 readANTState()

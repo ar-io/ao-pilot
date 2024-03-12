@@ -1,3 +1,4 @@
+-- arns-experiment-1
 local json = require('json')
 
 Name = Name or 'Names-Experiment-1'
@@ -6,7 +7,10 @@ Denomination = Denomination or 1
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 Listeners = Listeners or {}
 
-TokenProcessId = 'R1EeI1Y23Qj1rOl2hnP7XW2DWNGYTEy4ZGpZIgBwYbk'
+DEFAULT_UNDERNAME_COUNT = 10
+NamePrice = 1000
+-- Uses 'token-experiement-1' process
+TokenProcessId = 'gAC5hpUPh1v-oPJLnK3Km6-atrYlvI271bI-q0yZOnw'
 
 -- Setup the default record pointing to the ArNS landing page
 if not Records then
@@ -46,10 +50,18 @@ if not Records then
     }
 end
 
+-- Setup the default empty balances
+if not Credits then
+    Credits = {}
+end
+
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     ao.send(
         { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), NamesRegistered = tableCount(Records) } })
 end)
+
+Handlers.add('get-credits', Handlers.utils.hasMatchingTag('Action', 'Get-Credits'),
+    function(msg) ao.send({ Target = msg.From, Data = json.encode(Credits) }) end)
 
 Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), function(msg)
     if msg.Tags.Name and Records[msg.Tags.Name] then
@@ -71,10 +83,87 @@ Handlers.add('records', Handlers.utils.hasMatchingTag('Action', 'Records'),
 
 Handlers.add('buyRecord', Handlers.utils.hasMatchingTag('Action', 'BuyRecord'), function(msg, env)
     local isValidBuyRecord, responseMsg = validateBuyRecord(msg)
-    ao.send({ Target = msg.From, isValidBuyRecord = tostring(isValidBuyRecord), responseMsg = responseMsg })
+    print("Valid? ", isValidBuyRecord)
+    local name = msg.Tags.Name
+    local namePrice = 1000
+    -- local namePrice = calculateNamePrice(name)  -- Function to determine the price based on name length or other criteria
+
+    -- Check if the user has enough credit
+    if Credits[msg.From] and Credits[msg.From] >= namePrice then
+        -- Deduct the name price from the user's credit
+        Credits[msg.From] = Credits[msg.From] - namePrice
+
+        -- Register the name to the user
+        if msg.Tags.Type == 'permabuy' then
+            Names[name] = {
+                contractTxId = msg.Tags.contractTxId,
+                type = msg.Tags.Type,
+                startTimestamp = 0,
+                undernames = DEFAULT_UNDERNAME_COUNT,
+                purchasePrice = namePrice,
+            }
+        elseif msg.Tags.type == 'lease' then
+            Names[name] = {
+                contractTxId = msg.Tags.contractTxId,
+                type = msg.Tags.Type,
+                startTimestamp = 0,
+                endTimestamp = 1000000000,
+                undernames = DEFAULT_UNDERNAME_COUNT,
+                purchasePrice = namePrice,
+            }
+        end
+        -- Acknowledge the purchase
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Purchase-Ack', Name = name, RemainingBalance = tostring(Credits[msg.From]) }
+        })
+    else
+        -- Insufficient balance to purchase the name
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Purchase-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Credit!' }
+        })
+    end
 end)
 
-Handlers.add("Register", Handlers.utils.hasMatchingTag("Action", "Register"), function(msg)
+-- Handler to receive deposits
+Handlers.add('initiateDeposit', Handlers.utils.hasMatchingTag('Action', 'InitiateDeposit'), function(msg, env)
+    assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
+
+    local qty = tonumber(msg.Tags.Quantity)
+    assert(type(qty) == 'number' and qty > 0, 'Quantity must be a positive number')
+
+    print("Initiating deposit from: " .. msg.From)
+    ao.send({
+        Target = TokenProcessId, -- Address/identifier of the Token process
+        Tags = {
+            Action = 'Transfer',
+            Recipient = env.Process.Id, -- The ARNS Registry's address within the Token process
+            Quantity = tostring(qty),
+        }
+    })
+    ao.send({
+        Target = msg.From,
+        Tags = { Action = 'Deposit-Initiated', Quantity = tostring(qty) }
+    })
+end)
+
+Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg, env)
+    print("Woa we got a credit notice message")
+    print("Sender: " .. msg.Tags.Sender)
+    if msg.From == TokenProcessId then
+        -- Update or initialize the sender's credit balance
+        Credits[msg.Tags.Sender] = (Credits[msg.Tags.Sender] or 0) + msg.Tags.Quantity
+        -- Send Credit-Notice to the Recipient
+        ao.send({
+            Target = msg.Tags.Sender,
+            Tags = { Action = 'Credit-Notice', Sender = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
+        })
+    end
+end)
+
+
+Handlers.add("register", Handlers.utils.hasMatchingTag("Action", "Register"), function(msg)
     if Listeners[msg.From] then
         return
     end
@@ -82,7 +171,7 @@ Handlers.add("Register", Handlers.utils.hasMatchingTag("Action", "Register"), fu
     table.insert(Listeners, msg.From)
 end)
 
-Handlers.add("Unregister", Handlers.utils.hasMatchingTag("Action", "Unregister"), function(msg)
+Handlers.add("unregister", Handlers.utils.hasMatchingTag("Action", "Unregister"), function(msg)
     -- TODO: Check remove from table semantics
     print("Unregistering " .. msg.From .. "for updates.")
     Listeners[msg.From] = nil
@@ -104,34 +193,34 @@ Handlers.add("Cron",
 
 function validateBuyRecord(msg)
     -- Check for required field 'name'
-    if not msg.name or type(msg.name) ~= "string" then
+    if not msg.Tags.name or type(msg.Tags.name) ~= "string" then
         return false, "name is required and must be a string."
     end
 
     -- Validate 'name' pattern
-    if not string.match(msg.name, "^([a-zA-Z0-9][a-zA-Z0-9-]{0,49}[a-zA-Z0-9]|[a-zA-Z0-9]{1})$") then
+    if not string.match(msg.Tags.name, "^([a-zA-Z0-9][a-zA-Z0-9-]{0,49}[a-zA-Z0-9]|[a-zA-Z0-9]{1})$") then
         return false, "name pattern is invalid."
     end
 
     -- Validate 'contractTxId' if present
-    if msg.contractTxId and not string.match(msg.contractTxId, "^(atomic|[a-zA-Z0-9-_]{43})$") then
+    if msg.Tags.contractTxId and not string.match(msg.Tags.contractTxId, "^(atomic|[a-zA-Z0-9-_]{43})$") then
         return false, "contractTxId pattern is invalid."
     end
 
     -- Validate 'years' if present
-    if msg.years then
-        if type(msg.years) ~= "number" or msg.years % 1 ~= 0 or msg.years < 1 or msg.years > 5 then
+    if msg.Tags.years then
+        if type(msg.Tags.years) ~= "number" or msg.Tags.years % 1 ~= 0 or msg.Tags.years < 1 or msg.Tags.years > 5 then
             return false, "years must be an integer between 1 and 5."
         end
     end
 
     -- Validate 'type' if present
-    if msg.type and not string.match(msg.type, "^(lease|permabuy)$") then
+    if msg.Tags.type and not string.match(msg.Tags.type, "^(lease|permabuy)$") then
         return false, "type pattern is invalid."
     end
 
     -- Validate 'auction' if present
-    if msg.auction and type(msg.auction) ~= "boolean" then
+    if msg.Tags.auction and type(msg.Tags.auction) ~= "boolean" then
         return false, "auction must be a boolean."
     end
 

@@ -17,8 +17,8 @@ if not Balances then
     Balances["ySqMsg7O0R-BcUw35R3nxJJKJyIdauLCQ4DUZqPCiYo"] = 10000000
 end
 
-Name = Name or 'My-Token'
-Ticker = Ticker or 'MY-TOKEN'
+Name = Name or 'Token-Experiment-1'
+Ticker = Ticker or 'TOKEN-EXP-1'
 Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
@@ -61,6 +61,8 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
     assert(qty > 0, 'Quantity must be greater than 0')
 
     if Balances[msg.From] >= qty then
+        print("Doing the transfer from: " .. msg.From)
+        print("to: " .. msg.Tags.Recipient)
         Balances[msg.From] = Balances[msg.From] - qty
         Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
 
@@ -69,17 +71,31 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
         if the Cast tag is not set on the Transfer message
         ]]
         --
-        if not msg.Tags.Cast then
+        if not msg.Cast then
             -- Send Debit-Notice to the Sender
             ao.send({
                 Target = msg.From,
-                Tags = { Action = 'Debit-Notice', Recipient = msg.Tags.Recipient, Quantity = tostring(qty) }
+                Action = 'Debit-Notice',
+                Recipient = msg.Tags.Recipient,
+                Quantity = tostring(qty),
+                Data = Colors.gray ..
+                    "You transferred " ..
+                    Colors.blue ..
+                    msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
+                    .reset
             })
             -- Send Credit-Notice to the Recipient
             ao.send({
                 Target = msg.Tags.Recipient,
-                Tags = { Action = 'Credit-Notice', Sender = msg.From, Quantity = tostring(qty) }
+                Action = 'Credit-Notice',
+                Sender = msg.From,
+                Quantity = tostring(qty),
+                Data = Colors.gray ..
+                    "You received " ..
+                    Colors.blue ..
+                    msg.Tags.Quantity .. Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset
             })
+            print("Tokens sent")
         end
     else
         ao.send({

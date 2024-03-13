@@ -13,14 +13,16 @@ import { arweave, generateWallet, sleep } from "./utils";
 import fs from 'fs'
 import path from 'path'
 import { TurboFactory } from "@ardrive/turbo-sdk";
+import { JWKInterface } from "arbundles";
 
 
 export async function deployANT() {
     // generate wallet to be used for our ao process
-    const { jwk } = await generateWallet()
+    // const { jwk } = await generateWallet()
+    const jwk = JSON.parse(fs.readFileSync(path.resolve(__dirname + '/key.json')).toString())
 
     // deploy our AO module to arweave
-    const turbo = TurboFactory.authenticated({ privateKey: jwk })
+    const turbo = TurboFactory.authenticated({ privateKey: jwk})
     console.log("uploading ao module via turbo")
     const { id: antModuleId, owner, dataCaches, fastFinalityIndexes } = await turbo.uploadFile({
         fileStreamFactory: () => fs.createReadStream(path.resolve(__dirname + '/ant_module.lua')),
@@ -83,3 +85,21 @@ export async function deployANT() {
     })
 }
 deployANT()
+// output
+    
+    // uploading ao module via turbo
+    // uploaded file
+    // {
+    //   id: 'Y_LWlxo3Fb0NGCmVgQvFLJObkbs2BQ3Pukc7z1viAGY',
+    //   owner: '0MpclZIYxIsBg-BH5k0bna4y1xxy_hNBJg9EZW1YCm4',
+    //   dataCaches: [ 'arweave.net' ],
+    //   fastFinalityIndexes: [ 'arweave.net' ]
+    // }
+    // waiting 5 seconds for antModule confirmation, attempt 1
+    // waiting 5 seconds for antModule confirmation, attempt 2
+    // module id confirmed: Y_LWlxo3Fb0NGCmVgQvFLJObkbs2BQ3Pukc7z1viAGY
+    // Succesfully deployed ANT process.
+    // {
+    //   owner: '0MpclZIYxIsBg-BH5k0bna4y1xxy_hNBJg9EZW1YCm4',
+    //   processId: '6vHuJrqOIl-AVTqy__BnOAg3cXdxLzG_AGC1rLtqhos'
+    // }

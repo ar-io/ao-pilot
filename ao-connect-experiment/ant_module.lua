@@ -6,6 +6,7 @@ Name = Name or 'ANT-Experiment-1'
 Ticker = Ticker or 'ANT-AO-EXP1'
 Denomination = Denomination or 1
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
+Owner = '5Gru9gQCIiRaIPV7fU7RXcpaVShG4u9nIcPVmm2FJSM'
 
 -- Set the initial token balance to 1 and give it to the process owner
 if not Balances then
@@ -124,7 +125,7 @@ end)
 Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), function(msg, env)
     local isValidRecord, responseMsg = validateSetRecord(msg)
     if isValidRecord then
-        if msg.From == env.Process.Id then
+        if msg.From == env.Process.Id or msg.From == Owner then
             Records[msg.Tags.SubDomain] = {
                 transactionId = msg.Tags.TransactionId,
                 ttlSeconds = msg.Tags.TtlSeconds

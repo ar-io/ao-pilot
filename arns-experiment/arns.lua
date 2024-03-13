@@ -1,5 +1,6 @@
 -- arns-experiment-1
 local json = require('json')
+local base64 = require(".base64")
 
 Name = Name or 'Names-Experiment-1'
 Ticker = Ticker or 'EXP1'
@@ -9,6 +10,12 @@ Listeners = Listeners or {}
 
 DEFAULT_UNDERNAME_COUNT = 10
 NamePrice = 1000
+
+CacheUrl = "https://api.arns.app/v1/contract/"
+ArNSCacheUrl = "https://api.arns.app/v1/contract/bLAgYxAdX2Ry-nt6aH2ixgvJXbpsEYm28NgJgyqfs-U/records/"
+
+_0RBIT = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
+
 -- Uses 'token-experiement-1' process
 TokenProcessId = 'gAC5hpUPh1v-oPJLnK3Km6-atrYlvI271bI-q0yZOnw'
 
@@ -16,33 +23,17 @@ TokenProcessId = 'gAC5hpUPh1v-oPJLnK3Km6-atrYlvI271bI-q0yZOnw'
 if not Records then
     Records = {}
 
-    Records["1984"] = {
-        contractTxId = "I-cxQhfh0Zb9UqQNizC9PiLC41KpUeA9hjiVV02rQRw",
-        endTimestamp = 1711122739,
-        startTimestamp = 1694101828,
-        type = "lease",
-        undernames = 100,
-        purchasePrice = 10000,
-    }
-
-    Records["warp-contracts"] = {
-        contractTxId = "94hahtk_c6SENmICoZIqRrbQgam5jeRjZmsSBMGa_b4",
-        purchasePrice = 2100,
-        startTimestamp = 1700658387,
-        type = "permabuy",
-        undernames = 10
-    }
-
-    Records["vilenarios"] = {
-        contractTxId = "l2gbTIYDmdEt8R6DsPndInjwTpfcRPcKhyzNpDqV-0",
+    Records["test-ao-process"] = {
+        contractTxId = "gh673M0Koh941OIITVXl9hKabRaYWABQUedZxW-swIA",
+        processId = "YRK5D_VjPxhMRoCuC1jZNovUe5lZOiSLW74zU5MNMK8",
         endTimestamp = 1711122739,
         startTimestamp = 1694101828,
         type = "lease",
         undernames = 100
     }
 
-    Records["test-ant-1"] = {
-        contractTxId = "YRK5D_VjPxhMRoCuC1jZNovUe5lZOiSLW74zU5MNMK8",
+    Records["claim-this"] = {
+        contractTxId = "2UREsZfvie2MMBCfA_YgxWl8ucybRjfYnc8H3SeZ2b8",
         endTimestamp = 1711122739,
         startTimestamp = 1694101828,
         type = "lease",
@@ -50,20 +41,102 @@ if not Records then
     }
 end
 
--- Setup the default empty balances
+if not Auctions then
+    Auctions = {}
+end
+
+if not Fees then
+    Fees = {
+        [1] = 5000000,
+        [2] = 500000,
+        [3] = 100000,
+        [4] = 25000,
+        [5] = 10000,
+        [6] = 5000,
+        [7] = 2500,
+        [8] = 1500,
+        [9] = 1250,
+        [10] = 1250,
+        [11] = 1250,
+        [12] = 1250,
+        [13] = 1000,
+        [14] = 1000,
+        [15] = 1000,
+        [16] = 1000,
+        [17] = 1000,
+        [18] = 1000,
+        [19] = 1000,
+        [20] = 1000,
+        [21] = 1000,
+        [22] = 1000,
+        [23] = 1000,
+        [24] = 1000,
+        [25] = 1000,
+        [26] = 1000,
+        [27] = 1000,
+        [28] = 1000,
+        [29] = 1000,
+        [30] = 1000,
+        [31] = 1000,
+        [32] = 1000,
+        [33] = 1000,
+        [34] = 1000,
+        [35] = 1000,
+        [36] = 1000,
+        [37] = 1000,
+        [38] = 1000,
+        [39] = 1000,
+        [40] = 1000,
+        [41] = 1000,
+        [42] = 1000,
+        [43] = 1000,
+        [44] = 1000,
+        [45] = 1000,
+        [46] = 1000,
+        [47] = 1000,
+        [48] = 1000,
+        [49] = 1000,
+        [50] = 1000,
+        [51] = 1000
+    }
+end
+
+if not DemandFactoring then
+    DemandFactoring = {
+        consecutivePeriodsWithMinDemandFactor = 0,
+        currentPeriod = 106,
+        demandFactor = 0.6310005898072405,
+        periodZeroBlockHeight = 1306341,
+        purchasesThisPeriod = 0,
+        revenueThisPeriod = 0,
+        trailingPeriodPurchases = { 1, 0, 4, 0, 0, 0, 4 },
+        trailingPeriodRevenues = { 1941.5402763299708, 0, 8200.407359278961, 0, 0, 0, 16456.865199368323 }
+    }
+end
+
+if not RecordUpdates then
+    RecordUpdates = {}
+end
+
+-- Setup the default empty credit balances
 if not Credits then
     Credits = {}
 end
 
-Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
+Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
     ao.send(
         { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), NamesRegistered = tableCount(Records) } })
 end)
 
-Handlers.add('get-credits', Handlers.utils.hasMatchingTag('Action', 'Get-Credits'),
+Handlers.add('getFees', Handlers.utils.hasMatchingTag('Action', 'Get-Fees'),
+    function(msg)
+        ao.send({ Target = msg.From, Data = json.encode(Fees) })
+    end)
+
+Handlers.add('getCredits', Handlers.utils.hasMatchingTag('Action', 'Get-Credits'),
     function(msg) ao.send({ Target = msg.From, Data = json.encode(Credits) }) end)
 
-Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), function(msg)
+Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'), function(msg)
     if msg.Tags.Name and Records[msg.Tags.Name] then
         recordOwner = Records[msg.Tags.Name]
         ao.send({
@@ -78,56 +151,67 @@ Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), functi
     end
 end)
 
-Handlers.add('records', Handlers.utils.hasMatchingTag('Action', 'Records'),
-    function(msg) ao.send({ Target = msg.From, Data = json.encode(Records) }) end)
-
-Handlers.add('buyRecord', Handlers.utils.hasMatchingTag('Action', 'BuyRecord'), function(msg, env)
-    local isValidBuyRecord, responseMsg = validateBuyRecord(msg)
-    print("Valid? ", isValidBuyRecord)
-    local name = msg.Tags.Name
-    local namePrice = 1000
-    -- local namePrice = calculateNamePrice(name)  -- Function to determine the price based on name length or other criteria
-
-    -- Check if the user has enough credit
-    if Credits[msg.From] and Credits[msg.From] >= namePrice then
-        -- Deduct the name price from the user's credit
-        Credits[msg.From] = Credits[msg.From] - namePrice
-
-        -- Register the name to the user
-        if msg.Tags.Type == 'permabuy' then
-            Names[name] = {
-                contractTxId = msg.Tags.contractTxId,
-                type = msg.Tags.Type,
-                startTimestamp = 0,
-                undernames = DEFAULT_UNDERNAME_COUNT,
-                purchasePrice = namePrice,
-            }
-        elseif msg.Tags.type == 'lease' then
-            Names[name] = {
-                contractTxId = msg.Tags.contractTxId,
-                type = msg.Tags.Type,
-                startTimestamp = 0,
-                endTimestamp = 1000000000,
-                undernames = DEFAULT_UNDERNAME_COUNT,
-                purchasePrice = namePrice,
-            }
-        end
-        -- Acknowledge the purchase
+Handlers.add('initiateLoadRecords', Handlers.utils.hasMatchingTag('Action', 'Initiate-Load-Records'), function(msg, env)
+    assert(type(msg.Tags.ArweaveTxId) == 'string', 'Arweave Tx Id is required!')
+    if msg.From == env.Process.Id then
+        ao.send({
+            Target = env.Process.Id,
+            Tags = { Action = 'Data', Load = msg.Tags.ArweaveTxId }
+        })
         ao.send({
             Target = msg.From,
-            Tags = { Action = 'Purchase-Ack', Name = name, RemainingBalance = tostring(Credits[msg.From]) }
+            Tags = { Action = 'Initiate-Load-Records-Received', Load = msg.Tags.ArweaveTxId }
         })
     else
-        -- Insufficient balance to purchase the name
         ao.send({
             Target = msg.From,
-            Tags = { Action = 'Purchase-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Credit!' }
+            Tags = { Action = 'Initiate-Load-Records-Error', ['Message-Id'] = msg.Id, Error = 'Not being run by Process' }
         })
     end
 end)
 
+Handlers.add('dataNotice', Handlers.utils.hasMatchingTag('Action', 'Data'), function(msg, env)
+    if msg.From == env.Process.Id then
+        -- Update or initialize the sender's credit balance
+        local rawJsonData = base64.decode(msg.Data.Data)
+        local data, _, err = json.decode(rawJsonData)
+        -- Counter for added/updated records
+        local recordsAddedOrUpdated = 0
+
+        -- Merge or set the decoded records into your Records table
+        for key, value in pairs(data.records) do
+            if not Records[key] or (Records[key] and Records[key] ~= value) then
+                recordsAddedOrUpdated = recordsAddedOrUpdated + 1
+            end
+            Records[key] = value
+        end
+        ao.send({
+            Target = env.Process.Id,
+            Tags = { Action = 'Loaded-Records', Sender = msg.From }
+        })
+    end
+end)
+
+Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Update'),
+    function(msg, env)
+        assert(type(msg.Tags.Name) == 'string', 'Name is required!')
+        assert(type(msg.Tags.ProcessId) == 'string', 'Process ID is required!'
+        )
+        if Records[msg.Tags.Name] then
+            -- GET CURRENT NAME OWNER
+            local url = CacheUrl .. Records[msg.Tags.Name].contractTxId
+
+            RecordUpdates[msg.From] = {
+                nameRequested = msg.Tags.Name,
+                url = url,
+                timeStamp = os.time()
+            }
+            ao.send({ Target = _0RBIT, Action = "Get-Real-Data", Url = url })
+        end
+    end)
+
 -- Handler to receive deposits
-Handlers.add('initiateDeposit', Handlers.utils.hasMatchingTag('Action', 'InitiateDeposit'), function(msg, env)
+Handlers.add('initiateDeposit', Handlers.utils.hasMatchingTag('Action', 'Initiate-Deposit'), function(msg, env)
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
 
     local qty = tonumber(msg.Tags.Quantity)
@@ -148,7 +232,7 @@ Handlers.add('initiateDeposit', Handlers.utils.hasMatchingTag('Action', 'Initiat
     })
 end)
 
-Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg, env)
+Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg, env)
     print("Woa we got a credit notice message")
     print("Sender: " .. msg.Tags.Sender)
     if msg.From == TokenProcessId then
@@ -161,7 +245,6 @@ Handlers.add('Credit-Notice', Handlers.utils.hasMatchingTag('Action', 'Credit-No
         })
     end
 end)
-
 
 Handlers.add("register", Handlers.utils.hasMatchingTag("Action", "Register"), function(msg)
     if Listeners[msg.From] then
@@ -231,4 +314,8 @@ function tableCount(table)
     local count = 0
     for _ in pairs(table) do count = count + 1 end
     return count
+end
+
+function fetchJsonDataFromOrbit(url)
+    ao.send({ Target = _0RBIT, Action = "Get-Real-Data", Url = url })
 end

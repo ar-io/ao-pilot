@@ -7,6 +7,10 @@ Ticker = Ticker or 'ANT-AO-EXP1'
 Denomination = Denomination or 1
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
+CacheUrl = "https://api.arns.app/v1/contract/"
+_0RBIT_SEND = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
+_0RBIT_RECEIVE = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
+
 -- Set the initial token balance to 1 and give it to the process owner
 if not Balances then
     Balances = {}
@@ -33,6 +37,51 @@ if not Records then
         transactionId = 'KKmRbIfrc7wiLcG0zvY1etlO0NBx1926dSCksxCIN3A',
         ttlSeconds = 3600
     }
+end
+
+-- Custom validateSetRecord function in Lua
+function validateSetRecord(msg)
+    -- Check for required fields
+    local requiredFields = { "SubDomain", "TransactionId", "TtlSeconds" }
+    for _, field in ipairs(requiredFields) do
+        if not msg.Tags[field] then
+            return false, field .. " is required!"
+        end
+    end
+
+    -- Validate subDomain (Record)
+    if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
+        return false, "Record (subDomain) pattern is invalid."
+    end
+
+
+    if msg.Tags.SubDomain == 'www' then
+        return false, "Invalid ArNS Record Subdomain"
+    end
+
+    -- Validate transactionId
+    -- if not validArweaveId(msg.Tags.TransactionId) then
+    --    return false, "TransactionId pattern is invalid."
+    -- end
+
+    -- Validate ttlSeconds
+    local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
+    if not ttlSeconds or ttlSeconds < 900 or ttlSeconds > 2592000 or ttlSeconds % 1 ~= 0 then
+        return false, "TtlSeconds is invalid."
+    end
+
+    -- If all checks pass
+    return true, "Valid"
+end
+
+-- Utility function to check if a string matches an arweave id
+function validArweaveId(inputString)
+    local pattern = "^[a-zA-Z0-9-_]{43}$"
+    return string.match(inputString, pattern) ~= nil
+end
+
+function fetchJsonDataFromOrbit(url)
+    ao.send({ Target = _0RBIT_SEND, Action = "Get-Real-Data", Url = url })
 end
 
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
@@ -238,43 +287,44 @@ Handlers.add('removeController', Handlers.utils.hasMatchingTag('Action', 'Remove
     end
 end)
 
--- Custom validateSetRecord function in Lua
-function validateSetRecord(msg)
-    -- Check for required fields
-    local requiredFields = { "SubDomain", "TransactionId", "TtlSeconds" }
-    for _, field in ipairs(requiredFields) do
-        if not msg.Tags[field] then
-            return false, field .. " is required!"
+Handlers.add('mirrorANT', Handlers.utils.hasMatchingTag('Action', 'Mirror-ANT'), function(msg, env)
+    assert(msg.From == env.Process.Id, 'Only the Process can request ANT mirroring')
+    assert(type(msg.Tags.ContractId) == 'string', 'ANT Contract ID is required!')
+    local url = CacheUrl .. msg.Tags.ContractId
+    fetchJsonDataFromOrbit(url)
+    ao.send({
+        Target = msg.From,
+        Tags = { Action = 'Mirror-ANT-Notice', ContractId = msg.Tags.ContractId }
+    })
+end)
+
+Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive-data-feed'), function(msg, env)
+    if msg.From == _0RBIT_RECEIVE then
+        local data, _, err = json.decode(msg.Data)
+
+        -- Mirror the configuration found in the ANT
+        if data.state.controllers then
+            Controllers = data.state.controllers
         end
+
+        if data.state.name then
+            Name = data.state.name
+        end
+
+        if data.state.ticker then
+            Ticker = data.state.ticker
+        end
+
+        if data.state.records then
+            Records = {}
+            -- Merge or set the decoded records into your Records table
+            for key, value in pairs(data.state.records) do
+                Records[key] = value
+            end
+        end
+        ao.send({
+            Target = env.Process.Id,
+            Tags = { Action = 'Mirror-ANT-Complete', ANTContractId = msg.Tags.ANTContractId, Records = json.encode(Records) }
+        })
     end
-
-    -- Validate subDomain (Record)
-    if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
-        return false, "Record (subDomain) pattern is invalid."
-    end
-
-
-    if msg.Tags.SubDomain == 'www' then
-        return false, "Invalid ArNS Record Subdomain"
-    end
-
-    -- Validate transactionId
-    -- if not validArweaveId(msg.Tags.TransactionId) then
-    --    return false, "TransactionId pattern is invalid."
-    -- end
-
-    -- Validate ttlSeconds
-    local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
-    if not ttlSeconds or ttlSeconds < 900 or ttlSeconds > 2592000 or ttlSeconds % 1 ~= 0 then
-        return false, "TtlSeconds is invalid."
-    end
-
-    -- If all checks pass
-    return true, "Valid"
-end
-
--- Utility function to check if a string matches an arweave id
-function validArweaveId(inputString)
-    local pattern = "^[a-zA-Z0-9-_]{43}$"
-    return string.match(inputString, pattern) ~= nil
-end
+end)

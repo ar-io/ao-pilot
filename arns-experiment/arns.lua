@@ -184,6 +184,7 @@ Handlers.add('dataNotice', Handlers.utils.hasMatchingTag('Action', 'Data'), func
                 recordsAddedOrUpdated = recordsAddedOrUpdated + 1
             end
             Records[key] = value
+            Records[key].processId = ""
         end
         ao.send({
             Target = env.Process.Id,

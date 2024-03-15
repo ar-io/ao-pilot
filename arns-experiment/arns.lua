@@ -9,12 +9,15 @@ Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 Listeners = Listeners or {}
 
 DEFAULT_UNDERNAME_COUNT = 10
+DEADLINE_DURATION_MS = 600000
 NamePrice = 1000
 
 CacheUrl = "https://api.arns.app/v1/contract/"
 ArNSCacheUrl = "https://api.arns.app/v1/contract/bLAgYxAdX2Ry-nt6aH2ixgvJXbpsEYm28NgJgyqfs-U/records/"
 
-_0RBIT = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
+ANTModule = "1SafZGlZT4TLI8xoc0QEQ4MylHhuyQUblxD8xLKvEKI"
+_0RBIT_SEND = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
+_0RBIT_RECEIVE = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
 
 -- Uses 'token-experiement-1' process
 TokenProcessId = 'gAC5hpUPh1v-oPJLnK3Km6-atrYlvI271bI-q0yZOnw'
@@ -170,6 +173,27 @@ Handlers.add('initiateLoadRecords', Handlers.utils.hasMatchingTag('Action', 'Ini
     end
 end)
 
+--[[Handlers.add('spawnANT', Handlers.utils.hasMatchingTag('Action', 'Spawn-ANT'), function(msg, env)
+    assert(type(msg.Tags.Name) == 'string', 'Name is required!')
+    if msg.From == env.Process.Id then
+        ao.spawn(ANTModule, {})
+
+        ao.send({
+            Target = env.Process.Id,
+            Tags = { Action = 'Data', Load = msg.Tags.ArweaveTxId }
+        })
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Initiate-Load-Records-Received', Load = msg.Tags.ArweaveTxId }
+        })
+    else
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Initiate-Load-Records-Error', ['Message-Id'] = msg.Id, Error = 'Not being run by Process' }
+        })
+    end
+end) --]]
+
 Handlers.add('dataNotice', Handlers.utils.hasMatchingTag('Action', 'Data'), function(msg, env)
     if msg.From == env.Process.Id then
         -- Update or initialize the sender's credit balance
@@ -194,23 +218,106 @@ Handlers.add('dataNotice', Handlers.utils.hasMatchingTag('Action', 'Data'), func
 end)
 
 Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Update'),
-    function(msg, env)
+    function(msg)
         assert(type(msg.Tags.Name) == 'string', 'Name is required!')
         assert(type(msg.Tags.ProcessId) == 'string', 'Process ID is required!'
         )
+
+        local deadline = msg.Timestamp - DEADLINE_DURATION_MS -- The response must come back within five minutes
+        if RecordUpdates[msg.Tags.Name] and RecordUpdates[msg.Tags.Name].timeStamp >= deadline then
+            ao.send({
+                Target = msg.From,
+                Tags = { Action = 'Already-Initiated', ContractId = msg.Tags.ContractId }
+            })
+        end
+
+        if RecordUpdates[msg.Tags.Name] and RecordUpdates[msg.Tags.Name].timeStamp < deadline then
+            ao.send({
+                Target = RecordUpdates[msg.Tags.Name].requestor,
+                Tags = { Action = 'Record-Update-Cleaned', Name = Name, ProcessId = RecordUpdates[msg.Tags.Name].processId, Deadline = tostring(deadline) }
+            })
+            RecordUpdates[msg.Tags.Name] = nil -- Delete this record update because it is past the deadline
+        end
+
         if Records[msg.Tags.Name] then
             -- GET CURRENT NAME OWNER
             local url = CacheUrl .. Records[msg.Tags.Name].contractTxId
+            fetchJsonDataFromOrbit(url)
 
-            RecordUpdates[msg.From] = {
-                nameRequested = msg.Tags.Name,
+            RecordUpdates[Records[msg.Tags.Name].contractTxId] = {
+                name = msg.Tags.Name,
+                processId = msg.Tags.ProcessId,
                 url = url,
-                timeStamp = os.time()
+                timeStamp = msg.Timestamp,
+                requestor = msg.From
             }
-            ao.send({ Target = _0RBIT, Action = "Get-Real-Data", Url = url })
+            ao.send({
+                Target = msg.From,
+                Tags = { Action = 'Initiate-Record-Update-Notice', ContractId = msg.Tags.ContractId }
+            })
         end
     end)
 
+function isControllerPresent(controllers, controller)
+    for _, id in ipairs(controllers) do
+        if id == controller then
+            return true
+        end
+    end
+    return false
+end
+
+Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive-data-feed'), function(msg, env)
+    print("Got Data...")
+    if msg.From == _0RBIT_RECEIVE then
+        print("...from Orbit")
+        local data, _, err = json.decode(msg.Data)
+        local deadline = tonumber(msg.Timestamp) - DEADLINE_DURATION_MS -- The response must come back within ten minutes
+        if data.state.name == nil then
+            ao.send({
+                Target = env.Process.Id,
+                Tags = { Action = 'Record-Update-Error', Error = 'Invalid state name' }
+            })
+        end
+        if RecordUpdates[data.contractTxId] == nil then
+            ao.send({
+                Target = env.Process.Id,
+                Tags = { Action = 'Record-Update-Error', Error = 'Record update does not exist' }
+            })
+        end
+        print("alright")
+        if RecordUpdates[data.contractTxId].timeStamp >= deadline then
+            print("Lets do this")
+            print(data.state.controllers)
+            print(data.state.owner)
+            if RecordUpdates[data.contractTxId].requestor == env.Process.Id or data.state.owner == RecordUpdates[data.contractTxId].requestor or isControllerPresent(data.state.controllers, RecordUpdates[data.contractTxId].requestor) then
+                -- This is a valid request
+                print("You got the right permissions!")
+                print("Updating process: " .. RecordUpdates[data.contractTxId].processId)
+                Records[RecordUpdates[data.contractTxId].name].processId = RecordUpdates[data.contractTxId].processId
+                ao.send({
+                    Target = RecordUpdates[data.contractTxId].requestor,
+                    Tags = { Action = 'Record-Update-Complete', Name = RecordUpdates[data.contractTxId].name, ProcessId = RecordUpdates[data.contractTxId].processId }
+                })
+                RecordUpdates[data.contractTxId] = nil
+            else
+                print("Invalid ownership")
+                ao.send({
+                    Target = RecordUpdates[data.contractTxId].requestor,
+                    Tags = { Action = 'Record-Update-Error', Name = RecordUpdates[data.contractTxId].name, ContractTxId = data.contractTxId, Error = 'Not ANT Owner or Controller!' }
+                })
+                RecordUpdates[data.contractTxId] = nil
+            end
+        else
+            print("past deadline")
+            ao.send({
+                Target = RecordUpdates[data.contractTxId].requestor,
+                Tags = { Action = 'Record-Update-Cleaned', Name = RecordUpdates[data.contractTxId].name, ProcessId = RecordUpdates[data.contractTxId].processId, Deadline = tostring(deadline) }
+            })
+            RecordUpdates[data.contractTxId] = nil -- Delete this record update because it is past the deadline
+        end
+    end
+end)
 -- Handler to receive deposits
 Handlers.add('initiateDeposit', Handlers.utils.hasMatchingTag('Action', 'Initiate-Deposit'), function(msg, env)
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
@@ -274,7 +381,6 @@ Handlers.add("Cron",
     end
 )
 
-
 function validateBuyRecord(msg)
     -- Check for required field 'name'
     if not msg.Tags.name or type(msg.Tags.name) ~= "string" then
@@ -318,5 +424,6 @@ function tableCount(table)
 end
 
 function fetchJsonDataFromOrbit(url)
-    ao.send({ Target = _0RBIT, Action = "Get-Real-Data", Url = url })
+    print("Getting orbit data from: " .. url)
+    ao.send({ Target = _0RBIT_SEND, Action = "Get-Real-Data", Url = url })
 end

@@ -29,14 +29,6 @@ if not Records then
         transactionId = 'UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk',
         ttlSeconds = 3600
     }
-    Records['dapp'] = {
-        transactionId = 'qrWdhy_PxrniBUlYn0macF-YbNgbmnmV5OVSrVRxxV8',
-        ttlSeconds = 3600
-    }
-    Records['logo'] = {
-        transactionId = 'KKmRbIfrc7wiLcG0zvY1etlO0NBx1926dSCksxCIN3A',
-        ttlSeconds = 3600
-    }
 end
 
 -- Custom validateSetRecord function in Lua

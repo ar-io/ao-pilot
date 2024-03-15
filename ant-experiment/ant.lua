@@ -78,7 +78,11 @@ end
 
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     ao.send(
-        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers), Data = json.encode(Records) } })
+        {
+            Target = msg.From,
+            Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
+            Data = json.encode(Records)
+        })
 end)
 
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)

@@ -143,7 +143,8 @@ Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'),
     if msg.Tags.Name and Records[msg.Tags.Name] then
         ao.send({
             Target = msg.From,
-            Tags = { Action = 'Record-Resolved', Name = msg.Tags.Name, ContractTxId = Records[msg.Tags.Name].ContractTxId, ProcessId = Records[msg.Tags.Name].ProcessId, Data = json.encode(Records[msg.Tags.Name]) }
+            Tags = { Action = 'Record-Resolved', Name = msg.Tags.Name, ContractTxId = Records[msg.Tags.Name].ContractTxId, ProcessId = Records[msg.Tags.Name].ProcessId },
+            Data = json.encode(Records[msg.Tags.Name])
         })
     else
         ao.send({

@@ -11,7 +11,11 @@ end
 
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     ao.send(
-        { Target = msg.From, Tags = { ProcessOwner = Owner, Data = json.encode(Records) } })
+        {
+            Target = msg.From,
+            Tags = { ProcessOwner = Owner },
+            Data = json.encode(Records)
+        })
 end)
 
 Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), function(msg)

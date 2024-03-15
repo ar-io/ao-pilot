@@ -40,10 +40,14 @@ local arnsMeta = {
                     return NAMES[rootName].process.records[underName].transactionId
                 elseif underName ~= nil and rootName == nil and contract ~= nil then
                     return NAMES[underName].contract.records['@'].transactionId
-                elseif underName == nil and rootName == nil and contract == nil then
-                    return NAMES[rootName].process.records['@'].transactionId
+                elseif underName ~= nil and rootName == nil and contract == nil then
+                    return NAMES[underName].process.records['@'].transactionId
                 else
-                    return name .. ' has not been resolved yet.  Cannot get data pointer.'
+                    if rootName then
+                        underName = rootName -- this is weird because the splitIntoTwoNames is funky
+                    end
+                    ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = underName })
+                    return name .. ' has not been resolved yet.  Resolving now...'
                 end
             end
         elseif key == "owner" then
@@ -53,7 +57,8 @@ local arnsMeta = {
                     rootName = underName
                 end
                 if NAMES[rootName] == nil then
-                    return name .. ' has not been resolved yet.  Cannot get owner.'
+                    ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = rootName })
+                    return name .. ' has not been resolved yet.  Cannot get owner.  Resolving now...'
                 end
                 if contract == nil then
                     return NAMES[rootName].processOwner
@@ -68,7 +73,8 @@ local arnsMeta = {
                     rootName = underName
                 end
                 if NAMES[rootName] == nil then
-                    return name .. ' has not been resolved yet.  Cannot get id.'
+                    ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = name })
+                    return name .. ' has not been resolved yet.  Cannot get id.  Resolving now...'
                 end
                 if contract == nil then
                     return NAMES[rootName].processId
@@ -118,15 +124,19 @@ end
 
 Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
     local data = json.decode(msg.Data)
-    NAMES[msg.Tags.Name] = {
-        contractTxId = data.contractTxId,
-        contractOwner = nil,
-        contract = nil,
-        processId = data.processId,
-        processOwner = nil,
-        process = nil,
-        record = data
-    }
+    if NAMES[msg.Tags.Name] == nil then
+        NAMES[msg.Tags.Name] = {
+            contractTxId = data.contractTxId,
+            contractOwner = nil,
+            contract = nil,
+            processId = data.processId,
+            processOwner = nil,
+            process = nil,
+            record = data
+        }
+    else
+        NAMES[msg.Tags.Name].record = data
+    end
     print("   Updated " .. msg.Tags.Name .. " with the latest ArNS-AO Registry info!")
     if data.contractTxId ~= nil then
         Url = ARNS_CACHE .. data.contractTxId

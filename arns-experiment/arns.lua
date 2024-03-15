@@ -285,15 +285,9 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
                 Tags = { Action = 'Record-Update-Error', Error = 'Record update does not exist' }
             })
         end
-        print("alright")
         if RecordUpdates[data.contractTxId].timeStamp >= deadline then
-            print("Lets do this")
-            print(data.state.controllers)
-            print(data.state.owner)
             if RecordUpdates[data.contractTxId].requestor == env.Process.Id or data.state.owner == RecordUpdates[data.contractTxId].requestor or isControllerPresent(data.state.controllers, RecordUpdates[data.contractTxId].requestor) then
                 -- This is a valid request
-                print("You got the right permissions!")
-                print("Updating process: " .. RecordUpdates[data.contractTxId].processId)
                 Records[RecordUpdates[data.contractTxId].name].processId = RecordUpdates[data.contractTxId].processId
                 ao.send({
                     Target = RecordUpdates[data.contractTxId].requestor,
@@ -309,7 +303,6 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
                 RecordUpdates[data.contractTxId] = nil
             end
         else
-            print("past deadline")
             ao.send({
                 Target = RecordUpdates[data.contractTxId].requestor,
                 Tags = { Action = 'Record-Update-Cleaned', Name = RecordUpdates[data.contractTxId].name, ProcessId = RecordUpdates[data.contractTxId].processId, Deadline = tostring(deadline) }

@@ -9,12 +9,16 @@ if not Records then
     }
 end
 
-Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
+Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
+    local info = {
+        owner = Owner,
+        records = Records
+    }
     ao.send(
         {
             Target = msg.From,
             Tags = { ProcessOwner = Owner },
-            Data = json.encode(Records)
+            Data = json.encode(info)
         })
 end)
 

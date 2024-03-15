@@ -4,17 +4,77 @@ ARNS_CACHE = "https://api.arns.app/v1/contract/"
 _0RBIT_SEND = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
 _0RBIT_RECEIVE = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
 
-_ARNS = {}
-ID_NAME_MAPPING = {}
+NAMES = NAMES or {}
+ID_NAME_MAPPING = ID_NAME_MAPPING or {}
+
+function splitIntoTwoNames(str)
+    -- Pattern explanation:
+    -- (.-) captures any character as few times as possible up to the last underscore
+    -- _ captures the underscore itself
+    -- ([^_]+)$ captures one or more characters that are not underscores at the end of the string
+    local underName, rootName = str:match("(.-)_([^_]+)$")
+
+    if underName and rootName then
+        return tostring(underName), tostring(rootName)
+    else
+        -- If the pattern does not match (e.g., there's no underscore in the string),
+        -- return the original string as the first chunk and nil as the second
+        return str, nil
+    end
+end
 
 local arnsMeta = {
     __index = function(t, key)
         -- sends Get-Record request
         if key == "resolve" then
             return function(name)
-                print("resolving " .. name)
-                Send({ Target = ARNS_PROCESS, Action = "Get-Record", Tags = { Name = name } })
-                return "ArNS Name resolution requested."
+                ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = name })
+                return "Getting information for name: " .. name
+            end
+        elseif key == "data" then
+            return function(name, contract)
+                local underName, rootName = splitIntoTwoNames(name)
+                if underName ~= nil and rootName ~= nil and contract ~= nil then
+                    return NAMES[rootName].contract.records[underName].transactionId
+                elseif underName ~= nil and rootName ~= nil and contract == nil then
+                    return NAMES[rootName].process.records[underName].transactionId
+                elseif underName ~= nil and rootName == nil and contract ~= nil then
+                    return NAMES[underName].contract.records['@'].transactionId
+                elseif underName == nil and rootName == nil and contract == nil then
+                    return NAMES[rootName].process.records['@'].transactionId
+                else
+                    return name .. ' has not been resolved yet.  Cannot get data pointer.'
+                end
+            end
+        elseif key == "owner" then
+            return function(name, contract)
+                local rootName, underName = splitIntoTwoNames(name)
+                if underName then
+                    rootName = underName
+                end
+                if NAMES[rootName] == nil then
+                    return name .. ' has not been resolved yet.  Cannot get owner.'
+                end
+                if contract == nil then
+                    return NAMES[rootName].processOwner
+                else
+                    return NAMES[rootName].contractOwner
+                end
+            end
+        elseif key == "id" then
+            return function(name, contract)
+                local rootName, underName = splitIntoTwoNames(name)
+                if underName then
+                    rootName = underName
+                end
+                if NAMES[rootName] == nil then
+                    return name .. ' has not been resolved yet.  Cannot get id.'
+                end
+                if contract == nil then
+                    return NAMES[rootName].processId
+                else
+                    return NAMES[rootName].contractTxId
+                end
             end
         else
             return nil
@@ -22,12 +82,31 @@ local arnsMeta = {
     end
 }
 
-
 ARNS = setmetatable({}, arnsMeta)
 
 local function fetchJsonDataFromOrbit(url)
     ao.send({ Target = _0RBIT_SEND, Action = "Get-Real-Data", Url = url })
 end
+
+local function is0rbitMessage(msg)
+    if msg.From == _0RBIT_RECEIVE and msg.Action == 'Receive-data-feed' then
+        return true
+    else
+        return false
+    end
+end
+
+Handlers.add("Receive0rbitMessage", is0rbitMessage, function(msg)
+    local data, _, err = json.decode(msg.Data)
+    if NAMES[ID_NAME_MAPPING[data.contractTxId]] then
+        UpdatedInfo = NAMES[ID_NAME_MAPPING[data.contractTxId]]
+        UpdatedInfo.contractOwner = data.state.owner
+        UpdatedInfo.contract = data.state
+        NAMES[ID_NAME_MAPPING[data.contractTxId]] = UpdatedInfo
+        print("   Updated " .. ID_NAME_MAPPING[data.contractTxId] .. " from the SmartWeave Cache (via 0rbit)!")
+        ID_NAME_MAPPING[data.contractTxId] = nil
+    end
+end)
 
 local function isArNSGetRecordMessage(msg)
     if msg.From == ARNS_PROCESS and msg.Action == "Record-Resolved" then
@@ -38,29 +117,32 @@ local function isArNSGetRecordMessage(msg)
 end
 
 Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
-    Url = nil
-    _ARNS[msg.Tags.Name] = {
-        record = json.decode(msg.Data)
+    local data = json.decode(msg.Data)
+    NAMES[msg.Tags.Name] = {
+        contractTxId = data.contractTxId,
+        contractOwner = nil,
+        contract = nil,
+        processId = data.processId,
+        processOwner = nil,
+        process = nil,
+        record = data
     }
-    print("Updated record info")
-    if msg.Tags.ContractTxId then
-        Url = ARNS_CACHE .. msg.Tags.ContractTxId
-        print("Fetching ownership info from smartweave cache")
+    print("   Updated " .. msg.Tags.Name .. " with the latest ArNS-AO Registry info!")
+    if data.contractTxId ~= nil then
+        Url = ARNS_CACHE .. data.contractTxId
+        print("   ...fetching more info from SmartWeave Cache (via Orbit)")
         fetchJsonDataFromOrbit(Url)
-        ID_NAME_MAPPING[msg.Tags.ContractTxId] = msg.Tags.Name
+        ID_NAME_MAPPING[data.contractTxId] = msg.Tags.Name
     end
-    if msg.Tags.ProcessId then
-        print("Fetching ownership info from process")
-        ID_NAME_MAPPING[msg.Tags.ProcessId] = msg.Tags.Name
-        ao.send({ Target = msg.Tags.ProcessId, Action = "Info" })
+    if data.processId ~= nil and data.processId ~= '' then
+        print("   ...fetching more info from ANT-AO process")
+        ID_NAME_MAPPING[data.processId] = msg.Tags.Name
+        ao.send({ Target = data.processId, Action = "Info" })
     end
 end)
 
 local function isANTInfoMessage(msg)
-    local data, _, err = json.decode(msg.Data)
-    print('got ant data')
-    print(data)
-    if msg.Tags.ProcessOwner and data.records then
+    if ID_NAME_MAPPING[msg.From] ~= nil then
         return true
     else
         return false
@@ -68,53 +150,12 @@ local function isANTInfoMessage(msg)
 end
 
 Handlers.add("ReceiveANTProcessInfoMessage", isANTInfoMessage, function(msg)
-    UpdatedInfo = {
-        record = nil,
-        process = nil,
-        contract = nil
-    }
-    if _ARNS[ID_NAME_MAPPING[msg.From]].record then
-        UpdatedInfo.record = ARNS[ID_NAME_MAPPING[msg.From]].record
+    if NAMES[ID_NAME_MAPPING[msg.From]] then
+        UpdatedInfo = NAMES[ID_NAME_MAPPING[msg.From]]
+        UpdatedInfo.processOwner = msg.Tags.ProcessOwner
+        UpdatedInfo.process = json.decode(msg.Data)
+        NAMES[ID_NAME_MAPPING[msg.From]] = UpdatedInfo
+        print("   Updated " .. ID_NAME_MAPPING[msg.From] .. " from the latest ANT-AO process!")
+        ID_NAME_MAPPING[msg.From] = nil
     end
-    if _ARNS[ID_NAME_MAPPING[msg.From]].contract then
-        UpdatedInfo.contract = ARNS[ID_NAME_MAPPING[msg.From]].contract
-    end
-    UpdatedInfo.process = {
-        processOwner = msg.Tags.ProcessOwner,
-        records = json.decode(msg.Data)
-    }
-    _ARNS[ID_NAME_MAPPING[msg.From]] = UpdatedInfo
-    print("Updated Process info")
-    ID_NAME_MAPPING[msg.From] = nil
-end)
-
-local function is0rbitMessage(msg)
-    local data, _, err = json.decode(msg.Data)
-    print('got orbit data')
-    print(data)
-    if msg.From == _0RBIT_RECEIVE and msg.Action == 'Receive-data-feed' then
-        return true
-    else
-        return false
-    end
-end
-
-Handlers.add("Receive0rbitMessage", is0rbitMessage, function(msg)
-    local data, _, err = json.decode(msg.Data)
-
-    UpdatedInfo = {
-        record = nil,
-        process = nil,
-        contract = nil
-    }
-    if _ARNS[ID_NAME_MAPPING[data.contractTxId]].record then
-        UpdatedInfo.record = ARNS[ID_NAME_MAPPING[data.contractTxId]].record
-    end
-    if _ARNS[ID_NAME_MAPPING[data.contractTxId]].process then
-        UpdatedInfo.process = ARNS[ID_NAME_MAPPING[data.contractTxId]].process
-    end
-    UpdatedInfo.contract = data.state
-    _ARNS[ID_NAME_MAPPING[data.contractTxId]] = UpdatedInfo
-    print("Updated Contract info")
-    ID_NAME_MAPPING[data.contractTxId] = nil
 end)

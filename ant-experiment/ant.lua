@@ -77,11 +77,20 @@ function fetchJsonDataFromOrbit(url)
 end
 
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
+    local info = {
+        name = Name,
+        ticker = Ticker,
+        logo = Logo,
+        owner = Owner,
+        denomination = tostring(Denomination),
+        controllers = json.encode(Controllers),
+        records = Records
+    }
     ao.send(
         {
             Target = msg.From,
             Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
-            Data = json.encode(Records)
+            Data = json.encode(info)
         })
 end)
 

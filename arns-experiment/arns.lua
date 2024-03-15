@@ -141,10 +141,9 @@ Handlers.add('getCredits', Handlers.utils.hasMatchingTag('Action', 'Get-Credits'
 
 Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'), function(msg)
     if msg.Tags.Name and Records[msg.Tags.Name] then
-        recordOwner = Records[msg.Tags.Name]
         ao.send({
             Target = msg.From,
-            Tags = { Name = msg.Tags.Name, ContractId = Records[msg.Tags.Name].ContractId, Data = json.encode(Records[msg.Tags.Name]) }
+            Tags = { Action = 'Record-Resolved', Name = msg.Tags.Name, ContractTxId = Records[msg.Tags.Name].ContractTxId, ProcessId = Records[msg.Tags.Name].ProcessId, Data = json.encode(Records[msg.Tags.Name]) }
         })
     else
         ao.send({

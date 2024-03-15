@@ -9,16 +9,21 @@ if not Records then
     }
 end
 
+Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
+    ao.send(
+        { Target = msg.From, Tags = { ProcessOwner = Owner, Data = json.encode(Records) } })
+end)
+
 Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), function(msg)
     if msg.Tags.SubDomain and Records[msg.Tags.SubDomain] then
         ao.send({
             Target = msg.From,
-            Tags = { SubDomain = msg.Tags.SubDomain, TransactionId = Records[msg.Tags.SubDomain].transactionId, TtlSeconds = tostring(Records[msg.Tags.SubDomain].ttlSeconds) }
+            Tags = { Action = 'Record-Resolved', SubDomain = msg.Tags.SubDomain, TransactionId = Records[msg.Tags.SubDomain].transactionId, TtlSeconds = tostring(Records[msg.Tags.SubDomain].ttlSeconds) }
         })
     elseif Records['@'] then -- If no SubDomain is provided, then return the root subdomain
         ao.send({
             Target = msg.From,
-            Tags = { SubDomain = '@', TransactionId = Records['@'].transactionId, TtlSeconds = tostring(Records['@'].ttlSeconds) }
+            Tags = { Action = 'Record-Resolved', SubDomain = '@', TransactionId = Records['@'].transactionId, TtlSeconds = tostring(Records['@'].ttlSeconds) }
         })
     else
         ao.send({

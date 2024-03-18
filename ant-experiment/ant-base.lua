@@ -22,7 +22,7 @@ Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
         })
 end)
 
-Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), function(msg)
+Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'), function(msg)
     if msg.Tags.SubDomain and Records[msg.Tags.SubDomain] then
         ao.send({
             Target = msg.From,
@@ -36,10 +36,10 @@ Handlers.add('record', Handlers.utils.hasMatchingTag('Action', 'Record'), functi
     else
         ao.send({
             Target = msg.From,
-            Tags = { Action = 'GetRecord-Error', ['Message-Id'] = msg.Id, Error = 'Requested non-existant record' }
+            Tags = { Action = 'Get-Record-Error', ['Message-Id'] = msg.Id, Error = 'Requested non-existant record' }
         })
     end
 end)
 
-Handlers.add('records', Handlers.utils.hasMatchingTag('Action', 'Records'),
-    function(msg) ao.send({ Target = msg.From, Data = json.encode(Records) }) end)
+Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'),
+    function(msg) ao.send({ Action = 'Records-Resolved', Target = msg.From, Data = json.encode(Records) }) end)

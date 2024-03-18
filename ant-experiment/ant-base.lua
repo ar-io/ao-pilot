@@ -17,7 +17,7 @@ Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
     ao.send(
         {
             Target = msg.From,
-            Tags = { ProcessOwner = Owner },
+            Tags = { Action = 'Info-Notice', ProcessOwner = Owner },
             Data = json.encode(info)
         })
 end)

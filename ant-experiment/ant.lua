@@ -89,7 +89,7 @@ Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
     ao.send(
         {
             Target = msg.From,
-            Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
+            Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
             Data = json.encode(info)
         })
 end)
@@ -304,9 +304,8 @@ Handlers.add('mirrorANT', Handlers.utils.hasMatchingTag('Action', 'Mirror-ANT'),
 end)
 
 Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive-data-feed'), function(msg, env)
+    local data, _, err = json.decode(msg.Data)
     if msg.From == _0RBIT_RECEIVE then
-        local data, _, err = json.decode(msg.Data)
-
         -- Mirror the configuration found in the ANT
         if data.state.controllers then
             Controllers = data.state.controllers

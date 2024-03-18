@@ -121,6 +121,10 @@ if not RecordUpdates then
     RecordUpdates = {}
 end
 
+if not RecordClaims then
+    RecordClaims = {}
+end
+
 -- Setup the default empty credit balances
 if not Credits then
     Credits = {}
@@ -172,27 +176,6 @@ Handlers.add('initiateLoadRecords', Handlers.utils.hasMatchingTag('Action', 'Ini
         })
     end
 end)
-
---[[Handlers.add('spawnANT', Handlers.utils.hasMatchingTag('Action', 'Spawn-ANT'), function(msg, env)
-    assert(type(msg.Tags.Name) == 'string', 'Name is required!')
-    if msg.From == env.Process.Id then
-        ao.spawn(ANTModule, {})
-
-        ao.send({
-            Target = env.Process.Id,
-            Tags = { Action = 'Data', Load = msg.Tags.ArweaveTxId }
-        })
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'Initiate-Load-Records-Received', Load = msg.Tags.ArweaveTxId }
-        })
-    else
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'Initiate-Load-Records-Error', ['Message-Id'] = msg.Id, Error = 'Not being run by Process' }
-        })
-    end
-end) --]]
 
 Handlers.add('dataNotice', Handlers.utils.hasMatchingTag('Action', 'Data'), function(msg, env)
     if msg.From == env.Process.Id then
@@ -258,6 +241,44 @@ Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'In
         end
     end)
 
+Handlers.add('initiateRecordClaim', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Claim'),
+    function(msg)
+        assert(type(msg.Tags.Name) == 'string', 'Name is required!')
+
+        local deadline = msg.Timestamp - DEADLINE_DURATION_MS -- The response must come back within five minutes
+        if RecordClaims[msg.Tags.Name] and RecordClaims[msg.Tags.Name].timeStamp >= deadline then
+            ao.send({
+                Target = msg.From,
+                Tags = { Action = 'Already-Initiated-Record-Claim', Name = msg.Tags.Name }
+            })
+        end
+
+        if RecordClaims[msg.Tags.Name] and RecordClaims[msg.Tags.Name].timeStamp < deadline then
+            ao.send({
+                Target = RecordClaims[msg.Tags.Name].requestor,
+                Tags = { Action = 'Record-Claim-Cleaned', Name = Name, Deadline = tostring(deadline) }
+            })
+            RecordClaims[msg.Tags.Name] = nil -- Delete this record update because it is past the deadline
+        end
+
+        if Records[msg.Tags.Name] == nil then
+            -- GET CURRENT RECORD DETAILS
+            local url = ArNSCacheUrl .. msg.Tags.Name
+            fetchJsonDataFromOrbit(url)
+
+            RecordClaims[msg.Tags.Name] = {
+                name = msg.Tags.Name,
+                url = url,
+                timeStamp = msg.Timestamp,
+                requestor = msg.From
+            }
+            ao.send({
+                Target = msg.From,
+                Tags = { Action = 'Initiate-Record-Claim-Notice', ContractId = msg.Tags.ContractId }
+            })
+        end
+    end)
+
 function isControllerPresent(controllers, controller)
     for _, id in ipairs(controllers) do
         if id == controller then
@@ -273,19 +294,32 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
         print("...from Orbit")
         local data, _, err = json.decode(msg.Data)
         local deadline = tonumber(msg.Timestamp) - DEADLINE_DURATION_MS -- The response must come back within ten minutes
-        if data.state.name == nil then
+
+        if data.name and RecordClaims[data.name].timeStamp >= deadline then
+            if RecordClaims[data.name].requestor == env.Process.Id or data.owner == RecordClaims[data.name].requestor then
+                -- This is a valid request
+                Records[data.name] = data.record
+                Records[data.name].processId = ""
+                ao.send({
+                    Target = RecordClaims[data.name].requestor,
+                    Tags = { Action = 'Record-Claim-Complete', Name = data.name, ContractTxId = data.contractTxId }
+                })
+                RecordClaims[data.name] = nil
+            else
+                print("Invalid ownership")
+                ao.send({
+                    Target = RecordClaims[data.name].requestor,
+                    Tags = { Action = 'Record-Claim-Error', Name = RecordClaims[data.name].name, ContractTxId = data.contractTxId, Error = 'Not ANT Owner or Controller!' }
+                })
+                RecordClaims[data.name] = nil
+            end
+        elseif data.name and RecordClaims[data.name].timeStamp < deadline then
             ao.send({
-                Target = env.Process.Id,
-                Tags = { Action = 'Record-Update-Error', Error = 'Invalid state name' }
+                Target = RecordClaims[data.name].requestor,
+                Tags = { Action = 'Record-Claim-Cleaned', Name = data.name, Deadline = tostring(deadline) }
             })
-        end
-        if RecordUpdates[data.contractTxId] == nil then
-            ao.send({
-                Target = env.Process.Id,
-                Tags = { Action = 'Record-Update-Error', Error = 'Record update does not exist' }
-            })
-        end
-        if RecordUpdates[data.contractTxId].timeStamp >= deadline then
+            RecordClaims[data.name] = nil -- Delete this record update because it is past the deadline
+        elseif data.contractTxId and RecordUpdates[data.contractTxId].timeStamp >= deadline then
             if RecordUpdates[data.contractTxId].requestor == env.Process.Id or data.state.owner == RecordUpdates[data.contractTxId].requestor or isControllerPresent(data.state.controllers, RecordUpdates[data.contractTxId].requestor) then
                 -- This is a valid request
                 Records[RecordUpdates[data.contractTxId].name].processId = RecordUpdates[data.contractTxId].processId
@@ -311,31 +345,8 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
         end
     end
 end)
--- Handler to receive deposits
-Handlers.add('initiateDeposit', Handlers.utils.hasMatchingTag('Action', 'Initiate-Deposit'), function(msg, env)
-    assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
-
-    local qty = tonumber(msg.Tags.Quantity)
-    assert(type(qty) == 'number' and qty > 0, 'Quantity must be a positive number')
-
-    print("Initiating deposit from: " .. msg.From)
-    ao.send({
-        Target = TokenProcessId, -- Address/identifier of the Token process
-        Tags = {
-            Action = 'Transfer',
-            Recipient = env.Process.Id, -- The ARNS Registry's address within the Token process
-            Quantity = tostring(qty),
-        }
-    })
-    ao.send({
-        Target = msg.From,
-        Tags = { Action = 'Deposit-Initiated', Quantity = tostring(qty) }
-    })
-end)
 
 Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg, env)
-    print("Woa we got a credit notice message")
-    print("Sender: " .. msg.Tags.Sender)
     if msg.From == TokenProcessId then
         -- Update or initialize the sender's credit balance
         Credits[msg.Tags.Sender] = (Credits[msg.Tags.Sender] or 0) + msg.Tags.Quantity

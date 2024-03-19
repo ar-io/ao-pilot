@@ -1,12 +1,15 @@
 local json = require('json')
 
+-- Constants
+-- Used to determine when to require name resolution
+TTL_SECONDS = 24 * 60 * 60 -- 24 hour TTL_SECONDS by default
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
 
 -- Process IDs for interacting with other services or processes
 ARNS_PROCESS_ID = "COnVYFiqpycAJrFQbrKIgUEAZ1L98sF0h_26G8GxRpQ"
 _0RBIT_SEND_PROCESS_ID = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
-_0RBIT_RECEIVE = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
+_0RBIT_RECEIVE_PROCESS_ID = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
@@ -113,12 +116,14 @@ function fetchJsonDataFromOrbit(url)
         print("Invalid URL provided for fetching JSON data.")
         return
     end
-    print("Getting orbit data from: " .. url)
     -- Send a request to the Orbit process with the specified URL.
     ao.send({ Target = _0RBIT_SEND_PROCESS_ID, Action = "Get-Real-Data", Url = url })
 end
 
-local function isArNSGetRecordMessage(msg)
+--- Determines if a given message is a record response from the ARNS process.
+-- @param msg The message to evaluate.
+-- @return boolean True if the message is from the ARNS process and action is 'Record-Resolved', otherwise false.
+function isArNSGetRecordMessage(msg)
     if msg.From == ARNS_PROCESS_ID and msg.Action == "Record-Resolved" then
         return true
     else
@@ -126,59 +131,22 @@ local function isArNSGetRecordMessage(msg)
     end
 end
 
-Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
-    local data = json.decode(msg.Data)
-    if NAMES[msg.Tags.Name] == nil then
-        NAMES[msg.Tags.Name] = {
-            lastUpdated = msg.Timestamp,
-            contractTxId = data.contractTxId,
-            contractOwner = nil,
-            contract = nil,
-            processId = data.processId,
-            processOwner = nil,
-            process = nil,
-            record = data
-        }
-    else
-        NAMES[msg.Tags.Name].processId = data.processId
-        NAMES[msg.Tags.Name].record = data
-        NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
-    end
-    print("   Updated " .. msg.Tags.Name .. " with the latest ArNS-AO Registry info!")
-    if data.contractTxId ~= nil then
-        Url = SW_CACHE_URL .. data.contractTxId
-        print("   ...fetching more info from SmartWeave Cache (via Orbit)")
-        fetchJsonDataFromOrbit(Url)
-        ID_NAME_MAPPING[data.contractTxId] = msg.Tags.Name
-    end
-    if data.processId ~= nil and data.processId ~= '' then
-        print("   ...fetching more info from ANT-AO process")
-        ID_NAME_MAPPING[data.processId] = msg.Tags.Name
-        ao.send({ Target = data.processId, Action = "Info" })
-    end
-end)
-
-local function isANTInfoMessage(msg)
-    if ID_NAME_MAPPING[msg.From] ~= nil then
+--- Determines if a message is an 'Info' message from an ANT or related process.
+-- Checks if the sender's ID exists within the ID_NAME_MAPPING.
+-- @param msg The message object to check.
+-- @return boolean True if the sender's ID is recognized, false otherwise.
+function isANTInfoMessage(msg)
+    if ID_NAME_MAPPING[msg.From] then
         return true
     else
         return false
     end
 end
 
-Handlers.add("ReceiveANTProcessInfoMessage", isANTInfoMessage, function(msg)
-    if msg.Action == 'Info-Notice' and NAMES[ID_NAME_MAPPING[msg.From]] then
-        UpdatedInfo = NAMES[ID_NAME_MAPPING[msg.From]]
-        UpdatedInfo.process = json.decode(msg.Data)
-        UpdatedInfo.process.owner = msg.Tags.ProcessOwner
-        UpdatedInfo.process.lastUpdated = msg.Timestamp
-        NAMES[ID_NAME_MAPPING[msg.From]] = UpdatedInfo
-        print("   Updated " .. ID_NAME_MAPPING[msg.From] .. " from the latest ANT-AO process!")
-        ID_NAME_MAPPING[msg.From] = nil
-    end
-end)
-
-local function is0rbitMessage(msg)
+--- Determines if a message is from the 0RBIT process with a 'Receive-data-feed' action.
+-- @param msg The message object to check.
+-- @return boolean True if the message is from the 0RBIT process and has the specified action, false otherwise.
+function is0rbitMessage(msg)
     if msg.From == _0RBIT_RECEIVE_PROCESS_ID and msg.Action == 'Receive-data-feed' then
         return true
     else
@@ -186,15 +154,108 @@ local function is0rbitMessage(msg)
     end
 end
 
+--- Handles received ArNS "Record-Resolved" messages by updating the local NAMES table.
+-- Updates or initializes the record for the given name with the latest information.
+-- Fetches additional information from SmartWeave Cache or ANT-AO process if necessary.
+Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
+    local data, err = json.decode(msg.Data)
+    if not data or err then
+        print("Error decoding JSON data: ", err)
+        return
+    end
+
+    -- Update or initialize the record with the latest information.
+    NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name] or {
+        lastUpdated = msg.Timestamp,
+        contractTxId = data.contractTxId,
+        -- Assuming these fields are placeholders for future updates.
+        contractOwner = nil,
+        contract = nil,
+        processOwner = nil,
+        process = nil
+    }
+    NAMES[msg.Tags.Name].processId = data.processId
+    NAMES[msg.Tags.Name].record = data
+    NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
+
+    print("Updated " .. msg.Tags.Name .. " with the latest ArNS-AO Registry info!")
+
+    -- Fetch additional information if contractTxId is provided.
+    if data.contractTxId then
+        local url = SW_CACHE_URL .. data.contractTxId
+        print("...fetching more info from SmartWeave Cache (via 0rbit): " .. url)
+        fetchJsonDataFromOrbit(url)
+        ID_NAME_MAPPING[data.contractTxId] = msg.Tags.Name
+    end
+
+    -- Request more information if processId is provided and not empty.
+    if data.processId then
+        print("...fetching more info from ANT-AO process: " .. data.processId)
+        ID_NAME_MAPPING[data.processId] = msg.Tags.Name
+        ao.send({ Target = data.processId, Action = "Info" })
+    end
+end)
+
+--- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
+-- @param msg The received message object containing updated process info.
+Handlers.add("ReceiveANTProcessInfoMessage", isANTInfoMessage, function(msg)
+    if msg.Action == 'Info-Notice' and NAMES[ID_NAME_MAPPING[msg.From]] then
+        local nameKey = ID_NAME_MAPPING[msg.From]
+        local updatedInfo = NAMES[nameKey]
+
+        -- Attempt to decode the JSON data from the message.
+        local processInfo, err = json.decode(msg.Data)
+        if err then
+            print("Error decoding process info: ", err)
+            return
+        end
+
+        -- Ensure the decoded data is a valid table before updating.
+        if type(processInfo) == "table" then
+            updatedInfo.process = processInfo
+            updatedInfo.process.owner = msg.Tags.ProcessOwner
+            updatedInfo.process.lastUpdated = msg.Timestamp
+            NAMES[nameKey] = updatedInfo
+            print("Updated " .. nameKey .. " with the latest ANT-AO process info!")
+        else
+            print("Invalid process info format received from " .. nameKey)
+        end
+
+        -- Clear the mapping after updating to prevent redundant updates.
+        ID_NAME_MAPPING[msg.From] = nil
+    end
+end)
+
+--- Processes messages from the 0rbit process to update contract information stored in NAMES.
+-- @param msg The message object received from the 0rbit process.
 Handlers.add("Receive0rbitMessage", is0rbitMessage, function(msg)
-    local data, _, err = json.decode(msg.Data)
-    if NAMES[ID_NAME_MAPPING[data.contractTxId]] then
-        UpdatedInfo = NAMES[ID_NAME_MAPPING[data.contractTxId]]
-        UpdatedInfo.contract = data.state
-        UpdatedInfo.contract.owner = data.state.owner
-        UpdatedInfo.contract.lastUpdated = msg.Timestamp
-        NAMES[ID_NAME_MAPPING[data.contractTxId]] = UpdatedInfo
-        print("   Updated " .. ID_NAME_MAPPING[data.contractTxId] .. " from the SmartWeave Cache (via 0rbit)!")
+    -- Decode the JSON data from the message.
+    local data, err = json.decode(msg.Data)
+    if err then
+        print("Error decoding data from 0rbit message: ", err)
+        return
+    end
+
+    -- Validate that the decoded data contains a contractTxId that is currently being tracked.
+    local nameKey = ID_NAME_MAPPING[data.contractTxId]
+    if nameKey and NAMES[nameKey] then
+        local updatedInfo = NAMES[nameKey]
+
+        -- Ensure the data contains 'state' information for the contract before updating.
+        if type(data.state) == "table" then
+            updatedInfo.contract = data.state
+            updatedInfo.contract.owner = data.state.owner
+            updatedInfo.contract.lastUpdated = msg.Timestamp
+            NAMES[nameKey] = updatedInfo
+            print("Updated " .. nameKey .. " with the latest info from SmartWeave Cache (via 0rbit)!")
+        else
+            print("Received 0rbit message with invalid or missing 'state' information for contractTxId: " ..
+                tostring(data.contractTxId))
+        end
+
+        -- Clear the mapping to prevent repeated updates for the same contractTxId.
         ID_NAME_MAPPING[data.contractTxId] = nil
+    else
+        print("Received 0rbit message for an untracked or invalid contractTxId: " .. tostring(data.contractTxId))
     end
 end)

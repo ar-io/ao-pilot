@@ -343,6 +343,16 @@ Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'),
     end
 end)
 
+Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'),
+    function(msg)
+        ao.send({
+            Action = 'Records-Resolved',
+            Target = msg.From,
+            Data =
+                json.encode(Records)
+        })
+    end)
+
 --- Initiates the loading of records from an Arweave transaction.
 -- This handler is triggered by messages tagged with 'Action' of 'Initiate-Load-Records'.
 -- It verifies if the request comes from the process owner (by comparing 'msg.From' and 'env.Process.Id').

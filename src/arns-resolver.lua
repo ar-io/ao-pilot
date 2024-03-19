@@ -54,21 +54,23 @@ local arnsMeta = {
                     print(name .. ' has not been resolved yet.  Resolving now...')
                     return nil
                 elseif rootName and underName == nil then
-                    if NAMES[rootName].process then
+                    if NAMES[rootName].process and NAMES[rootName].process.records['@'] then
                         return NAMES[rootName].process.records['@'].transactionId
-                    else
+                    elseif NAMES[rootName].contract and NAMES[rootName].contract.records['@'] then
                         return NAMES[rootName].contract.records['@'].transactionId or
                             NAMES[rootName].contract.records['@'] or
                             nil
                         -- NAMES[rootName].contract.records['@'] is used to capture old ANT contracts
                     end
                 elseif rootName and underName then
-                    if NAMES[rootName].process then
+                    if NAMES[rootName].process and NAMES[rootName].process.records[underName] then
                         return NAMES[rootName].process.records[underName].transactionId
-                    else
+                    elseif NAMES[rootName].contract and NAMES[rootName].contract.records[underName] then
                         return NAMES[rootName].contract.records[underName].transactionId or
-                            NAMES[rootName].contract.records[underName] or nil
+                            NAMES[rootName].contract.records[underName]
                         -- NAMES[rootName].contract.records[underName] is used to capture old ANT contracts
+                    else
+                        return nil
                     end
                 end
             end
@@ -82,7 +84,13 @@ local arnsMeta = {
                     print(name .. ' has not been resolved yet.  Cannot get owner.  Resolving now...')
                     return nil
                 else
-                    return NAMES[rootName].processOwner or NAMES[rootName].contractOwner or nil
+                    if NAMES[rootName].process and NAMES[rootName].process.owner then
+                        return NAMES[rootName].process.owner
+                    elseif NAMES[rootName].contract and NAMES[rootName].contract.owner then
+                        return NAMES[rootName].contract.owner
+                    else
+                        return nil
+                    end
                 end
             end
         elseif key == "id" then

@@ -1,12 +1,21 @@
 local json = require('json')
-ARNS_PROCESS = "COnVYFiqpycAJrFQbrKIgUEAZ1L98sF0h_26G8GxRpQ"
-ARNS_CACHE = "https://api.arns.app/v1/contract/"
-_0RBIT_SEND = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
+
+-- URL configurations
+SW_CACHE_URL = "https://api.arns.app/v1/contract/"
+
+-- Process IDs for interacting with other services or processes
+ARNS_PROCESS_ID = "COnVYFiqpycAJrFQbrKIgUEAZ1L98sF0h_26G8GxRpQ"
+_0RBIT_SEND_PROCESS_ID = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
 _0RBIT_RECEIVE = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
 
+-- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
 ID_NAME_MAPPING = ID_NAME_MAPPING or {}
 
+--- Splits a string into two parts based on the last underscore character, intended to separate ARNS names into undername and rootname components.
+-- @param str The string to be split.
+-- @return Two strings: the rootname (before the last underscore) and the undername (after the last underscore).
+-- If no underscore is found, returns the original string and nil.
 function splitIntoTwoNames(str)
     -- Pattern explanation:
     -- (.-) captures any character as few times as possible up to the last underscore
@@ -15,7 +24,7 @@ function splitIntoTwoNames(str)
     local underName, rootName = str:match("(.-)_([^_]+)$")
 
     if underName and rootName then
-        return tostring(underName), tostring(rootName)
+        return tostring(rootName), tostring(underName)
     else
         -- If the pattern does not match (e.g., there's no underscore in the string),
         -- return the original string as the first chunk and nil as the second
@@ -29,77 +38,60 @@ local arnsMeta = {
         if key == "resolve" then
             return function(name)
                 name = string.lower(name)
-                ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = name })
+                ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
                 return "Getting information for name: " .. name
             end
         elseif key == "data" then
-            return function(name, contract)
+            return function(name)
                 name = string.lower(name)
-                local underName, rootName = splitIntoTwoNames(name)
-                if underName ~= nil and rootName ~= nil and contract ~= nil then
-                    if NAMES[rootName].contract.records[underName].transactionId then
-                        return NAMES[rootName].contract.records[underName].transactionId
+                local rootName, underName = splitIntoTwoNames(name)
+
+                if NAMES[rootName] == nil then
+                    ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
+                    print(name .. ' has not been resolved yet.  Resolving now...')
+                    return nil
+                elseif rootName and underName == nil then
+                    if NAMES[rootName].process then
+                        return NAMES[rootName].process.records['@'].transactionId
                     else
-                        return NAMES[rootName].contract.records[underName]
+                        return NAMES[rootName].contract.records['@'].transactionId or
+                            NAMES[rootName].contract.records['@'] or
+                            nil
+                        -- NAMES[rootName].contract.records['@'] is used to capture old ANT contracts
                     end
-                elseif underName ~= nil and rootName ~= nil and contract == nil then
-                    if NAMES[rootName].process.records[underName].transactionId then
+                elseif rootName and underName then
+                    if NAMES[rootName].process then
                         return NAMES[rootName].process.records[underName].transactionId
                     else
-                        return NAMES[rootName].process.records[underName]
+                        return NAMES[rootName].contract.records[underName].transactionId or
+                            NAMES[rootName].contract.records[underName] or nil
+                        -- NAMES[rootName].contract.records[underName] is used to capture old ANT contracts
                     end
-                elseif underName ~= nil and rootName == nil and contract ~= nil then
-                    if NAMES[underName].contract.records['@'].transactionId then
-                        return NAMES[underName].contract.records['@'].transactionId
-                    else
-                        return NAMES[underName].contract.records['@']
-                    end
-                elseif underName ~= nil and rootName == nil and contract == nil then
-                    if NAMES[underName].process.records['@'].transactionId then
-                        return NAMES[underName].process.records['@'].transactionId
-                    else
-                        return NAMES[underName].process.records['@']
-                    end
-                else
-                    if rootName then
-                        underName = rootName -- this is weird because the splitIntoTwoNames is funky
-                    end
-                    ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = underName })
-                    return name .. ' has not been resolved yet.  Resolving now...'
                 end
             end
         elseif key == "owner" then
-            return function(name, contract)
+            return function(name)
                 name = string.lower(name)
                 local rootName, underName = splitIntoTwoNames(name)
-                if underName then
-                    rootName = underName
-                end
+
                 if NAMES[rootName] == nil then
-                    ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = rootName })
-                    return name .. ' has not been resolved yet.  Cannot get owner.  Resolving now...'
-                end
-                if contract == nil then
-                    return NAMES[rootName].processOwner
+                    ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
+                    print(name .. ' has not been resolved yet.  Cannot get owner.  Resolving now...')
+                    return nil
                 else
-                    return NAMES[rootName].contractOwner
+                    return NAMES[rootName].processOwner or NAMES[rootName].contractOwner or nil
                 end
             end
         elseif key == "id" then
-            return function(name, contract)
+            return function(name)
                 name = string.lower(name)
                 local rootName, underName = splitIntoTwoNames(name)
-                if underName then
-                    rootName = underName
-                end
                 if NAMES[rootName] == nil then
-                    ao.send({ Target = ARNS_PROCESS, Action = "Get-Record", Name = name })
-                    return name .. ' has not been resolved yet.  Cannot get id.  Resolving now...'
-                end
-                if contract == nil then
-                    return NAMES[rootName].processId
+                    ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                    print(name .. ' has not been resolved yet.  Cannot get id.  Resolving now...')
+                    return nil
                 else
-                    return NAMES[rootName].contractTxId
+                    return NAMES[rootName].processId or NAMES[rootName].contractTxId or nil
                 end
             end
         elseif key == "clear" then
@@ -113,12 +105,21 @@ local arnsMeta = {
 
 ARNS = setmetatable({}, arnsMeta)
 
-local function fetchJsonDataFromOrbit(url)
-    ao.send({ Target = _0RBIT_SEND, Action = "Get-Real-Data", Url = url })
+--- Requests JSON data from a specified URL via the Orbit process, an external service.
+-- @param url The URL from which JSON data is to be fetched.
+function fetchJsonDataFromOrbit(url)
+    -- Validate URL to prevent sending invalid requests
+    if type(url) ~= "string" or url == "" then
+        print("Invalid URL provided for fetching JSON data.")
+        return
+    end
+    print("Getting orbit data from: " .. url)
+    -- Send a request to the Orbit process with the specified URL.
+    ao.send({ Target = _0RBIT_SEND_PROCESS_ID, Action = "Get-Real-Data", Url = url })
 end
 
 local function isArNSGetRecordMessage(msg)
-    if msg.From == ARNS_PROCESS and msg.Action == "Record-Resolved" then
+    if msg.From == ARNS_PROCESS_ID and msg.Action == "Record-Resolved" then
         return true
     else
         return false
@@ -145,7 +146,7 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
     end
     print("   Updated " .. msg.Tags.Name .. " with the latest ArNS-AO Registry info!")
     if data.contractTxId ~= nil then
-        Url = ARNS_CACHE .. data.contractTxId
+        Url = SW_CACHE_URL .. data.contractTxId
         print("   ...fetching more info from SmartWeave Cache (via Orbit)")
         fetchJsonDataFromOrbit(Url)
         ID_NAME_MAPPING[data.contractTxId] = msg.Tags.Name
@@ -178,7 +179,7 @@ Handlers.add("ReceiveANTProcessInfoMessage", isANTInfoMessage, function(msg)
 end)
 
 local function is0rbitMessage(msg)
-    if msg.From == _0RBIT_RECEIVE and msg.Action == 'Receive-data-feed' then
+    if msg.From == _0RBIT_RECEIVE_PROCESS_ID and msg.Action == 'Receive-data-feed' then
         return true
     else
         return false

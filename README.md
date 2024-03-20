@@ -17,4 +17,4 @@ For a comprehensive guide on how to utilize the ArNS Resolver, including how to 
 
 ## Community and Support
 
-Join the [AR.IO Discord community](https://discord.ar.io) to share your feedback, ask questions, and connect with other developers working with the AR.IO Network protocols.
+Join the [AR.IO Experiments Discord channel](https://discord.gg/bcVkn9u45c) to share your feedback, ask questions, and connect with other developers working with the AR.IO Network protocols.

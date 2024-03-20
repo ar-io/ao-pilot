@@ -2,7 +2,7 @@ local json = require('json')
 
 -- Constants
 -- Used to determine when to require name resolution
-TTL_SECONDS = 24 * 60 * 60 -- 24 hour TTL_SECONDS by default
+TTL_MS = 24 * 60 * 60 * 1000 -- 24 hour TTL_SECONDS by default
 
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
@@ -101,7 +101,7 @@ local arnsMeta = {
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
                     print(name .. ' has not been resolved yet.  Cannot get id.  Resolving now...')
                     return nil
-                elseif os.time() - NAMES[rootName].lastUpdated >= TTL_SECONDS then
+                elseif os.time() - NAMES[rootName].lastUpdated >= TTL_MS then
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
                     print(name .. ' is stale.  Refreshing name data now...')
                     return nil

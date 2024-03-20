@@ -175,7 +175,7 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
     end
 end)
 
-Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), function(msg, env)
+Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'Set-Record'), function(msg, env)
     local isValidRecord, responseMsg = validateSetRecord(msg)
     if isValidRecord then
         if msg.From == env.Process.Id then
@@ -221,7 +221,7 @@ Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'SetRecord'), 
     end
 end)
 
-Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'RemoveRecord'), function(msg, env)
+Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'Remove-Record'), function(msg, env)
     if msg.From == env.Process.Id or Controllers[msg.From] then
         if Records[msg.Tags.SubDomain] then
             Records[msg.Tags.SubDomain] = nil
@@ -246,7 +246,7 @@ Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'RemoveReco
     end
 end)
 
-Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'SetController'), function(msg, env)
+Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'Set-Controller'), function(msg, env)
     if msg.From == env.Process.Id then
         Controllers[msg.Tags.Target] = true
         if not msg.Tags.Cast then
@@ -269,7 +269,7 @@ Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'SetContro
     end
 end)
 
-Handlers.add('removeController', Handlers.utils.hasMatchingTag('Action', 'RemoveController'), function(msg, env)
+Handlers.add('removeController', Handlers.utils.hasMatchingTag('Action', 'Remove-Controller'), function(msg, env)
     if msg.From == env.Process.Id then
         Controllers[msg.Tags.Target] = nil
         if not msg.Tags.Cast then

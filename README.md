@@ -6,12 +6,18 @@ This repository is part of an experimental suite for the AR.IO Network protocols
 
 ## Contents
 
-- **`src/arns.lua`**: Core process code for the Arweave Name System Registry. It handles name registrations, updates, and queries within the ArNS framework.
+- **`src/arns-registry.lua`**: Core process code for the Arweave Name System Registry. It handles name registrations, updates, and queries within the ArNS framework.
 - **`src/arns-resolver.lua`**: A lightweight resolver process for efficiently fetching name records, owners, and associated data from the ArNS Registry.
 - **`src/ant-base.lua`**: Base Arweave Name Token specification for processes that integrate with the ArNS Registry.
 - **`src/ant.lua`**: The base Arweave Name Token specification plus additional management controls.
 
 ## Getting Started
+
+Get the power of ArNS in your AOS terminal by loading the ArNS Resolver blueprint
+
+```sh
+.load-blueprint arns
+```
 
 For a comprehensive guide on how to utilize the ArNS Resolver, including how to map an AO Process to the ArNS Registry effectively, please refer to the [AR.IO Docs portal](https://docs.ar.io/guides/experimental/ao-resolver/). The documentation provides step-by-step instructions, best practices, and additional resources to get you started with integrating ArNS functionalities into your Arweave applications.
 

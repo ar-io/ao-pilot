@@ -2,7 +2,9 @@ local json = require('json')
 
 -- Constants
 -- Used to determine when to require name resolution
-TTL_MS = 24 * 60 * 60 * 1000 -- 24 hour TTL_SECONDS by default
+ID_TTL_MS = 24 * 60 * 60 * 1000    -- 24 hours by default
+DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
+OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
 
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
@@ -15,6 +17,7 @@ _0RBIT_RECEIVE_PROCESS_ID = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
 ID_NAME_MAPPING = ID_NAME_MAPPING or {}
+Now = Now or 0
 
 --- Splits a string into two parts based on the last underscore character, intended to separate ARNS names into undername and rootname components.
 -- @param str The string to be split.
@@ -48,27 +51,50 @@ local arnsMeta = {
             return function(name)
                 name = string.lower(name)
                 local rootName, underName = splitIntoTwoNames(name)
-
                 if NAMES[rootName] == nil then
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
                     print(name .. ' has not been resolved yet.  Resolving now...')
                     return nil
                 elseif rootName and underName == nil then
                     if NAMES[rootName].process and NAMES[rootName].process.records['@'] then
-                        return NAMES[rootName].process.records['@'].transactionId
+                        if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
+                            ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            print(name .. ' is stale.  Refreshing name process now...')
+                            return nil
+                        else
+                            return NAMES[rootName].process.records['@'].transactionId
+                        end
                     elseif NAMES[rootName].contract and NAMES[rootName].contract.records['@'] then
-                        return NAMES[rootName].contract.records['@'].transactionId or
-                            NAMES[rootName].contract.records['@'] or
-                            nil
-                        -- NAMES[rootName].contract.records['@'] is used to capture old ANT contracts
+                        if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
+                            ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            print(name .. ' is stale.  Refreshing name contract now...')
+                            return nil
+                        else
+                            return NAMES[rootName].contract.records['@'].transactionId or
+                                NAMES[rootName].contract.records['@'] or
+                                nil
+                            -- NAMES[rootName].contract.records['@'] is used to capture old ANT contracts
+                        end
                     end
                 elseif rootName and underName then
                     if NAMES[rootName].process and NAMES[rootName].process.records[underName] then
-                        return NAMES[rootName].process.records[underName].transactionId
+                        if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
+                            ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            print(name .. ' is stale.  Refreshing name process now...')
+                            return nil
+                        else
+                            return NAMES[rootName].process.records[underName].transactionId
+                        end
                     elseif NAMES[rootName].contract and NAMES[rootName].contract.records[underName] then
-                        return NAMES[rootName].contract.records[underName].transactionId or
-                            NAMES[rootName].contract.records[underName]
-                        -- NAMES[rootName].contract.records[underName] is used to capture old ANT contracts
+                        if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
+                            ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            print(name .. ' is stale.  Refreshing name contract now...')
+                            return nil
+                        else
+                            return NAMES[rootName].contract.records[underName].transactionId or
+                                NAMES[rootName].contract.records[underName]
+                            -- NAMES[rootName].contract.records[underName] is used to capture old ANT contracts
+                        end
                     else
                         return nil
                     end
@@ -78,19 +104,28 @@ local arnsMeta = {
             return function(name)
                 name = string.lower(name)
                 local rootName, underName = splitIntoTwoNames(name)
-
                 if NAMES[rootName] == nil then
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
                     print(name .. ' has not been resolved yet.  Cannot get owner.  Resolving now...')
                     return nil
-                else
-                    if NAMES[rootName].process and NAMES[rootName].process.owner then
-                        return NAMES[rootName].process.owner
-                    elseif NAMES[rootName].contract and NAMES[rootName].contract.owner then
-                        return NAMES[rootName].contract.owner
-                    else
+                elseif NAMES[rootName].process and NAMES[rootName].process.owner then
+                    if Now - NAMES[rootName].process.lastUpdated >= OWNER_TTL_MS then
+                        ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                        print(name .. ' is stale.  Refreshing name process now...')
                         return nil
+                    else
+                        return NAMES[rootName].process.owner
                     end
+                elseif NAMES[rootName].contract and NAMES[rootName].contract.owner then
+                    if Now - NAMES[rootName].contract.lastUpdated >= OWNER_TTL_MS then
+                        ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                        print(name .. ' is stale.  Refreshing name contract now...')
+                        return nil
+                    else
+                        return NAMES[rootName].contract.owner
+                    end
+                else
+                    return nil
                 end
             end
         elseif key == "id" then
@@ -101,7 +136,7 @@ local arnsMeta = {
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
                     print(name .. ' has not been resolved yet.  Cannot get id.  Resolving now...')
                     return nil
-                elseif os.time() - NAMES[rootName].lastUpdated >= TTL_MS then
+                elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
                     print(name .. ' is stale.  Refreshing name data now...')
                     return nil
@@ -165,6 +200,16 @@ function is0rbitMessage(msg)
         return false
     end
 end
+
+Handlers.prepend(
+    "ArNS-Timers",
+    function(msg)
+        return "continue"
+    end,
+    function(msg)
+        Now = msg.Timestamp
+    end
+)
 
 --- Handles received ArNS "Record-Resolved" messages by updating the local NAMES table.
 -- Updates or initializes the record for the given name with the latest information.

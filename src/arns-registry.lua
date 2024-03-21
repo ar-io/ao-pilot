@@ -14,7 +14,7 @@ Listeners = Listeners or {}
 
 -- Constants
 DEFAULT_UNDERNAME_COUNT = 10
-DEADLINE_DURATION_MS = 600000
+DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
 
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
@@ -516,10 +516,8 @@ Handlers.add('initiateRecordSync', Handlers.utils.hasMatchingTag('Action', 'Init
                 Tags = { Action = 'Record-Sync-Cleaned', Name = msg.Tags.Name, Deadline = tostring(deadline) }
             })
             RecordSyncRequests[msg.Tags.Name] = nil -- Clear past-due record claim attempt.
-        end
-
-        -- Proceed with initiating a new record sync if the record name does not exist.
-        if Records[msg.Tags.Name] == nil then
+        elseif Records[msg.Tags.Name].contractId == nil then
+            -- Proceed with initiating a new record sync if the record name does not exist.
             local url = ARNS_SW_CACHE_URL .. msg.Tags.Name
             fetchJsonDataFromOrbit(url) -- Fetch current record details from an external source.
 
@@ -536,6 +534,8 @@ Handlers.add('initiateRecordSync', Handlers.utils.hasMatchingTag('Action', 'Init
                 Target = msg.From,
                 Tags = { Action = 'Initiate-Record-Sync-Notice', Name = msg.Tags.Name }
             })
+        else
+            print('Record already exists')
         end
     end)
 

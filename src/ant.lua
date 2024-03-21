@@ -298,19 +298,19 @@ end)
 
 Handlers.add('mirrorANT', Handlers.utils.hasMatchingTag('Action', 'Mirror-ANT'), function(msg, env)
     assert(msg.From == env.Process.Id, 'Only the Process can request ANT mirroring')
-    assert(type(msg.Tags.ContractId) == 'string', 'ANT Contract ID is required!')
-    local url = CacheUrl .. msg.Tags.ContractId
-    MirrorANTRequests[msg.Tags.ContractId] = true
+    assert(type(msg.Tags.ContractTxId) == 'string', 'ANT Contract ID is required!')
+    local url = CacheUrl .. msg.Tags.ContractTxId
+    MirrorANTRequests[msg.Tags.ContractTxId] = true
     fetchJsonDataFromOrbit(url)
     ao.send({
         Target = msg.From,
-        Tags = { Action = 'Mirror-ANT-Notice', ContractId = msg.Tags.ContractId }
+        Tags = { Action = 'Mirror-ANT-Notice', ContractId = msg.Tags.ContractTxId }
     })
 end)
 
 Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive-data-feed'), function(msg, env)
     local data, _, err = json.decode(msg.Data)
-    if msg.From == _0RBIT_RECEIVE and MirrorANTRequests[msg.Tags.ContractId] then
+    if msg.From == _0RBIT_RECEIVE and MirrorANTRequests[data.contractTxId] then
         -- Mirror the configuration found in the ANT
         if data.state.controllers then
             Controllers = data.state.controllers
@@ -333,8 +333,8 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
         end
         ao.send({
             Target = env.Process.Id,
-            Tags = { Action = 'Mirror-ANT-Complete', ANTContractId = msg.Tags.ANTContractId, Records = json.encode(Records) }
+            Tags = { Action = 'Mirror-ANT-Complete', ContractTxId = data.contractTxId, Records = json.encode(Records) }
         })
-        MirrorANTRequests[msg.Tags.ContractId] = nil
+        MirrorANTRequests[data.contractTxId] = nil
     end
 end)

@@ -470,6 +470,13 @@ Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'In
 
         -- Proceed with initiating a new update if the record exists.
         if Records[msg.Tags.Name] then
+            if Records[msg.Tags.Name]
+            if msg.From == Records[msg.Tags.Name].processId
+            or (Records[msg.Tags.Name].contract and isControllerPresent(Records[msg.Tags.Name].contract.controllers, msg.From))
+            or (Records[msg.Tags.Name].contract and Records[msg.Tags.Name].contract.owner == msg.From) then
+                -- update stuff!
+            else
+                -- Valid update; modify Records accordingly and notify requester.
             local url = SW_CACHE_URL .. Records[msg.Tags.Name].contractTxId
             fetchJsonDataFromOrbit(url) -- Fetch current name owner data from an external source.
 

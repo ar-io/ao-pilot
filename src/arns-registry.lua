@@ -335,7 +335,7 @@ Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'),
         ao.send({
             Target = msg.From,
             Tags = {
-                Action = 'GetRecord-Error',
+                Action = 'Get-Record-Error',
                 ['Message-Id'] = msg.Id, -- Ensure message ID is passed for traceability.
                 Error = 'Requested non-existent record'
             }
@@ -470,29 +470,42 @@ Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'In
 
         -- Proceed with initiating a new update if the record exists.
         if Records[msg.Tags.Name] then
-            if Records[msg.Tags.Name]
             if msg.From == Records[msg.Tags.Name].processId
-            or (Records[msg.Tags.Name].contract and isControllerPresent(Records[msg.Tags.Name].contract.controllers, msg.From))
-            or (Records[msg.Tags.Name].contract and Records[msg.Tags.Name].contract.owner == msg.From) then
-                -- update stuff!
+                or (Records[msg.Tags.Name].contract and isControllerPresent(Records[msg.Tags.Name].contract.controllers, msg.From))
+                or (Records[msg.Tags.Name].contract and Records[msg.Tags.Name].contract.owner == msg.From) then
+                Records[msg.Tags.Name].processId = msg.Tags.ProcessId -- Update process ID.
+                ao.send({
+                    Target = msg.From,
+                    Tags = { Action = 'Record-Update-Complete', Name = msg.Tags.Name }
+                })
             else
                 -- Valid update; modify Records accordingly and notify requester.
-            local url = SW_CACHE_URL .. Records[msg.Tags.Name].contractTxId
-            fetchJsonDataFromOrbit(url) -- Fetch current name owner data from an external source.
+                local url = SW_CACHE_URL .. Records[msg.Tags.Name].contractTxId
+                fetchJsonDataFromOrbit(url) -- Fetch current name owner data from an external source.
 
-            -- Log the new update attempt.
-            RecordUpdates[msg.Tags.Name] = {
-                name = msg.Tags.Name,
-                processId = msg.Tags.ProcessId,
-                url = url,
-                timeStamp = msg.Timestamp,
-                requestor = msg.From
-            }
+                -- Log the new update attempt.
+                RecordUpdates[msg.Tags.Name] = {
+                    name = msg.Tags.Name,
+                    processId = msg.Tags.ProcessId,
+                    url = url,
+                    timeStamp = msg.Timestamp,
+                    requestor = msg.From
+                }
 
-            -- Acknowledge the initiation of the update process to the requester.
+                -- Acknowledge the initiation of the update process to the requester.
+                ao.send({
+                    Target = msg.From,
+                    Tags = { Action = 'Initiate-Record-Update-Notice', Name = msg.Tags.Name }
+                })
+            end
+        else
             ao.send({
                 Target = msg.From,
-                Tags = { Action = 'Initiate-Record-Update-Notice', Name = msg.Tags.Name }
+                Tags = {
+                    Action = 'Update-Record-Error',
+                    ['Message-Id'] = msg.Id, -- Ensure message ID is passed for traceability.
+                    Error = 'Requested non-existent record'
+                }
             })
         end
     end)

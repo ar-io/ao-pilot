@@ -31,6 +31,10 @@ if not Records then
     }
 end
 
+if not MirrorANTRequests then
+    MirrorANTRequests = {}
+end
+
 -- Custom validateSetRecord function in Lua
 function validateSetRecord(msg)
     -- Check for required fields
@@ -296,6 +300,7 @@ Handlers.add('mirrorANT', Handlers.utils.hasMatchingTag('Action', 'Mirror-ANT'),
     assert(msg.From == env.Process.Id, 'Only the Process can request ANT mirroring')
     assert(type(msg.Tags.ContractId) == 'string', 'ANT Contract ID is required!')
     local url = CacheUrl .. msg.Tags.ContractId
+    MirrorANTRequests[msg.Tags.ContractId] = true
     fetchJsonDataFromOrbit(url)
     ao.send({
         Target = msg.From,
@@ -305,7 +310,7 @@ end)
 
 Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive-data-feed'), function(msg, env)
     local data, _, err = json.decode(msg.Data)
-    if msg.From == _0RBIT_RECEIVE then
+    if msg.From == _0RBIT_RECEIVE and MirrorANTRequests[msg.Tags.ContractId] then
         -- Mirror the configuration found in the ANT
         if data.state.controllers then
             Controllers = data.state.controllers
@@ -330,5 +335,6 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
             Target = env.Process.Id,
             Tags = { Action = 'Mirror-ANT-Complete', ANTContractId = msg.Tags.ANTContractId, Records = json.encode(Records) }
         })
+        MirrorANTRequests[msg.Tags.ContractId] = nil
     end
 end)

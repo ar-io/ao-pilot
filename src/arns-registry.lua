@@ -483,8 +483,8 @@ Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'In
                 local url = SW_CACHE_URL .. Records[msg.Tags.Name].contractTxId
                 fetchJsonDataFromOrbit(url) -- Fetch current name owner data from an external source.
 
-                -- Log the new update attempt.
-                RecordUpdates[msg.Tags.Name] = {
+                -- Log the new update attempt, using the contract tx id
+                RecordUpdates[Records[msg.Tags.Name].contractTxId] = {
                     name = msg.Tags.Name,
                     processId = msg.Tags.ProcessId,
                     url = url,
@@ -536,7 +536,7 @@ Handlers.add('initiateRecordSync', Handlers.utils.hasMatchingTag('Action', 'Init
                 Tags = { Action = 'Record-Sync-Cleaned', Name = msg.Tags.Name, Deadline = tostring(deadline) }
             })
             RecordSyncRequests[msg.Tags.Name] = nil -- Clear past-due record claim attempt.
-        elseif Records[msg.Tags.Name].contractId == nil then
+        elseif Records[msg.Tags.Name].contractTxId == nil then
             -- Proceed with initiating a new record sync if the record name does not exist.
             local url = ARNS_SW_CACHE_URL .. msg.Tags.Name
             fetchJsonDataFromOrbit(url) -- Fetch current record details from an external source.
@@ -567,7 +567,7 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
     if msg.From == _0RBIT_RECEIVE_PROCESS_ID then
         print("Data received from Orbit.")
         local data, err = json.decode(msg.Data)
-
+        print(data)
         -- Check if there was an error in decoding the data.
         if err then
             print("Error decoding data: ", err)
@@ -582,6 +582,7 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
             if claim.timeStamp >= deadline then
                 -- Valid sync request; update Records and notify requester.
                 Records[data.name] = data.record
+                Records[data.name].contract.owner = data.owner
                 ao.send({
                     Target = claim.requestor,
                     Tags = { Action = 'Record-Sync-Complete', Name = data.name }
@@ -594,8 +595,9 @@ Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive
                 })
             end
             RecordSyncRequests[data.name] = nil -- Clear processed claim.
-        end
+        else
 
+        end
         -- Process data for record updates.
         if data.contractTxId and RecordUpdates[data.contractTxId] then
             local update = RecordUpdates[data.contractTxId]

@@ -310,7 +310,8 @@ end)
 
 Handlers.add('receiveDataFeed', Handlers.utils.hasMatchingTag('Action', 'Receive-data-feed'), function(msg, env)
     local data, _, err = json.decode(msg.Data)
-    if msg.From == _0RBIT_RECEIVE and MirrorANTRequests[data.contractTxId] then
+    print('got data from 0rbit')
+    if msg.From == _0RBIT_RECEIVE and MirrorANTRequests[data.contractTxId] == true then
         -- Mirror the configuration found in the ANT
         if data.state.controllers then
             Controllers = data.state.controllers

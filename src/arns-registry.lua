@@ -239,7 +239,7 @@ end
 -- @param msg The incoming message that triggered the handler.
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
     ao.send(
-        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), LastArNSSyncTimestamp = tostring(LastArNSSyncTimestamp), NamesRegistered = tableCount(Records) } })
+        { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), LastArNSSyncTimestamp = tostring(LastArNSSyncTimestamp), NamesRegistered = tostring(tableCount(Records)) } })
 end)
 
 --- Responds to a 'Get-Fees' action request by providing the fee structure.
@@ -247,44 +247,42 @@ end)
 -- It sends back the process's current fee structure encoded in JSON format.
 -- The fee structure is predefined in the 'Fees' table.
 -- @param msg The incoming message that triggered the handler, expected to contain the sender's information in 'msg.From'.
-Handlers.add('getFees', Handlers.utils.hasMatchingTag('Action', 'Get-Fees'),
-    function(msg)
-        -- Encode the Fees table into a JSON string and send it to the requester.
-        local feesJson, err = json.encode(Fees)
-        if not feesJson then
-            print("Error encoding fees: ", err)
-            -- Consider handling the error more gracefully, potentially notifying the requester of the issue.
-            return
-        end
+Handlers.add('getFees', Handlers.utils.hasMatchingTag('Action', 'Get-Fees'), function(msg)
+    -- Encode the Fees table into a JSON string and send it to the requester.
+    local feesJson, err = json.encode(Fees)
+    if not feesJson then
+        print("Error encoding fees: ", err)
+        -- Consider handling the error more gracefully, potentially notifying the requester of the issue.
+        return
+    end
 
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'Fees-Response' },
-            Data = feesJson
-        })
-    end)
+    ao.send({
+        Target = msg.From,
+        Tags = { Action = 'Fees-Response' },
+        Data = feesJson
+    })
+end)
 
 --- Responds to a 'Get-All-Credits' action request with the entire credits balance information.
 -- This handler is triggered when a message with the 'Action' tag of 'Get-All-Credits' is received.
 -- It sends back a JSON-encoded representation of all user credit balances stored in the 'Credits' table.
 -- @param msg The incoming message that triggered the handler, expected to contain the sender's information in 'msg.From'.
-Handlers.add('getAllCredits', Handlers.utils.hasMatchingTag('Action', 'Get-All-Credits'),
-    function(msg)
-        -- Attempt to encode the 'Credits' table to a JSON string.
-        local creditsJson, err = json.encode(Credits)
-        if not creditsJson then
-            -- Log an error if encoding fails and consider how to handle this failure more gracefully.
-            print("Error encoding credits: ", err)
-            return
-        end
+Handlers.add('getAllCredits', Handlers.utils.hasMatchingTag('Action', 'Get-All-Credits'), function(msg)
+    -- Attempt to encode the 'Credits' table to a JSON string.
+    local creditsJson, err = json.encode(Credits)
+    if not creditsJson then
+        -- Log an error if encoding fails and consider how to handle this failure more gracefully.
+        print("Error encoding credits: ", err)
+        return
+    end
 
-        -- Send the encoded credits information back to the requester.
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'All-Credits-Response' },
-            Data = creditsJson
-        })
-    end)
+    -- Send the encoded credits information back to the requester.
+    ao.send({
+        Target = msg.From,
+        Tags = { Action = 'All-Credits-Response' },
+        Data = creditsJson
+    })
+end)
 
 --- Responds to a 'Get-Credits' action request by providing the credit balance for a specified target or the sender.
 -- This handler is triggered by messages tagged with the 'Action' of 'Get-Credits'.
@@ -343,15 +341,14 @@ Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'),
     end
 end)
 
-Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'),
-    function(msg)
-        ao.send({
-            Action = 'Records-Resolved',
-            Target = msg.From,
-            Data =
-                json.encode(Records)
-        })
-    end)
+Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'), function(msg)
+    ao.send({
+        Action = 'Records-Resolved',
+        Target = msg.From,
+        Data =
+            json.encode(Records)
+    })
+end)
 
 --- Initiates the loading of records from an Arweave transaction.
 -- This handler is triggered by messages tagged with 'Action' of 'Initiate-Load-Records'.
@@ -361,81 +358,63 @@ Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'
 -- it sends an error response indicating the action is not being run by the process owner.
 -- @param msg The incoming message containing 'ArweaveTxId' in its tags.
 -- @param env The environment object containing process details, including its ID.
-Handlers.add('initiateLoadRecords', Handlers.utils.hasMatchingTag('Action', 'Initiate-Load-Records'), function(msg, env)
-    -- Ensure the Arweave transaction ID is provided and valid.
-    assert(type(msg.Tags.ArweaveTxId) == 'string', 'Arweave Tx Id is required!')
+Handlers.add('loadRecords', Handlers.utils.hasMatchingTag('Action', 'Load-Records'), function(msg, env)
+    print("Received a message for loading records from " .. msg.From)
 
-    -- Check if the request is made by the process itself.
-    if msg.From == env.Process.Id then
-        -- Trigger the process to load data based on the provided Arweave transaction ID.
-        ao.send({
-            Target = env.Process.Id,
-            Tags = { Action = 'Data', Load = msg.Tags.ArweaveTxId }
-        })
-        -- Acknowledge the initiation of the load operation.
-        ao.send({
-            Target = msg.From, -- This could essentially be the same as env.Process.Id in this context.
-            Tags = { Action = 'Initiate-Load-Records-Received', Load = msg.Tags.ArweaveTxId }
-        })
-    else
-        -- Respond with an error if the request does not come from the process owner.
+    -- Validate if the message is from the process owner to ensure that only authorized updates are processed.
+    if msg.From ~= env.Process.Id and msg.From ~= Owner then
+        print("Unauthorized data update attempt detected from: " .. msg.From)
+        -- Sending an error notice back to the sender might be a security concern in some contexts, consider this based on your application's requirements.
         ao.send({
             Target = msg.From,
-            Tags = { Action = 'Initiate-Load-Records-Error', ['Message-Id'] = msg.Id, Error = 'Action not initiated by process owner.' }
+            Tags = { Action = 'Load-Records-Error', Error = 'Unauthorized attempt detected' }
         })
+        return
     end
-end)
 
---- Processes and integrates received record data into the local Records table.
--- Triggered by messages tagged with 'Action' of 'Data', this handler decodes and merges JSON-encoded record data into the existing Records table.
--- It is specifically designed to update or add records based on data received, presumably after initiating a load
--- operation. It updates records if new data is received for an existing key or adds new
--- records otherwise. This handler is intended to be invoked by the process itself as a follow-up to a 'Load-Records' action.
--- @param msg The incoming message containing encoded record data.
--- @param env The environment object containing process details.
-Handlers.add('dataNotice', Handlers.utils.hasMatchingTag('Action', 'Data'), function(msg, env)
-    -- Ensure the message is sent by the process itself to avoid processing external data updates.
-    if msg.From == env.Process.Id then
-        -- Decode the base64 encoded JSON data contained within the message.
-        local rawJsonData = base64.decode(msg.Data.Data)
-        local data, err = json.decode(rawJsonData)
+    local data, err = json.decode(msg.Data)
+    if not data or err then
+        print("Error decoding JSON data: " .. err)
+        -- Handle error (e.g., send an error response)
+        return
+    end
 
-        if not data or err then
-            print("Error decoding JSON data: ", err)
-            return
-        end
+    -- Counter for added or updated records.
+    local recordsAddedOrUpdated = 0
 
-        local recordsAddedOrUpdated = 0 -- Counter for added or updated records.
+    -- Ensure 'data.records' is present and iterate through the decoded data to update the Records table accordingly.
+    if type(data.records) == 'table' then
+        for key, value in pairs(data.records) do
+            -- Preserve the existing processId if the record already exists.
+            local existingProcessId = Records[key] and Records[key].processId
 
-        -- Iterate through the decoded data and update the Records table accordingly.
-        for key, value in pairs(data.records or {}) do
             -- Check if the record either doesn't exist or differs from the new value.
-            -- Additionally, preserve the existing processId if the record already exists.
-            if not Records[key] then
+            if not Records[key] or (Records[key] and json.encode(Records[key]) ~= json.encode(value)) then
                 recordsAddedOrUpdated = recordsAddedOrUpdated + 1
-                value.processId = value.processId or nil -- Initialize processId if new record.
                 Records[key] = value
-            elseif Records[key] and json.encode(Records[key]) ~= json.encode(value) then
-                recordsAddedOrUpdated = recordsAddedOrUpdated + 1
-                value.processId = Records[key].processId or value.processId -- Preserve existing processId.
-                Records[key] = value
+                Records[key].processId = existingProcessId or value.processId -- Preserve or initialize processId.
             end
         end
 
-        -- Update the global sync timestamp
+        -- Update the global sync timestamp to mark the latest successful update.
         LastArNSSyncTimestamp = msg.Timestamp
 
-        -- Notify the process of the successful update.
+        -- Notify the process owner about the successful update.
         ao.send({
             Target = env.Process.Id,
             Tags = { Action = 'Loaded-Records', RecordsUpdated = tostring(recordsAddedOrUpdated) }
         })
     else
-        -- Optionally handle or log unauthorized data notices.
-        print("Unauthorized data update attempt detected from: ", msg.From)
+        -- Handle the case where 'data.records' is not in the expected format.
+        print("The 'records' field is missing or not in the expected format.")
+        print(data)
+        -- Notify the process owner about the issue.
+        ao.send({
+            Target = env.Process.Id,
+            Tags = { Action = 'Load-Records-Failure', Error = "'records' field missing or invalid" }
+        })
     end
 end)
-
 
 --- Initiates the process of updating a record's associated process ID.
 -- This handler is triggered by messages tagged with 'Action' of 'Initiate-Record-Update'.
@@ -444,120 +423,118 @@ end)
 -- record owner details from an external source and logging the update attempt.
 -- @param msg The incoming message containing the record name and the new process ID.
 -- @param env The environment object containing process details.
-Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Update'),
-    function(msg)
-        -- Validate required fields are present and correctly formatted.
-        assert(type(msg.Tags.Name) == 'string', 'Name is required!')
-        assert(type(msg.Tags.ProcessId) == 'string', 'Process ID is required!')
+Handlers.add('initiateRecordUpdate', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Update'), function(msg)
+    -- Validate required fields are present and correctly formatted.
+    assert(type(msg.Tags.Name) == 'string', 'Name is required!')
+    assert(type(msg.Tags.ProcessId) == 'string', 'Process ID is required!')
 
-        -- Calculate deadline for update attempts.
-        local deadline = msg.Timestamp - DEADLINE_DURATION_MS -- The response must come back within five minutes.
+    -- Calculate deadline for update attempts.
+    local deadline = msg.Timestamp - DEADLINE_DURATION_MS -- The response must come back within five minutes.
 
-        -- Check for an existing update attempt that is still within its deadline.
-        if RecordUpdates[msg.Tags.Name] and RecordUpdates[msg.Tags.Name].timeStamp >= deadline then
+    -- Check for an existing update attempt that is still within its deadline.
+    if RecordUpdates[msg.Tags.Name] and RecordUpdates[msg.Tags.Name].timeStamp >= deadline then
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Already-Initiated', Name = msg.Tags.Name }
+        })
+    elseif RecordUpdates[msg.Tags.Name] and RecordUpdates[msg.Tags.Name].timeStamp < deadline then
+        -- If an existing update attempt is past its deadline, notify the original requester and clear it.
+        ao.send({
+            Target = RecordUpdates[msg.Tags.Name].requestor,
+            Tags = { Action = 'Record-Update-Cleaned', Name = msg.Tags.Name, ProcessId = RecordUpdates[msg.Tags.Name].processId, Deadline = tostring(deadline) }
+        })
+        RecordUpdates[msg.Tags.Name] = nil -- Clear past-due record update attempt.
+    end
+
+    -- Proceed with initiating a new update if the record exists.
+    if Records[msg.Tags.Name] then
+        if msg.From == Records[msg.Tags.Name].processId
+            or (Records[msg.Tags.Name].contract and isControllerPresent(Records[msg.Tags.Name].contract.controllers, msg.From))
+            or (Records[msg.Tags.Name].contract and Records[msg.Tags.Name].contract.owner == msg.From) then
+            Records[msg.Tags.Name].processId = msg.Tags.ProcessId -- Update process ID.
             ao.send({
                 Target = msg.From,
-                Tags = { Action = 'Already-Initiated', Name = msg.Tags.Name }
+                Tags = { Action = 'Record-Update-Complete', Name = msg.Tags.Name }
             })
-        elseif RecordUpdates[msg.Tags.Name] and RecordUpdates[msg.Tags.Name].timeStamp < deadline then
-            -- If an existing update attempt is past its deadline, notify the original requester and clear it.
-            ao.send({
-                Target = RecordUpdates[msg.Tags.Name].requestor,
-                Tags = { Action = 'Record-Update-Cleaned', Name = msg.Tags.Name, ProcessId = RecordUpdates[msg.Tags.Name].processId, Deadline = tostring(deadline) }
-            })
-            RecordUpdates[msg.Tags.Name] = nil -- Clear past-due record update attempt.
-        end
-
-        -- Proceed with initiating a new update if the record exists.
-        if Records[msg.Tags.Name] then
-            if msg.From == Records[msg.Tags.Name].processId
-                or (Records[msg.Tags.Name].contract and isControllerPresent(Records[msg.Tags.Name].contract.controllers, msg.From))
-                or (Records[msg.Tags.Name].contract and Records[msg.Tags.Name].contract.owner == msg.From) then
-                Records[msg.Tags.Name].processId = msg.Tags.ProcessId -- Update process ID.
-                ao.send({
-                    Target = msg.From,
-                    Tags = { Action = 'Record-Update-Complete', Name = msg.Tags.Name }
-                })
-            else
-                -- Valid update; modify Records accordingly and notify requester.
-                local url = SW_CACHE_URL .. Records[msg.Tags.Name].contractTxId
-                fetchJsonDataFromOrbit(url) -- Fetch current name owner data from an external source.
-
-                -- Log the new update attempt, using the contract tx id
-                RecordUpdates[Records[msg.Tags.Name].contractTxId] = {
-                    name = msg.Tags.Name,
-                    processId = msg.Tags.ProcessId,
-                    url = url,
-                    timeStamp = msg.Timestamp,
-                    requestor = msg.From
-                }
-
-                -- Acknowledge the initiation of the update process to the requester.
-                ao.send({
-                    Target = msg.From,
-                    Tags = { Action = 'Initiate-Record-Update-Notice', Name = msg.Tags.Name }
-                })
-            end
         else
+            -- Valid update; modify Records accordingly and notify requester.
+            local url = SW_CACHE_URL .. Records[msg.Tags.Name].contractTxId
+            fetchJsonDataFromOrbit(url) -- Fetch current name owner data from an external source.
+
+            -- Log the new update attempt, using the contract tx id
+            RecordUpdates[Records[msg.Tags.Name].contractTxId] = {
+                name = msg.Tags.Name,
+                processId = msg.Tags.ProcessId,
+                url = url,
+                timeStamp = msg.Timestamp,
+                requestor = msg.From
+            }
+
+            -- Acknowledge the initiation of the update process to the requester.
             ao.send({
                 Target = msg.From,
-                Tags = {
-                    Action = 'Update-Record-Error',
-                    ['Message-Id'] = msg.Id, -- Ensure message ID is passed for traceability.
-                    Error = 'Requested non-existent record'
-                }
+                Tags = { Action = 'Initiate-Record-Update-Notice', Name = msg.Tags.Name }
             })
         end
-    end)
+    else
+        ao.send({
+            Target = msg.From,
+            Tags = {
+                Action = 'Update-Record-Error',
+                ['Message-Id'] = msg.Id, -- Ensure message ID is passed for traceability.
+                Error = 'Requested non-existent record'
+            }
+        })
+    end
+end)
 
 --- Initiates the process for syncing a single, new record name.
 -- Triggered by messages tagged with 'Action' of 'Initiate-Record-Claim'.
 -- It ensures no active sync attempts on the same record name are within a deadline.
 -- For new syncs or syncs past their deadlines, it initiates a new claim process by fetching the current record details from an external source.
 -- @param msg The incoming message containing the record name to claim.
-Handlers.add('initiateRecordSync', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Sync'),
-    function(msg)
-        -- Validate required fields are present and correctly formatted.
-        assert(type(msg.Tags.Name) == 'string', 'Name is required!')
+Handlers.add('initiateRecordSync', Handlers.utils.hasMatchingTag('Action', 'Initiate-Record-Sync'), function(msg)
+    -- Validate required fields are present and correctly formatted.
+    assert(type(msg.Tags.Name) == 'string', 'Name is required!')
 
-        -- Calculate deadline for claim attempts.
-        local deadline = msg.Timestamp - DEADLINE_DURATION_MS -- The response must come back within five minutes.
+    -- Calculate deadline for claim attempts.
+    local deadline = msg.Timestamp - DEADLINE_DURATION_MS -- The response must come back within five minutes.
 
-        -- Check for an existing claim attempt that is still within its deadline.
-        if RecordSyncRequests[msg.Tags.Name] and RecordSyncRequests[msg.Tags.Name].timeStamp >= deadline then
-            ao.send({
-                Target = msg.From,
-                Tags = { Action = 'Already-Initiated-Record-Sync', Name = msg.Tags.Name }
-            })
-        elseif RecordSyncRequests[msg.Tags.Name] and RecordSyncRequests[msg.Tags.Name].timeStamp < deadline then
-            -- If an existing claim attempt is past its deadline, notify the original requester and clear it.
-            ao.send({
-                Target = RecordSyncRequests[msg.Tags.Name].requestor,
-                Tags = { Action = 'Record-Sync-Cleaned', Name = msg.Tags.Name, Deadline = tostring(deadline) }
-            })
-            RecordSyncRequests[msg.Tags.Name] = nil -- Clear past-due record claim attempt.
-        elseif Records[msg.Tags.Name].contractTxId == nil then
-            -- Proceed with initiating a new record sync if the record name does not exist.
-            local url = ARNS_SW_CACHE_URL .. msg.Tags.Name
-            fetchJsonDataFromOrbit(url) -- Fetch current record details from an external source.
+    -- Check for an existing claim attempt that is still within its deadline.
+    if RecordSyncRequests[msg.Tags.Name] and RecordSyncRequests[msg.Tags.Name].timeStamp >= deadline then
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Already-Initiated-Record-Sync', Name = msg.Tags.Name }
+        })
+    elseif RecordSyncRequests[msg.Tags.Name] and RecordSyncRequests[msg.Tags.Name].timeStamp < deadline then
+        -- If an existing claim attempt is past its deadline, notify the original requester and clear it.
+        ao.send({
+            Target = RecordSyncRequests[msg.Tags.Name].requestor,
+            Tags = { Action = 'Record-Sync-Cleaned', Name = msg.Tags.Name, Deadline = tostring(deadline) }
+        })
+        RecordSyncRequests[msg.Tags.Name] = nil -- Clear past-due record claim attempt.
+    elseif Records[msg.Tags.Name].contractTxId == nil then
+        -- Proceed with initiating a new record sync if the record name does not exist.
+        local url = ARNS_SW_CACHE_URL .. msg.Tags.Name
+        fetchJsonDataFromOrbit(url) -- Fetch current record details from an external source.
 
-            -- Log the new claim attempt.
-            RecordSyncRequests[msg.Tags.Name] = {
-                name = msg.Tags.Name,
-                url = url,
-                timeStamp = msg.Timestamp,
-                requestor = msg.From
-            }
+        -- Log the new claim attempt.
+        RecordSyncRequests[msg.Tags.Name] = {
+            name = msg.Tags.Name,
+            url = url,
+            timeStamp = msg.Timestamp,
+            requestor = msg.From
+        }
 
-            -- Acknowledge the initiation of the claim process to the requester.
-            ao.send({
-                Target = msg.From,
-                Tags = { Action = 'Initiate-Record-Sync-Notice', Name = msg.Tags.Name }
-            })
-        else
-            print('Record already exists')
-        end
-    end)
+        -- Acknowledge the initiation of the claim process to the requester.
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Initiate-Record-Sync-Notice', Name = msg.Tags.Name }
+        })
+    else
+        print('Record already exists')
+    end
+end)
 
 --- Handles the reception of a data feed, typically from an external process (Orbit in this cont..
 -- @param msg The message containing the data feed, including record information.
@@ -627,7 +604,7 @@ end)
 -- This handler is triggered by messages with a 'Credit-Notice' tag originating from the TOKEN_PROCESS_ID.
 -- It updates the credit balance for the sender specified in the message and sends a confirmation back.
 -- @param msg The incoming message containing the credit transaction details.
-Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg, env)
+Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
     if msg.From == TOKEN_PROCESS_ID then
         -- Update or initialize the sender's credit balance
         Credits[msg.Tags.Sender] = (Credits[msg.Tags.Sender] or 0) + msg.Tags.Quantity
@@ -687,3 +664,7 @@ Handlers.add("Cron",
         end
     end
 )
+
+Handlers.add("wtf", Handlers.utils.hasMatchingTag("Action", "WTF"), function(msg)
+    print("WTF!!!")
+end)

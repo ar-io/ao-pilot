@@ -1,0 +1,140 @@
+name: ao-localnet
+
+configs:
+  ao-wallet:
+    file: ./wallets/ao-wallet.json
+  bundler-wallet:
+    file: ./wallets/bundler-wallet.json
+  ardrive-web-app-config:
+    file: ./services/ardrive-web/app-config.json
+  turbo-wallet:
+    file: ./wallets/turbo-wallet.json
+
+volumes:
+  su:
+  turbo:
+
+services:
+  arlocal:
+    image:  a
+    command: [
+      "--persist",      # save the database to disk
+      "--dbpath", "db", # in this folder
+      "80",             # listen on port 80
+    ]
+    healthcheck:
+      test: wget --spider http://localhost/info || exit 1
+      start_period: 10s
+      start_interval: 1s
+    ports:
+      - 4000:80
+    volumes:
+      - ./services/arlocal/data:/app/db
+
+  ardrive-web:
+    profiles: ["ardrive"]
+    depends_on:
+      arlocal:
+        condition: service_healthy
+    build: ./services/ardrive-web
+    configs:
+      - source: ardrive-web-app-config
+        target: /usr/local/apache2/htdocs/assets/assets/config/dev.json
+    ports:
+      - 4001:80
+
+  mu:
+    build: ./services/mu
+    configs:
+      - source: ao-wallet
+        target: /usr/app/ao-wallet.json
+    env_file: ./services/mu/.env
+    ports:
+      - 4002:80
+
+  su:
+    depends_on:
+      arlocal:
+        condition: service_healthy
+      su-database:
+        condition: service_healthy
+    build: ./services/su
+    configs:
+      - source: ao-wallet
+        target: /app/ao-wallet.json
+    env_file: ./services/su/.env
+    ports:
+      - 4003:80
+
+  su-database:
+    image: postgres
+    environment:
+      - POSTGRES_USER=su_user
+      - POSTGRES_PASSWORD=su_pass
+      - POSTGRES_DB=su_db
+    healthcheck:
+      test: pg_isready -U su_user -d su_db || exit 1
+      start_period: 10s
+      start_interval: 1s
+    volumes:
+      - su:/var/lib/postgresql/data
+
+  cu:
+    build: ./services/cu
+    configs:
+      - source: ao-wallet
+        target: /usr/app/ao-wallet.json
+    env_file: ./services/cu/.env
+    ports:
+      - 4004:80
+
+  turbo:
+    profiles: ["turbo"]
+    depends_on:
+      turbo-database:
+        condition: service_healthy
+    build: ./services/turbo
+    configs:
+      - source: turbo-wallet
+        target: /usr/src/turbo-wallet.json
+    env_file: ./services/turbo/.env
+    ports:
+      - 4005:80
+
+  turbo-database:
+    profiles: ["turbo"]
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    healthcheck:
+      test: pg_isready -U postgres -d postgres || exit 1
+      start_period: 10s
+      start_interval: 1s
+    volumes:
+      - turbo:/var/lib/postgresql/data
+
+  scar:
+    profiles: ["explorer", "scar"]
+    depends_on:
+      arlocal:
+        condition: service_healthy
+    build:
+      context: ./services/scar
+      args:
+        - REPO=https://github.com/MichaelBuhler/scar.git
+        - BRANCH=main
+        - ARWEAVE_GATEWAY_URL=http://localhost:4000
+    ports:
+      - 4006:80
+
+  bundler:
+    depends_on:
+      arlocal:
+        condition: service_healthy
+    build: ./services/bundler
+    configs:
+      - source: bundler-wallet
+        target: /app/bundler-wallet.json
+    env_file: ./services/bundler/.env
+    ports:
+      - 4007:80

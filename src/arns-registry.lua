@@ -642,7 +642,7 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
             local quantity = tonumber(msg.Tags.Quantity) or 0
             local parameters = json.decode(msg.Tags.Parameters)
 
-            if parameters.name and parameters.processId then
+            if parameters.Function == 'buyRecord' and parameters.name and parameters.processId then
                 local name = string.lower(parameters.name)
                 local validRecord, validRecordErr = validateBuyRecord(parameters)
                 if validRecord == false then

@@ -15,6 +15,7 @@ Listeners = Listeners or {}
 -- Constants
 DEFAULT_UNDERNAME_COUNT = 10
 DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
+SECONDS_IN_A_YEAR = 31536000
 
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
@@ -145,38 +146,63 @@ end
 -- @param msg The message table containing the Tags field with all necessary data.
 -- @return boolean, string First return value indicates whether the message is valid (true) or not (false),
 --                         and the second return value provides an error message in case of validation failure.
-function validateBuyRecord(msg)
+function validateBuyRecord(parameters)
     -- Validate the presence and type of the 'name' field
-    if not msg.Tags.name or type(msg.Tags.name) ~= "string" then
+    if type(parameters.name) ~= "string" then
         return false, "name is required and must be a string."
     end
 
+    -- Validate the character count 'name' field to ensure names 4 characters or below are excluded
+    if string.len(parameters.name) <= 4 then
+        return false, "1-4 character names are not allowed"
+    end
+
     -- Validate the pattern of the 'name' field to ensure it follows specific naming conventions
-    if not string.match(msg.Tags.name, "^([a-zA-Z0-9][a-zA-Z0-9-]{0,49}[a-zA-Z0-9]|[a-zA-Z0-9]{1})$") then
+    --if not string.match(tostring(parameters.name), "^([a-zA-Z0-9][a-zA-Z0-9-]{0,49}[a-zA-Z0-9]|[a-zA-Z0-9]{1})$") then
+    --    return false, "name pattern is invalid."
+    --end
+
+    local name = tostring(parameters.name)
+    local startsWithAlphanumeric = name:match("^%w")
+    local endsWithAlphanumeric = name:match("%w$")
+    local middleValid = name:match("^[%w-]+$")
+    local validLength = #name >= 5 and #name <= 51
+
+    if not (startsWithAlphanumeric and endsWithAlphanumeric and middleValid and validLength) then
         return false, "name pattern is invalid."
     end
 
-    -- If 'contractTxId' is present, validate its pattern to match expected formats
-    -- This includes a check for a special case 'atomic' or a 43 character base64url string
-    if msg.Tags.contractTxId and not string.match(msg.Tags.contractTxId, "^(atomic|[a-zA-Z0-9-_]{43})$") then
-        return false, "contractTxId pattern is invalid."
+    -- First, check for the 'atomic' special case.
+    local processId = tostring(parameters.processId)
+    local isAtomic = processId == "atomic"
+
+    -- Then, check for a 43-character base64url pattern.
+    -- The pattern checks for a string of length 43 containing alphanumeric characters, hyphens, or underscores.
+    local isValidBase64Url = string.match(processId, "^[%w-_]+$") and #processId == 43
+
+    if not isValidBase64Url and not isAtomic then
+        return false, "processId pattern is invalid."
     end
 
     -- If 'years' is present, validate it as an integer between 1 and 5
-    if msg.Tags.years then
-        if type(msg.Tags.years) ~= "number" or msg.Tags.years % 1 ~= 0 or msg.Tags.years < 1 or msg.Tags.years > 5 then
+    if parameters.years then
+        if type(parameters.years) ~= "number" or parameters.years % 1 ~= 0 or parameters.years < 1 or parameters.years > 5 then
             return false, "years must be an integer between 1 and 5."
         end
     end
 
-    -- Validate 'type' field if present, ensuring it is either 'lease' or 'permabuy'
-    if msg.Tags.type and not string.match(msg.Tags.type, "^(lease|permabuy)$") then
-        return false, "type pattern is invalid."
+    -- Validate 'purchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
+    if parameters.purchaseType then
+        if not string.match(parameters.purchaseType, "^(lease|permabuy)$") then
+            return false, "type pattern is invalid."
+        end
     end
 
     -- Validate the 'auction' field if present, ensuring it is a boolean value
-    if msg.Tags.auction and type(msg.Tags.auction) ~= "boolean" then
-        return false, "auction must be a boolean."
+    if parameters.auction then
+        if type(parameters.auction) ~= "boolean" then
+            return false, "auction must be a boolean."
+        end
     end
 
     -- If all validations pass, return true with an empty message indicating success
@@ -229,6 +255,11 @@ function isControllerPresent(controllers, controller)
         end
     end
     return false -- No matching controller found, return false.
+end
+
+function getNamePrice(name)
+    local price = Fees[string.len(name)]
+    return price
 end
 
 --- Responds to an 'Info' action request with process details.
@@ -605,33 +636,91 @@ end)
 -- It updates the credit balance for the sender specified in the message and sends a confirmation back.
 -- @param msg The incoming message containing the credit transaction details.
 Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
-    if msg.From == TOKEN_PROCESS_ID then
-        -- Update or initialize the sender's credit balance
-        Credits[msg.Tags.Sender] = (Credits[msg.Tags.Sender] or 0) + msg.Tags.Quantity
-        -- Send Credit-Notice to the Recipient
-        ao.send({
-            Target = msg.Tags.Sender,
-            Tags = { Action = 'Credit-Notice', Sender = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
-        })
-    end
-
     -- Ensure the message originates from the designated TOKEN_PROCESS_ID to authenticate the source.
     if msg.From == TOKEN_PROCESS_ID then
-        -- Parse the quantity from the message as a number. Ensure it handles both string and number types gracefully.
-        local quantity = tonumber(msg.Tags.Quantity) or 0
+        if msg.Tags.Function and msg.Tags.Parameters then
+            local quantity = tonumber(msg.Tags.Quantity) or 0
+            local parameters = json.decode(msg.Tags.Parameters)
 
-        -- Safely retrieve the current credits for the sender or initialize to 0 if not present.
-        local currentCredits = Credits[msg.Tags.Sender] or 0
+            if parameters.name and parameters.processId then
+                local name = string.lower(parameters.name)
+                local validRecord, validRecordErr = validateBuyRecord(parameters)
+                if validRecord == false then
+                    print("Error for name: " .. name)
+                    print(validRecordErr)
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Invalid-Record-Notice', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
+                    })
+                    -- Send the tokens back
+                    ao.send({
+                        Target = TOKEN_PROCESS_ID,
+                        Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
+                    })
+                    return
+                end
 
-        -- Update the sender's credit balance with the new quantity.
-        Credits[msg.Tags.Sender] = currentCredits + quantity
+                local namePrice = getNamePrice(name)
+                if namePrice > quantity then
+                    print('Not enough tokens for this name')
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Insufficient-Funds', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
+                    })
+                    -- Send the tokens back
+                    ao.send({
+                        Target = TOKEN_PROCESS_ID,
+                        Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
+                    })
+                    return
+                end
 
-        -- Send a confirmation notice back to the sender with the updated credit quantity.
-        -- This acts as an acknowledgment of the credit update.
-        ao.send({
-            Target = msg.Tags.Sender,
-            Tags = { Action = 'Credit-Notice', Sender = msg.Tags.Sender, Quantity = tostring(Credits[msg.Tags.Sender]) }
-        })
+                if Records[parameters.name] then
+                    -- Notify the original purchaser
+                    print('Name is already taken')
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Deny-Notice', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
+                    })
+                    -- Send the tokens back
+                    ao.send({
+                        Target = TOKEN_PROCESS_ID,
+                        Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
+                    })
+                else
+                    print('This name is available for purchase!')
+
+                    Records[name] = {
+                        processId = parameters.processId,
+                        endTimestamp = msg.Timestamp + SECONDS_IN_A_YEAR, -- One year lease only
+                        startTimestamp = msg.Timestamp,
+                        type = "lease",
+                        undernames = 10
+                    }
+
+                    print('Added record: ' .. name)
+
+                    -- Check if any remaining balance to send back
+                    local remainingQuantity = quantity - namePrice
+                    if remainingQuantity > 1 then
+                        -- Send the tokens back
+                        ao.send({
+                            Target = TOKEN_PROCESS_ID,
+                            Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(remainingQuantity) }
+                        })
+                        ao.send({
+                            Target = msg.Tags.Sender,
+                            Tags = { Action = 'ArNS-Purchase-Notice-Remainder', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId), Quantity = tostring(remainingQuantity) }
+                        })
+                    else
+                        ao.send({
+                            Target = msg.Tags.Sender,
+                            Tags = { Action = 'ArNS-Purchase-Notice', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
+                        })
+                    end
+                end
+            end
+        end
     else
         -- Optional: Handle or log unauthorized credit notice attempts.
         print("Unauthorized Credit-Notice attempt detected from: ", msg.From)
@@ -664,7 +753,3 @@ Handlers.add("Cron",
         end
     end
 )
-
-Handlers.add("wtf", Handlers.utils.hasMatchingTag("Action", "WTF"), function(msg)
-    print("WTF!!!")
-end)

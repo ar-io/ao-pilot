@@ -61,8 +61,6 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
     assert(qty > 0, 'Quantity must be greater than 0')
 
     if Balances[msg.From] >= qty then
-        print("Doing the transfer from: " .. msg.From)
-        print("to: " .. msg.Tags.Recipient)
         Balances[msg.From] = Balances[msg.From] - qty
         Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
 
@@ -84,18 +82,37 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
                     msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
                     .reset
             })
-            -- Send Credit-Notice to the Recipient
-            ao.send({
-                Target = msg.Tags.Recipient,
-                Action = 'Credit-Notice',
-                Sender = msg.From,
-                Quantity = tostring(qty),
-                Data = Colors.gray ..
-                    "You received " ..
-                    Colors.blue ..
-                    msg.Tags.Quantity .. Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset
-            })
-            print("Tokens sent")
+            if msg.Tags.Function and msg.Tags.Parameters then
+                -- Send Credit-Notice to the Recipient and include the function and parameters tags
+                ao.send({
+                    Target = msg.Tags.Recipient,
+                    Action = 'Credit-Notice',
+                    Sender = msg.From,
+                    Quantity = tostring(qty),
+                    Function = tostring(msg.Tags.Function),
+                    Parameters = msg.Tags.Parameters,
+                    Data = Colors.gray ..
+                        "You received " ..
+                        Colors.blue ..
+                        msg.Tags.Quantity ..
+                        Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset ..
+                        " with the instructions for function " .. Colors.green .. msg.Tags.Function .. Colors.reset ..
+                        " with the parameters " .. Colors.green .. msg.Tags.Parameters
+                })
+            else
+                -- Send Credit-Notice to the Recipient
+                ao.send({
+                    Target = msg.Tags.Recipient,
+                    Action = 'Credit-Notice',
+                    Sender = msg.From,
+                    Quantity = tostring(qty),
+                    Data = Colors.gray ..
+                        "You received " ..
+                        Colors.blue ..
+                        msg.Tags.Quantity ..
+                        Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset
+                })
+            end
         end
     else
         ao.send({

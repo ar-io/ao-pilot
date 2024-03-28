@@ -15,8 +15,10 @@ Listeners = Listeners or {}
 -- Constants
 DEFAULT_UNDERNAME_COUNT = 10
 DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
-SECONDS_IN_A_YEAR = 31536000
-SECONDS_IN_GRACE_PERIOD = 1814400     -- Three weeks, 7 days per week, 24 hours per day, sixty minutes per hour, sixty seconds per minute
+MS_IN_A_YEAR = 31536000 * 1000
+
+-- Three weeks, 7 days per week, 24 hours per day, sixty minutes per hour, sixty seconds per minute
+MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
 
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
@@ -132,21 +134,16 @@ if not RecordSyncRequests then
     RecordSyncRequests = {}
 end
 
--- Setup the default empty credit balances
-if not Credits then
-    Credits = {}
-end
-
 --- Validates the fields of a 'buy record' message for compliance with expected formats and value ranges.
 -- This function checks the following fields in the message:
 -- 1. 'name' - Required and must be a string matching specific naming conventions.
--- 2. 'contractTxId' - Optional, must match a predefined pattern (including a special case 'atomic' or a standard 43-character base64url string).
+-- 2. 'processId' - Optional, must match a predefined pattern (including a special case 'atomic' or a standard 43-character base64url string).
 -- 3. 'years' - Optional, must be an integer between 1 and 5.
 -- 4. 'type' - Optional, must be either 'lease' or 'permabuy'.
 -- 5. 'auction' - Optional, must be a boolean value.
 -- @param msg The message table containing the Tags field with all necessary data.
 -- @return boolean, string First return value indicates whether the message is valid (true) or not (false),
---                         and the second return value provides an error message in case of validation failure.
+-- and the second return value provides an error message in case of validation failure.
 function validateBuyRecord(parameters)
     -- Validate the presence and type of the 'name' field
     if type(parameters.name) ~= "string" then
@@ -263,8 +260,48 @@ function getNamePrice(name)
     return price
 end
 
-function tick()
-    print('ticking')
+function isLeaseRecord(record)
+    return record.type == 'lease'
+end
+
+function ensureMilliseconds(timestamp)
+    -- Assuming any timestamp before 100000000000 is in seconds
+    -- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous
+    local threshold = 100000000000
+    if timestamp < threshold then
+        -- If the timestamp is below the threshold, it's likely in seconds, so convert to milliseconds
+        return timestamp * 1000
+    else
+        -- If the timestamp is above the threshold, assume it's already in milliseconds
+        return timestamp
+    end
+end
+
+function isNameInGracePeriod(record, currentTimestamp)
+    if not record.endTimestamp then return false end
+    local recordIsExpired = currentTimestamp > ensureMilliseconds(record.endTimestamp)
+    return recordIsExpired and (ensureMilliseconds(record.endTimestamp) + MS_IN_GRACE_PERIOD > currentTimestamp)
+end
+
+function isExistingActiveRecord(record, currentTimestamp)
+    if not record then return false end
+
+    if not isLeaseRecord(record) then
+        return true
+    end
+
+    return ensureMilliseconds(record.endTimestamp) > currentTimestamp or isNameInGracePeriod(record, currentTimestamp)
+end
+
+function tick(currentTimestamp)
+    -- tick records
+    for key, record in pairs(Records) do
+        if isExistingActiveRecord(record, currentTimestamp) == false then
+            recordsTicked = recordsTicked + 1
+            -- Remove the record that is expired TO DO
+            -- Records[key] = nil
+        end
+    end
 end
 
 --- Responds to an 'Info' action request with process details.
@@ -276,6 +313,14 @@ end
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
     ao.send(
         { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), LastArNSSyncTimestamp = tostring(LastArNSSyncTimestamp), NamesRegistered = tostring(tableCount(Records)) } })
+end)
+
+Handlers.add('tick', Handlers.utils.hasMatchingTag('Action', 'Tick'), function(msg)
+    tick(msg.Timestamp)
+    ao.send({
+        Target = msg.From,
+        Tags = { Action = 'State-Ticked' }
+    })
 end)
 
 --- Responds to a 'Get-Fees' action request by providing the fee structure.
@@ -298,51 +343,6 @@ Handlers.add('getFees', Handlers.utils.hasMatchingTag('Action', 'Get-Fees'), fun
         Data = feesJson
     })
 end)
-
---- Responds to a 'Get-All-Credits' action request with the entire credits balance information.
--- This handler is triggered when a message with the 'Action' tag of 'Get-All-Credits' is received.
--- It sends back a JSON-encoded representation of all user credit balances stored in the 'Credits' table.
--- @param msg The incoming message that triggered the handler, expected to contain the sender's information in 'msg.From'.
-Handlers.add('getAllCredits', Handlers.utils.hasMatchingTag('Action', 'Get-All-Credits'), function(msg)
-    -- Attempt to encode the 'Credits' table to a JSON string.
-    local creditsJson, err = json.encode(Credits)
-    if not creditsJson then
-        -- Log an error if encoding fails and consider how to handle this failure more gracefully.
-        print("Error encoding credits: ", err)
-        return
-    end
-
-    -- Send the encoded credits information back to the requester.
-    ao.send({
-        Target = msg.From,
-        Tags = { Action = 'All-Credits-Response' },
-        Data = creditsJson
-    })
-end)
-
---- Responds to a 'Get-Credits' action request by providing the credit balance for a specified target or the sender.
--- This handler is triggered by messages tagged with the 'Action' of 'Get-Credits'.
--- It checks if a specific target is mentioned and returns that target's credit balance. If no target is specified,
--- it returns the sender's credit balance. The balance is sent back in both the Tags and as encoded JSON data.
--- @param msg The incoming message that triggered the handler, containing 'msg.From' and optionally 'msg.Tags.Target'.
-Handlers.add('getCredits', Handlers.utils.hasMatchingTag('Action', 'Get-Credits'), function(msg)
-    local credits = '0' -- Default credit balance to '0'
-
-    -- Check if a target is specified and has a credit balance; otherwise, use the sender's balance.
-    if msg.Tags.Target and Credits[msg.Tags.Target] then
-        credits = tostring(Credits[msg.Tags.Target])
-    elseif Credits[msg.From] then
-        credits = tostring(Credits[msg.From]) -- Fixed incorrect function call to proper assignment.
-    end
-
-    -- Send the credit balance back to the sender, including it in both Tags and Data for flexibility.
-    ao.send({
-        Target = msg.From,
-        Tags = { Target = msg.From, Credits = credits, Ticker = Ticker }, -- Assuming Ticker is a global variable defined elsewhere.
-        Data = json.encode({ Credits = tonumber(credits) })
-    })
-end)
-
 
 --- Responds to 'Get-Record' action requests by providing details of a specified record.
 -- When triggered by a message tagged with 'Action' of 'Get-Record', this handler checks if the requested
@@ -643,6 +643,8 @@ end)
 Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)
     -- Ensure the message originates from the designated TOKEN_PROCESS_ID to authenticate the source.
     if msg.From == TOKEN_PROCESS_ID then
+        -- Tick the state before going further
+        tick(msg.Timestamp)
         if msg.Tags.Function and msg.Tags.Parameters then
             local quantity = tonumber(msg.Tags.Quantity) or 0
             local parameters = json.decode(msg.Tags.Parameters)
@@ -697,7 +699,7 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
 
                     Records[name] = {
                         processId = parameters.processId,
-                        endTimestamp = msg.Timestamp + SECONDS_IN_A_YEAR, -- One year lease only
+                        endTimestamp = msg.Timestamp + MS_IN_A_YEAR, -- One year lease only
                         startTimestamp = msg.Timestamp,
                         type = "lease",
                         undernames = 10

@@ -16,6 +16,7 @@ Listeners = Listeners or {}
 DEFAULT_UNDERNAME_COUNT = 10
 DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
 SECONDS_IN_A_YEAR = 31536000
+SECONDS_IN_GRACE_PERIOD = 1814400     -- Three weeks, 7 days per week, 24 hours per day, sixty minutes per hour, sixty seconds per minute
 
 -- URL configurations
 SW_CACHE_URL = "https://api.arns.app/v1/contract/"
@@ -260,6 +261,10 @@ end
 function getNamePrice(name)
     local price = Fees[string.len(name)]
     return price
+end
+
+function tick()
+    print('ticking')
 end
 
 --- Responds to an 'Info' action request with process details.

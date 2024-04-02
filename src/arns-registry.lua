@@ -377,9 +377,9 @@ function isExistingActiveRecord(record, currentTimestamp)
 
     if isNameInGracePeriod(record, currentTimestamp) then
         return true
+    else
+        return false
     end
-
-    return false
 end
 
 function validateIncreaseUndernames(record, qty, currentTimestamp)
@@ -412,6 +412,7 @@ end
 
 function tick(currentTimestamp)
     -- tick records
+    local recordsTicked = 0
     for key, record in pairs(Records) do
         if isExistingActiveRecord(record, currentTimestamp) == false then
             recordsTicked = recordsTicked + 1
@@ -419,6 +420,7 @@ function tick(currentTimestamp)
             -- Records[key] = nil
         end
     end
+    return true
 end
 
 --- Responds to an 'Info' action request with process details.
@@ -807,7 +809,7 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                     return
                 end
 
-                if isExistingActiveRecord(Records[parameters.name], msg.Timestamp) then
+                if isExistingActiveRecord(Records[name], msg.Timestamp) then
                     -- Notify the original purchaser
                     print('Name is already taken')
                     ao.send({

@@ -1,6 +1,5 @@
 -- arns-experiment-1
 local json = require('json')
-local base64 = require(".base64")
 
 -- Default configurations
 Name = Name or 'ArNS-AO-Experiment'
@@ -16,6 +15,8 @@ Listeners = Listeners or {}
 DEFAULT_UNDERNAME_COUNT = 10
 DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
 MS_IN_A_YEAR = 31536000 * 1000
+PERMABUY_LEASE_FEE_LENGTH = 10
+ANNUAL_PERCENTAGE_FEE = 0.2
 
 -- Three weeks, 7 days per week, 24 hours per day, sixty minutes per hour, sixty seconds per minute
 MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
@@ -191,8 +192,13 @@ function validateBuyRecord(parameters)
 
     -- Validate 'purchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
     if parameters.purchaseType then
-        if not string.match(parameters.purchaseType, "^(lease|permabuy)$") then
+        if not (parameters.purchaseType == 'lease' or parameters.purchaseType == 'permabuy') then
             return false, "type pattern is invalid."
+        end
+
+        -- Do not allow permabuying names 11 characters or below for this experimentation period
+        if parameters.purchaseType == 'permabuy' and string.len(parameters.name) <= 11 then
+            return false, "cannot permabuy name 11 characters or below at this time"
         end
     end
 
@@ -255,9 +261,61 @@ function isControllerPresent(controllers, controller)
     return false -- No matching controller found, return false.
 end
 
-function getNamePrice(name)
-    local price = Fees[string.len(name)]
-    return price
+function calculateLeaseFee(name, years)
+    -- Initial cost to register a name
+    -- TODO: Harden the types here to make fees[name.length] an error
+    local initialNamePurchaseFee = Fees[string.len(name)]
+
+    -- total cost to purchase name (no demand factor)
+    return (
+        initialNamePurchaseFee +
+        calculateAnnualRenewalFee(
+            name,
+            years
+        )
+    );
+end
+
+function calculateAnnualRenewalFee(name, years)
+    -- Determine annual registration price of name
+    local initialNamePurchaseFee = Fees[string.len(name)]
+
+    -- Annual fee is specific % of initial purchase cost
+    local nameAnnualRegistrationFee =
+        initialNamePurchaseFee * ANNUAL_PERCENTAGE_FEE;
+
+    local totalAnnualRenewalCost = nameAnnualRegistrationFee * years;
+
+    return totalAnnualRenewalCost;
+end
+
+function calculatePermabuyFee(name)
+    -- genesis price
+    local initialNamePurchaseFee = Fees[string.len(name)]
+
+    -- calculate the annual fee for the name for default of 10 years
+    local permabuyPrice =
+    --  No demand factor
+        initialNamePurchaseFee +
+        -- total renewal cost pegged to 10 years to purchase name
+        calculateAnnualRenewalFee(
+            name,
+            PERMABUY_LEASE_FEE_LENGTH
+        );
+    return permabuyPrice
+end
+
+function calculateRegistrationFee(purchaseType, name, years)
+    if purchaseType == 'lease' then
+        return calculateLeaseFee(
+            name,
+            years
+        );
+    elseif purchaseType == 'permabuy' then
+        return calculatePermabuyFee(
+            name
+        );
+    end
 end
 
 function isLeaseRecord(record)
@@ -652,6 +710,14 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
             if msg.Tags.Function == 'buyRecord' and parameters.name and parameters.processId then
                 local name = string.lower(parameters.name)
                 local validRecord, validRecordErr = validateBuyRecord(parameters)
+                if parameters.purchaseType == nil then
+                    parameters.purchaseType = 'lease' -- set to lease by default
+                end
+
+                if parameters.years == nil then
+                    parameters.years = 1 -- set to 1 year by default
+                end
+
                 if validRecord == false then
                     print("Error for name: " .. name)
                     print(validRecordErr)
@@ -667,8 +733,8 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                     return
                 end
 
-                local namePrice = getNamePrice(name)
-                if namePrice > quantity then
+                local totalRegistrationFee = calculateRegistrationFee(parameters.purchaseType, name, parameters.years)
+                if totalRegistrationFee > quantity then
                     print('Not enough tokens for this name')
                     ao.send({
                         Target = msg.Tags.Sender,
@@ -697,20 +763,32 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                 else
                     print('This name is available for purchase!')
 
-                    Records[name] = {
-                        processId = parameters.processId,
-                        endTimestamp = msg.Timestamp + MS_IN_A_YEAR, -- One year lease only
-                        startTimestamp = msg.Timestamp,
-                        type = "lease",
-                        undernames = 10
-                    }
+                    if parameters.purchaseType == 'lease' then
+                        Records[name] = {
+                            processId = parameters.processId,
+                            endTimestamp = msg.Timestamp + MS_IN_A_YEAR * parameters.years,
+                            startTimestamp = msg.Timestamp,
+                            type = "lease",
+                            undernames = 10,
+                            purchasePrice = totalRegistrationFee
+                        }
+                    elseif parameters.purchaseType == 'permabuy' then
+                        Records[name] = {
+                            processId = parameters.processId,
+                            startTimestamp = msg.Timestamp,
+                            type = "permabuy",
+                            undernames = 10,
+                            purchasePrice = totalRegistrationFee
+                        }
+                    end
 
                     print('Added record: ' .. name)
 
                     -- Check if any remaining balance to send back
-                    local remainingQuantity = quantity - namePrice
+                    local remainingQuantity = quantity - totalRegistrationFee
                     if remainingQuantity > 1 then
                         -- Send the tokens back
+                        print('Sending back remaining tokens: ' .. remainingQuantity)
                         ao.send({
                             Target = TOKEN_PROCESS_ID,
                             Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(remainingQuantity) }

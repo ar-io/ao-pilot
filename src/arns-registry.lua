@@ -17,6 +17,11 @@ DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
 MS_IN_A_YEAR = 31536000 * 1000
 PERMABUY_LEASE_FEE_LENGTH = 10
 ANNUAL_PERCENTAGE_FEE = 0.2
+ARNS_NAME_DOES_NOT_EXIST_MESSAGE = "Name does not exist in the ArNS Registry!"
+ARNS_MAX_UNDERNAME_MESSAGE = "Name has reached undername limit of 10000"
+MAX_ALLOWED_UNDERNAMES = 10000
+UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
+UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
 
 -- Three weeks, 7 days per week, 24 hours per day, sixty minutes per hour, sixty seconds per minute
 MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
@@ -318,6 +323,24 @@ function calculateRegistrationFee(purchaseType, name, years)
     end
 end
 
+function calculateUndernameCost(name, increaseQty, registrationType, years)
+    local initialNameFee = Fees[string.len(name)] -- Get the fee based on the length of the name
+    if initialNameFee == nil then
+        -- Handle the case where there is no fee for the given name length
+        return 0
+    end
+
+    local undernamePercentageFee = 0
+    if registrationType == 'lease' then
+        undernamePercentageFee = UNDERNAME_LEASE_FEE_PERCENTAGE
+    elseif registrationType == 'permabuy' then
+        undernamePercentageFee = UNDERNAME_PERMABUY_FEE_PERCENTAGE
+    end
+
+    local totalFeeForQtyAndYears = initialNameFee * undernamePercentageFee * increaseQty * years
+    return totalFeeForQtyAndYears
+end
+
 function isLeaseRecord(record)
     return record.type == 'lease'
 end
@@ -336,9 +359,13 @@ function ensureMilliseconds(timestamp)
 end
 
 function isNameInGracePeriod(record, currentTimestamp)
-    if not record.endTimestamp then return false end
-    local recordIsExpired = currentTimestamp > ensureMilliseconds(record.endTimestamp)
-    return recordIsExpired and (ensureMilliseconds(record.endTimestamp) + MS_IN_GRACE_PERIOD > currentTimestamp)
+    if not record or not record.endTimestamp then
+        return false
+    end -- if it has no timestamp, it is a permabuy
+    if (ensureMilliseconds(record.endTimestamp) + MS_IN_GRACE_PERIOD) < currentTimestamp then
+        return false
+    end
+    return true
 end
 
 function isExistingActiveRecord(record, currentTimestamp)
@@ -348,7 +375,39 @@ function isExistingActiveRecord(record, currentTimestamp)
         return true
     end
 
-    return ensureMilliseconds(record.endTimestamp) > currentTimestamp or isNameInGracePeriod(record, currentTimestamp)
+    if isNameInGracePeriod(record, currentTimestamp) then
+        return true
+    end
+
+    return false
+end
+
+function validateIncreaseUndernames(record, qty, currentTimestamp)
+    if qty < 1 or qty > 9990 then
+        return false, 'Qty is invalid'
+    end
+
+    if record == nil then
+        return false, ARNS_NAME_DOES_NOT_EXIST_MESSAGE;
+    end
+
+    -- This name's lease has expired and cannot have undernames increased
+    if not isExistingActiveRecord(record, currentTimestamp) then
+        return false, "This name has expired and must renewed before its undername support can be extended."
+    end
+
+    -- the new total qty
+    if record.undernames + qty > MAX_ALLOWED_UNDERNAMES then
+        return false, ARNS_MAX_UNDERNAME_MESSAGE
+    end
+
+    return true, ""
+end
+
+function calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
+    local yearsRemainingFloat =
+        (endTimestamp - startTimestamp) / MS_IN_A_YEAR;
+    return string.format("%.2f", yearsRemainingFloat)
 end
 
 function tick(currentTimestamp)
@@ -748,7 +807,7 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                     return
                 end
 
-                if Records[parameters.name] then
+                if isExistingActiveRecord(Records[parameters.name], msg.Timestamp) then
                     -- Notify the original purchaser
                     print('Name is already taken')
                     ao.send({
@@ -769,7 +828,7 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                             endTimestamp = msg.Timestamp + MS_IN_A_YEAR * parameters.years,
                             startTimestamp = msg.Timestamp,
                             type = "lease",
-                            undernames = 10,
+                            undernames = DEFAULT_UNDERNAME_COUNT,
                             purchasePrice = totalRegistrationFee
                         }
                     elseif parameters.purchaseType == 'permabuy' then
@@ -777,7 +836,7 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                             processId = parameters.processId,
                             startTimestamp = msg.Timestamp,
                             type = "permabuy",
-                            undernames = 10,
+                            undernames = DEFAULT_UNDERNAME_COUNT,
                             purchasePrice = totalRegistrationFee
                         }
                     end
@@ -803,6 +862,82 @@ Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Not
                             Tags = { Action = 'ArNS-Purchase-Notice', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
                         })
                     end
+                end
+            elseif msg.Tags.Function == 'increaseUndernameCount' and parameters.name and parameters.qty then
+                local name = string.lower(parameters.name)
+                -- validate record can increase undernames
+                local validIncrease, err = validateIncreaseUndernames(Records[name], parameters.qty, msg.Timestamp)
+                if validIncrease == false then
+                    print("Error for name: " .. name)
+                    print(err)
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Invalid-Undername-Increase-Notice', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
+                    })
+                    -- Send the tokens back
+                    ao.send({
+                        Target = TOKEN_PROCESS_ID,
+                        Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
+                    })
+                    return
+                end
+
+                local record = Records[name]
+                local endTimestamp
+                if isLeaseRecord(record) then
+                    endTimestamp = ensureMilliseconds(record.endTimestamp)
+                else
+                    endTimestamp = nil
+                end
+
+                local yearsRemaining
+                if endTimestamp then
+                    yearsRemaining = calculateYearsBetweenTimestamps(msg.Timestamp, endTimestamp)
+                else
+                    yearsRemaining = PERMABUY_LEASE_FEE_LENGTH -- Assuming PERMABUY_LEASE_FEE_LENGTH is defined somewhere
+                end
+
+                local existingUndernames = record.undernames
+
+                local additionalUndernameCost = calculateUndernameCost(name, parameters.qty, record.type,
+                    yearsRemaining)
+
+                if additionalUndernameCost > quantity then
+                    print('Not enough tokens for adding undernames.')
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Insufficient-Funds', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId) }
+                    })
+                    -- Send the tokens back
+                    ao.send({
+                        Target = TOKEN_PROCESS_ID,
+                        Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(msg.Tags.Quantity) }
+                    })
+                    return
+                end
+
+                local incrementedUndernames = existingUndernames + parameters.qty
+                Records[name].undernames = incrementedUndernames
+                print('Increased undernames for: ' .. name .. " to " .. incrementedUndernames .. " undernames")
+
+                -- Check if any remaining balance to send back
+                local remainingQuantity = quantity - additionalUndernameCost
+                if remainingQuantity > 1 then
+                    -- Send the tokens back
+                    print('Sending back remaining tokens: ' .. remainingQuantity)
+                    ao.send({
+                        Target = TOKEN_PROCESS_ID,
+                        Tags = { Action = 'Transfer', Recipient = msg.Tags.Sender, Quantity = tostring(remainingQuantity) }
+                    })
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Increase-Undername-Notice-Remainder', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId), Quantity = tostring(remainingQuantity), IncrementedUndernames = tostring(incrementedUndernames) }
+                    })
+                else
+                    ao.send({
+                        Target = msg.Tags.Sender,
+                        Tags = { Action = 'ArNS-Increase-Undername-Notice', Sender = msg.Tags.Sender, Name = tostring(parameters.name), ProcessId = tostring(parameters.processId), IncrementedUndernames = tostring(incrementedUndernames) }
+                    })
                 end
             end
         end

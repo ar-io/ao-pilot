@@ -1,118 +1,37 @@
 // Here aoconnect will implicitly use the default nodes/units
 import {
-    result,
-    results,
-    message,
-    spawn,
-    monitor,
-    unmonitor,
-    dryrun,
-    createDataItemSigner,
-} from "@permaweb/aoconnect";
-import { generateWallet } from "./utils";
+    result, // Importing the result function from aoconnect
+    results, // Importing the results function from aoconnect
+    message, // Importing the message function from aoconnect
+    spawn, // Importing the spawn function from aoconnect
+    monitor, // Importing the monitor function from aoconnect
+    unmonitor, // Importing the unmonitor function from aoconnect
+    dryrun, // Importing the dryrun function from aoconnect
+    createDataItemSigner, // Importing the createDataItemSigner function from aoconnect
+} from "@permaweb/aoconnect"; // Importing necessary functions from aoconnect package
+import { generateWallet } from "./utils"; // Importing the generateWallet function from utils module
 
-const processId = "H_3EirnLXUrdqQ2ouE4zB72biF_XknOd8DKCnEP0I1I"
+const processId = "H_3EirnLXUrdqQ2ouE4zB72biF_XknOd8DKCnEP0I1I" // Defining the processId constant
 
+// Async function to read ANT state
 export async function readANTState() {
-    const { jwk } = await generateWallet()
-    const messageId = await message({
-        process: processId,
-        tags: [{ name: "Action", value: "Info" }],
-        signer: createDataItemSigner(jwk)
-    })
-    const res = await result({
-        message: messageId,
-        process: processId
-    })
-    console.log(`chain message results:`)
-    console.dir(res, { depth: 30 })
+    const { jwk } = await generateWallet(); // Generating a wallet and extracting the JWK
+    const messageId = await message({ // Sending a message and getting the message ID
+        process: processId, // Using the defined process ID
+        tags: [{ name: "Action", value: "Info" }], // Defining tags for the message
+        signer: createDataItemSigner(jwk) // Using the JWK to create a data item signer
+    });
+    const res = await result({ // Getting the result of a message using its ID
+        message: messageId, // Using the generated message ID
+        process: processId // Using the defined process ID
+    });
+    console.log(`chain message results:`); // Logging a message indicating chain message results
+    console.dir(res, { depth: 30 }); // Logging the result with increased depth for object inspection
 
-    const dryRead = await dryrun({
-        process: processId,
-        tags: [{ name: "Action", value: "Info" }],
-
-    })
-    console.log(`dry run results:`)
-    console.dir(dryRead, { depth: 30 })
+    const dryRead = await dryrun({ // Performing a dry run to simulate message execution
+        process: processId, // Using the defined process ID
+        tags: [{ name: "Action", value: "Info" }], // Defining tags for the dry run
+    });
+    console.log(`dry run results:`); // Logging a message indicating dry run results
+    console.dir(dryRead, { depth: 30 }); // Logging the dry run result with increased depth for object inspection
 }
-
-readANTState()
-
-// output
-
-// chain message results:
-// {
-//   Messages: [
-//     {
-//       Tags: [
-//         { value: 'ao', name: 'Data-Protocol' },
-//         { value: 'ao.TN.1', name: 'Variant' },
-//         { value: 'Message', name: 'Type' },
-//         {
-//           value: 'H_3EirnLXUrdqQ2ouE4zB72biF_XknOd8DKCnEP0I1I',
-//           name: 'From-Process'
-//         },
-//         {
-//           value: '1SafZGlZT4TLI8xoc0QEQ4MylHhuyQUblxD8xLKvEKI',
-//           name: 'From-Module'
-//         },
-//         { value: '179', name: 'Ref_' },
-//         {
-//           value: 'iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA',
-//           name: 'ProcessOwner'
-//         },
-//         { value: '[]', name: 'Controllers' },
-//         {
-//           value: 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A',
-//           name: 'Logo'
-//         },
-//         { value: 'ant-token-experiment-2', name: 'Name' },
-//         { value: 'ANT-AO-EXP1', name: 'Ticker' },
-//         { value: '1', name: 'Denomination' }
-//       ],
-//       Anchor: '00000000000000000000000000000179',
-//       Target: 'mgs6-9Z8xi-XLfKvvEs_5ypEgyPv56kurYuBqVp8JQk'
-//     }
-//   ],
-//   Spawns: [],
-//   Output: [],
-//   GasUsed: 612243672
-// }
-// dry run results:
-// {
-//   Messages: [
-//     {
-//       Tags: [
-//         { value: 'ao', name: 'Data-Protocol' },
-//         { value: 'ao.TN.1', name: 'Variant' },
-//         { value: 'Message', name: 'Type' },
-//         {
-//           value: 'H_3EirnLXUrdqQ2ouE4zB72biF_XknOd8DKCnEP0I1I',
-//           name: 'From-Process'
-//         },
-//         {
-//           value: '1SafZGlZT4TLI8xoc0QEQ4MylHhuyQUblxD8xLKvEKI',
-//           name: 'From-Module'
-//         },
-//         { value: '180', name: 'Ref_' },
-//         {
-//           value: 'iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA',
-//           name: 'ProcessOwner'
-//         },
-//         { value: '[]', name: 'Controllers' },
-//         {
-//           value: 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A',
-//           name: 'Logo'
-//         },
-//         { value: 'ant-token-experiment-2', name: 'Name' },
-//         { value: 'ANT-AO-EXP1', name: 'Ticker' },
-//         { value: '1', name: 'Denomination' }
-//       ],
-//       Anchor: '00000000000000000000000000000180',
-//       Target: '1234'
-//     }
-//   ],
-//   Spawns: [],
-//   Output: [],
-//   GasUsed: 446993263
-// }

@@ -39,120 +39,183 @@ function splitIntoTwoNames(str)
     end
 end
 
+-- Metatable for ARNS table to handle indexing of keys
 local arnsMeta = {
+    -- Define behavior for indexing keys not present in ARNS table
     __index = function(t, key)
+        -- Check if key is "resolve"
         if key == "resolve" then
+            -- Return a function to resolve names
             return function(name)
+                -- Lowercase the name for consistency
                 name = string.lower(name)
+                -- Send a message to resolve the name
                 ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                -- Return a message indicating the name for which information is being fetched
                 return "Getting information for name: " .. name
             end
-        elseif key == "data" then
+        elseif key == "data" then  -- Check if key is "data"
+            -- Return a function to fetch data for names
             return function(name)
+                -- Lowercase the name for consistency
                 name = string.lower(name)
+                -- Split the name into root and under names
                 local rootName, underName = splitIntoTwoNames(name)
+                -- Check if rootName is not found in NAMES table
                 if NAMES[rootName] == nil then
+                    -- Send a message to resolve the rootName
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
+                    -- Print a message indicating that the name is being resolved
                     print(name .. ' has not been resolved yet.  Resolving now...')
-                    return nil
+                    return nil  -- Return nil as data is not available yet
+                -- Check if rootName is found and underName is nil
                 elseif rootName and underName == nil then
+                    -- Check if rootName process records are available and are stale
                     if NAMES[rootName].process and NAMES[rootName].process.records['@'] then
+                        -- Check if the data is stale and needs refreshing
                         if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
+                            -- Send a message to refresh the data
                             ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            -- Print a message indicating data is stale and being refreshed
                             print(name .. ' is stale.  Refreshing name process now...')
-                            return nil
+                            return nil  -- Return nil as data is being refreshed
                         else
+                            -- Return the transaction ID
                             return NAMES[rootName].process.records['@'].transactionId
                         end
+                    -- Check if rootName contract records are available and are stale
                     elseif NAMES[rootName].contract and NAMES[rootName].contract.records['@'] then
+                        -- Check if the data is stale and needs refreshing
                         if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
+                            -- Send a message to refresh the data
                             ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            -- Print a message indicating data is stale and being refreshed
                             print(name .. ' is stale.  Refreshing name contract now...')
-                            return nil
+                            return nil  -- Return nil as data is being refreshed
                         else
+                            -- Return the transaction ID or contract record
                             return NAMES[rootName].contract.records['@'].transactionId or
                                 NAMES[rootName].contract.records['@'] or
                                 nil
-                            -- NAMES[rootName].contract.records['@'] is used to capture old ANT contracts
+                            -- Comment explaining the purpose of capturing old ANT contracts
                         end
                     end
+                -- Check if both rootName and underName are present
                 elseif rootName and underName then
+                    -- Check if rootName process records for underName are available and are stale
                     if NAMES[rootName].process and NAMES[rootName].process.records[underName] then
+                        -- Check if the data is stale and needs refreshing
                         if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
+                            -- Send a message to refresh the data
                             ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            -- Print a message indicating data is stale and being refreshed
                             print(name .. ' is stale.  Refreshing name process now...')
-                            return nil
+                            return nil  -- Return nil as data is being refreshed
                         else
+                            -- Return the transaction ID for the underName
                             return NAMES[rootName].process.records[underName].transactionId
                         end
+                    -- Check if rootName contract records for underName are available and are stale
                     elseif NAMES[rootName].contract and NAMES[rootName].contract.records[underName] then
+                        -- Check if the data is stale and needs refreshing
                         if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
+                            -- Send a message to refresh the data
                             ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                            -- Print a message indicating data is stale and being refreshed
                             print(name .. ' is stale.  Refreshing name contract now...')
-                            return nil
+                            return nil  -- Return nil as data is being refreshed
                         else
+                            -- Return the transaction ID or contract record for the underName
                             return NAMES[rootName].contract.records[underName].transactionId or
                                 NAMES[rootName].contract.records[underName]
-                            -- NAMES[rootName].contract.records[underName] is used to capture old ANT contracts
+                            -- Comment explaining the purpose of capturing old ANT contracts
                         end
                     else
-                        return nil
+                        return nil  -- Return nil if data is not available
                     end
                 end
             end
-        elseif key == "owner" then
+        elseif key == "owner" then  -- Check if key is "owner"
+            -- Return a function to fetch owner for names
             return function(name)
+                -- Lowercase the name for consistency
                 name = string.lower(name)
+                -- Split the name into root and under names
                 local rootName, underName = splitIntoTwoNames(name)
+                -- Check if rootName is not found in NAMES table
                 if NAMES[rootName] == nil then
+                    -- Send a message to resolve the rootName
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
+                    -- Print a message indicating that the name is being resolved
                     print(name .. ' has not been resolved yet.  Cannot get owner.  Resolving now...')
-                    return nil
+                    return nil  -- Return nil as owner data is not available yet
+                -- Check if rootName process owner data is available and is stale
                 elseif NAMES[rootName].process and NAMES[rootName].process.owner then
+                    -- Check if the owner data is stale and needs refreshing
                     if Now - NAMES[rootName].process.lastUpdated >= OWNER_TTL_MS then
+                        -- Send a message to refresh the data
                         ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                        -- Print a message indicating owner data is stale and being refreshed
                         print(name .. ' is stale.  Refreshing name process now...')
-                        return nil
+                        return nil  -- Return nil as owner data is being refreshed
                     else
+                        -- Return the owner information
                         return NAMES[rootName].process.owner
                     end
+                -- Check if rootName contract owner data is available and is stale
                 elseif NAMES[rootName].contract and NAMES[rootName].contract.owner then
+                    -- Check if the owner data is stale and needs refreshing
                     if Now - NAMES[rootName].contract.lastUpdated >= OWNER_TTL_MS then
+                        -- Send a message to refresh the data
                         ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                        -- Print a message indicating owner data is stale and being refreshed
                         print(name .. ' is stale.  Refreshing name contract now...')
-                        return nil
+                        return nil  -- Return nil as owner data is being refreshed
                     else
+                        -- Return the owner information
                         return NAMES[rootName].contract.owner
                     end
                 else
-                    return nil
+                    return nil  -- Return nil if owner data is not available
                 end
             end
-        elseif key == "id" then
+        elseif key == "id" then  -- Check if key is "id"
+            -- Return a function to fetch id for names
             return function(name)
+                -- Lowercase the name for consistency
                 name = string.lower(name)
+                -- Split the name into root and under names
                 local rootName, underName = splitIntoTwoNames(name)
+                -- Check if rootName is not found in NAMES table
                 if NAMES[rootName] == nil then
+                    -- Send a message to resolve the rootName
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                    -- Print a message indicating that the name is being resolved
                     print(name .. ' has not been resolved yet.  Cannot get id.  Resolving now...')
-                    return nil
+                    return nil  -- Return nil as id data is not available yet
+                -- Check if the data is stale and needs refreshing
                 elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
+                    -- Send a message to refresh the data
                     ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+                    -- Print a message indicating data is stale and being refreshed
                     print(name .. ' is stale.  Refreshing name data now...')
-                    return nil
+                    return nil  -- Return nil as id data is being refreshed
                 else
+                    -- Return the processId or contractTxId based on availability
                     return NAMES[rootName].processId or NAMES[rootName].contractTxId or nil
                 end
             end
-        elseif key == "clear" then
+        elseif key == "clear" then  -- Check if key is "clear"
+            -- Clear the NAMES table and return a message
             NAMES = {}
             return 'ArNS local name cache cleared.'
         else
-            return nil
+            return nil  -- Return nil for unrecognized keys
         end
     end
 }
 
+-- Set ARNS table with the defined metatable
 ARNS = setmetatable({}, arnsMeta)
 
 --- Requests JSON data from a specified URL via the Orbit process, an external service.

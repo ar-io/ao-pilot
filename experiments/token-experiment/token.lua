@@ -1,8 +1,11 @@
+-- Define a JSON module for encoding and decoding JSON data
 local json = require('json')
 
+-- Initialize a table to store balances if it doesn't exist
 if not Balances then
     Balances = {}
 
+    -- Set initial balances for specific keys
     -- ao.id is the protocol balance
     Balances[ao.id] = 920000000
 
@@ -17,58 +20,59 @@ if not Balances then
     Balances["ySqMsg7O0R-BcUw35R3nxJJKJyIdauLCQ4DUZqPCiYo"] = 10000000
 end
 
+-- Set default values for certain variables if they are not already defined
 Name = Name or 'Token-Experiment-1'
 Ticker = Ticker or 'TOKEN-EXP-1'
 Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
-
+-- Add a handler for 'info' messages that sends information about the token to the requester
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
     ao.send(
         { Target = msg.From, Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination) } })
 end)
 
-
+-- Add a handler for 'balance' messages that sends the balance of the requester
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
     local bal = '0'
 
-    -- If not Target is provided, then return the Senders balance
+    -- If a specific target is provided in the message, return its balance; otherwise, return sender's balance
     if (msg.Tags.Target and Balances[msg.Tags.Target]) then
         bal = tostring(Balances[msg.Tags.Target])
     elseif Balances[msg.From] then
         bal = tostring(Balances[msg.From])
     end
 
+    -- Send the balance information back to the requester
     ao.send({
         Target = msg.From,
         Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Data = json.encode(tonumber(bal)) }
     })
 end)
 
+-- Add a handler for 'balances' messages that sends the balances of all accounts
 Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
     function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
 
+-- Add a handler for 'transfer' messages that handles token transfers between accounts
 Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
     assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
 
+    -- Ensure the sender has enough balance for the transfer
     if not Balances[msg.From] then Balances[msg.From] = 0 end
-
     if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
 
     local qty = tonumber(msg.Tags.Quantity)
     assert(type(qty) == 'number', 'qty must be number')
     assert(qty > 0, 'Quantity must be greater than 0')
 
+    -- Process the transfer if the sender has enough balance
     if Balances[msg.From] >= qty then
         Balances[msg.From] = Balances[msg.From] - qty
         Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
 
-        --[[
-        Only Send the notifications to the Sender and Recipient
-        if the Cast tag is not set on the Transfer message
-        ]]
-        --
+        -- Send notifications to sender and recipient unless the Cast tag is set on the Transfer message
         if not msg.Cast then
             -- Send Debit-Notice to the Sender
             ao.send({
@@ -82,8 +86,8 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
                     msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
                     .reset
             })
+            -- Send Credit-Notice to the Recipient and include the function and parameters tags if available
             if msg.Tags.Function and msg.Tags.Parameters then
-                -- Send Credit-Notice to the Recipient and include the function and parameters tags
                 ao.send({
                     Target = msg.Tags.Recipient,
                     Action = 'Credit-Notice',
@@ -115,6 +119,7 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
             end
         end
     else
+        -- Send an error message if the sender does not have enough balance
         ao.send({
             Target = msg.From,
             Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Balance!' }
@@ -122,14 +127,17 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
     end
 end)
 
+-- Add a handler for 'mint' messages that allows minting new tokens (only for the process owner)
 Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg, env)
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
 
+    -- Only the process owner can mint new tokens
     if msg.From == env.Process.Id then
         -- Add tokens to the token pool, according to Quantity
         local qty = tonumber(msg.Tags.Quantity)
         Balances[env.Process.Id] = Balances[env.Process.Id] + qty
     else
+        -- Send an error message if someone other than the process owner tries to mint tokens
         ao.send({
             Target = msg.From,
             Tags = {

@@ -505,6 +505,22 @@ Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'
     })
 end)
 
+Handlers.add('getProcesses', Handlers.utils.hasMatchingTag('Action', 'Get-Processes'), function(msg)
+    local processes = {}
+    for key, value in pairs(Records) do
+        if Records[key].processId ~= nil then
+            processes[key] = Records[key]
+        end
+    end
+    ao.send({
+        Action = 'Processes-Resolved',
+        Target = msg.From,
+        Tags = { ProcessesRegistered = tostring(tableCount(processes)) },
+        Data =
+            json.encode(processes)
+    })
+end)
+
 --- Initiates the loading of records from an Arweave transaction.
 -- This handler is triggered by messages tagged with 'Action' of 'Initiate-Load-Records'.
 -- It verifies if the request comes from the process owner (by comparing 'msg.From' and 'env.Process.Id').

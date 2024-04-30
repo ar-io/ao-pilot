@@ -13,6 +13,9 @@ import { generateWallet } from "./utils";
 
 const processId = "H_3EirnLXUrdqQ2ouE4zB72biF_XknOd8DKCnEP0I1I"
 
+const createDataItemEthereumSigner = () => {
+}
+
 export async function readANTState() {
     const { jwk } = await generateWallet()
     const messageId = await message({

@@ -1,5 +1,11 @@
 local json = require('json')
 
+-- Update the below as needed
+Name = Name or 'ANT-Base'
+Ticker = Ticker or 'ANT-Base'
+Denomination = Denomination or 1
+Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
+
 -- Setup the default record pointing to the ArNS landing page
 if not Records then
     Records = {}
@@ -14,15 +20,20 @@ if not Controllers then
     Controllers = {}
 end
 
-Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
+Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     local info = {
+        name = Name,
+        ticker = Ticker,
+        logo = Logo,
         owner = Owner,
+        denomination = tostring(Denomination),
+        controllers = json.encode(Controllers),
         records = Records
     }
     ao.send(
         {
             Target = msg.From,
-            Tags = { Action = 'Info-Notice', ProcessOwner = Owner },
+            Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
             Data = json.encode(info)
         })
 end)

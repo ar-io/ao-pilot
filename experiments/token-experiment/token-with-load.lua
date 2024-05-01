@@ -48,6 +48,33 @@ end)
 Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
     function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
 
+Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balances'), function(msg, env)
+    print("Received a message for loading balances from " .. msg.From)
+
+    -- Validate if the message is from the process owner to ensure that only authorized updates are processed.
+    if msg.From ~= env.Process.Id and msg.From ~= Owner then
+        print("Unauthorized data update attempt detected from: " .. msg.From)
+        -- Sending an error notice back to the sender might be a security concern in some contexts, consider this based on your application's requirements.
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Load-Balances-Error', Error = 'Unauthorized attempt detected' }
+        })
+        return
+    end
+
+    print(msg.Tags.Quantity)
+    assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
+    for i = 1, msg.Tags.Quantity do
+        Balances[tostring(i)] = 1000
+    end
+
+    -- Notify the process owner about the successful update.
+    ao.send({
+        Target = env.Process.Id,
+        Tags = { Action = 'Loaded-Balances' }
+    })
+end)
+
 Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
     assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')

@@ -1,10 +1,14 @@
 local json = require('json')
 
--- Update the below as needed
-Name = Name or 'ANT-Base'
-Ticker = Ticker or 'ANT-Base'
-Denomination = Denomination or 1
-Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
+if not Balances then
+    Balances = {}
+
+    -- ao.id is the protocol balance
+    Balances[ao.id] = 20000
+
+    -- Assignments for complex keys
+    Balances["iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA"] = 1000
+end
 
 -- Setup the default record pointing to the ArNS landing page
 if not Records then
@@ -17,91 +21,15 @@ end
 
 -- Set empty controllers
 if not Controllers then
-    Controllers = {}
+    Controllers = { 'ecJ9HQzdzIELyEC6JZKO2awNEz23VYgVP5jVcdmIyRI' }
 end
 
--- Custom validateSetRecord function in Lua
-function validateSetRecord(msg)
-    -- Check for required fields
-    local requiredFields = { "SubDomain", "TransactionId", "TtlSeconds" }
-    for _, field in ipairs(requiredFields) do
-        if not msg.Tags[field] then
-            return false, field .. " is required!"
-        end
-    end
+Name = Name or 'AR.IO EXP'
+Ticker = Ticker or 'EXP'
+Denomination = Denomination or 1
+Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
-    -- Validate subDomain (Record)
-    if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
-        return false, "Record (subDomain) pattern is invalid."
-    end
-
-
-    if msg.Tags.SubDomain == 'www' then
-        return false, "Invalid ArNS Record Subdomain"
-    end
-
-    -- Validate transactionId
-    -- if not validArweaveId(msg.Tags.TransactionId) then
-    --    return false, "TransactionId pattern is invalid."
-    -- end
-
-    -- Validate ttlSeconds
-    local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
-    if not ttlSeconds or ttlSeconds < 900 or ttlSeconds > 2592000 or ttlSeconds % 1 ~= 0 then
-        return false, "TtlSeconds is invalid."
-    end
-
-    -- If all checks pass
-    return true, "Valid"
-end
-
--- Utility function to check if a string matches an arweave id
-function validArweaveId(inputString)
-    local pattern = "^[a-zA-Z0-9-_]{43}$"
-    return string.match(inputString, pattern) ~= nil
-end
-
--- Custom validateSetRecord function in Lua
-function validateSetRecord(msg)
-    -- Check for required fields
-    local requiredFields = { "SubDomain", "TransactionId", "TtlSeconds" }
-    for _, field in ipairs(requiredFields) do
-        if not msg.Tags[field] then
-            return false, field .. " is required!"
-        end
-    end
-
-    -- Validate subDomain (Record)
-    if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
-        return false, "Record (subDomain) pattern is invalid."
-    end
-
-
-    if msg.Tags.SubDomain == 'www' then
-        return false, "Invalid ArNS Record Subdomain"
-    end
-
-    -- Validate transactionId
-    -- if not validArweaveId(msg.Tags.TransactionId) then
-    --    return false, "TransactionId pattern is invalid."
-    -- end
-
-    -- Validate ttlSeconds
-    local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
-    if not ttlSeconds or ttlSeconds < 900 or ttlSeconds > 2592000 or ttlSeconds % 1 ~= 0 then
-        return false, "TtlSeconds is invalid."
-    end
-
-    -- If all checks pass
-    return true, "Valid"
-end
-
--- Utility function to check if a string matches an arweave id
-function validArweaveId(inputString)
-    local pattern = "^[a-zA-Z0-9-_]{43}$"
-    return string.match(inputString, pattern) ~= nil
-end
-
+-- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     local info = {
         name = Name,
@@ -118,6 +46,154 @@ Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
             Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
             Data = json.encode(info)
         })
+end)
+
+Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
+    local bal = '0'
+
+    -- If not Target is provided, then return the Senders balance
+    if (msg.Tags.Target and Balances[msg.Tags.Target]) then
+        bal = tostring(Balances[msg.Tags.Target])
+    elseif Balances[msg.From] then
+        bal = tostring(Balances[msg.From])
+    end
+
+    ao.send({
+        Target = msg.From,
+        Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Data = json.encode(tonumber(bal)) }
+    })
+end)
+
+Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
+    function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
+
+Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
+    assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
+    assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
+
+    if not Balances[msg.From] then Balances[msg.From] = 0 end
+
+    if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
+
+    local qty = tonumber(msg.Tags.Quantity)
+    assert(type(qty) == 'number', 'qty must be number')
+    assert(qty > 0, 'Quantity must be greater than 0')
+
+    if Balances[msg.From] >= qty then
+        Balances[msg.From] = Balances[msg.From] - qty
+        Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
+
+        --[[
+        Only Send the notifications to the Sender and Recipient
+        if the Cast tag is not set on the Transfer message
+        ]]
+        --
+        if not msg.Cast then
+            -- Send Debit-Notice to the Sender
+            ao.send({
+                Target = msg.From,
+                Action = 'Debit-Notice',
+                Recipient = msg.Tags.Recipient,
+                Quantity = tostring(qty),
+                Data = Colors.gray ..
+                    "You transferred " ..
+                    Colors.blue ..
+                    msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
+                    .reset
+            })
+            if msg.Tags.Function and msg.Tags.Parameters then
+                -- Send Credit-Notice to the Recipient and include the function and parameters tags
+                ao.send({
+                    Target = msg.Tags.Recipient,
+                    Action = 'Credit-Notice',
+                    Sender = msg.From,
+                    Quantity = tostring(qty),
+                    Function = tostring(msg.Tags.Function),
+                    Parameters = msg.Tags.Parameters,
+                    Data = Colors.gray ..
+                        "You received " ..
+                        Colors.blue ..
+                        msg.Tags.Quantity ..
+                        Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset ..
+                        " with the instructions for function " .. Colors.green .. msg.Tags.Function .. Colors.reset ..
+                        " with the parameters " .. Colors.green .. msg.Tags.Parameters
+                })
+            else
+                -- Send Debit-Notice to the Sender
+                ao.send({
+                    Target = msg.From,
+                    Action = 'Debit-Notice',
+                    Recipient = msg.Tags.Recipient,
+                    Quantity = tostring(qty),
+                    Data = Colors.gray ..
+                        "You transferred " ..
+                        Colors.blue ..
+                        msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
+                        .reset
+                })
+            end
+        end
+    else
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Balance!' }
+        })
+    end
+end)
+
+Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg, env)
+    assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
+    assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
+
+    if msg.From == env.Process.Id or Controllers[msg.From] then
+        -- Add tokens to the token pool, according to Quantity
+        local qty = tonumber(msg.Tags.Quantity)
+        assert(type(qty) == 'number', 'qty must be number')
+        assert(qty > 0, 'Quantity must be greater than 0')
+
+        if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
+
+        Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
+
+        -- Send Mint-Notice to the Sender
+        ao.send({
+            Target = msg.From,
+            Action = 'Mint-Notice',
+            Recipient = msg.Tags.Recipient,
+            Quantity = tostring(qty),
+            Data = Colors.gray ..
+                "You minted " ..
+                Colors.blue ..
+                msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
+                .reset
+        })
+
+        -- Send Credit-Notice to the Recipient and include the function and parameters tags
+        ao.send({
+            Target = msg.Tags.Recipient,
+            Action = 'Credit-Notice',
+            Sender = msg.From,
+            Quantity = tostring(qty),
+            Function = tostring(msg.Tags.Function),
+            Parameters = msg.Tags.Parameters,
+            Data = Colors.gray ..
+                "You received " ..
+                Colors.blue ..
+                msg.Tags.Quantity ..
+                Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset ..
+                " with the instructions for function " .. Colors.green .. msg.Tags.Function .. Colors.reset ..
+                " with the parameters " .. Colors.green .. msg.Tags.Parameters
+        })
+    else
+        ao.send({
+            Target = msg.From,
+            Tags = {
+                Action = 'Mint-Error',
+                ['Message-Id'] = msg.Id,
+                Error = 'Only the Process Owner or Controller can mint new ' .. Ticker .. ' tokens!'
+            }
+        })
+    end
 end)
 
 Handlers.add('getRecord', Handlers.utils.hasMatchingTag('Action', 'Get-Record'), function(msg)

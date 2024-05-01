@@ -5,16 +5,16 @@ const jwk = JSON.parse(
   fs.readFileSync("F:\\Source\\ao-pilot\\wallet.json", "utf-8")
 );
 const data = fs.readFileSync(
-  "F:\\Source\\ao-pilot\\arns-records-1392718.json",
+  "F:\\Source\\ao-pilot\\balances-test.json",
   "utf-8"
 );
 
 async function main() {
   const { message } = await connect();
   const result = await message({
-    process: "03vGIXBKHZG967IO_VmdHYDzNLi8G93LAFYA1W0T9yo",
+    process: "B9auSXSSG7urEZ3ceJIekOEJ4GGnN6yqmT4dVMnvHU8",
     signer: createDataItemSigner(jwk),
-    tags: [{ name: "Action", value: "Load-Records" }],
+    tags: [{ name: "Action", value: "Load-Balances" }],
     data: data,
   });
   console.log(result);

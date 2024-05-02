@@ -31,17 +31,6 @@ Ticker = Ticker or 'EXP'
 Denomination = Denomination or 1
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
-function isControllerPresent(controller)
-    -- Iterate through each controller id in the 'controllers' table.
-    for _, id in ipairs(Controllers) do
-        -- Check if the current id matches the 'controller' parameter.
-        if id == controller then
-            return true -- Controller found, return true.
-        end
-    end
-    return false -- No matching controller found, return false.
-end
-
 -- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     local info = {
@@ -158,7 +147,7 @@ Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(m
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
     assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
 
-    if msg.From == env.Process.Id or isControllerPresent(msg.From) then
+    if msg.From == env.Process.Id or Controllers[msg.From] == true then
         -- Add tokens to the token pool, according to Quantity
         local qty = tonumber(msg.Tags.Quantity)
         assert(type(qty) == 'number', 'qty must be number')
@@ -177,8 +166,7 @@ Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(m
             Data = Colors.gray ..
                 "You minted " ..
                 Colors.blue ..
-                msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
-                .reset
+                msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors.reset
         })
 
         -- Send Credit-Notice to the Recipient

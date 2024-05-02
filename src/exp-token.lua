@@ -21,7 +21,9 @@ end
 
 -- Set empty controllers
 if not Controllers then
-    Controllers = { 'ecJ9HQzdzIELyEC6JZKO2awNEz23VYgVP5jVcdmIyRI' }
+    Controllers = {}
+    Controllers['ecJ9HQzdzIELyEC6JZKO2awNEz23VYgVP5jVcdmIyRI'] = true
+    Controllers['QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ'] = true
 end
 
 Name = Name or 'AR.IO EXP'
@@ -155,7 +157,6 @@ end)
 Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg, env)
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
     assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
-    print('Checking ownership')
 
     if msg.From == env.Process.Id or isControllerPresent(msg.From) then
         -- Add tokens to the token pool, according to Quantity
@@ -180,21 +181,17 @@ Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(m
                 .reset
         })
 
-        -- Send Credit-Notice to the Recipient and include the function and parameters tags
+        -- Send Credit-Notice to the Recipient
         ao.send({
             Target = msg.Tags.Recipient,
             Action = 'Credit-Notice',
             Sender = msg.From,
             Quantity = tostring(qty),
-            Function = tostring(msg.Tags.Function),
-            Parameters = msg.Tags.Parameters,
             Data = Colors.gray ..
                 "You received " ..
                 Colors.blue ..
                 msg.Tags.Quantity ..
-                Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset ..
-                " with the instructions for function " .. Colors.green .. msg.Tags.Function .. Colors.reset ..
-                " with the parameters " .. Colors.green .. msg.Tags.Parameters
+                Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset
         })
     else
         ao.send({

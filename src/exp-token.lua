@@ -29,6 +29,17 @@ Ticker = Ticker or 'EXP'
 Denomination = Denomination or 1
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 
+function isControllerPresent(controller)
+    -- Iterate through each controller id in the 'controllers' table.
+    for _, id in ipairs(Controllers) do
+        -- Check if the current id matches the 'controller' parameter.
+        if id == controller then
+            return true -- Controller found, return true.
+        end
+    end
+    return false -- No matching controller found, return false.
+end
+
 -- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     local info = {
@@ -144,13 +155,14 @@ end)
 Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg, env)
     assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
     assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
+    print('Checking ownership')
 
-    if msg.From == env.Process.Id or Controllers[msg.From] then
+    if msg.From == env.Process.Id or isControllerPresent(msg.From) then
         -- Add tokens to the token pool, according to Quantity
         local qty = tonumber(msg.Tags.Quantity)
         assert(type(qty) == 'number', 'qty must be number')
         assert(qty > 0, 'Quantity must be greater than 0')
-
+        print("Minting " .. qty .. " EXP")
         if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
 
         Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty

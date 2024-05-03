@@ -1,3 +1,4 @@
 key.json
 node_modules
 .vscode
+.luarocks

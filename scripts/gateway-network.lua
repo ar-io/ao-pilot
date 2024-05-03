@@ -1,6 +1,5 @@
--- arns-experiment-1
+-- gateway-network.lua: A process script for managing a network of gateways and their associated records.
 local json = require('json')
-local base64 = require(".base64")
 
 -- Default configurations
 Name = Name or 'GAR-AO-Experiment'
@@ -33,49 +32,6 @@ TOKEN_PROCESS_ID = 'gAC5hpUPh1v-oPJLnK3Km6-atrYlvI271bI-q0yZOnw'
 -- Initialize the Records table with default values if it's not already set
 if not Gateways then
     Gateways = {}
-
-    Gateways["QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"] = {
-        delegates = {
-            ["iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA"] = {
-                delegatedStake = MIN_DELEGATED_STAKE,
-                startTimestamp = 0,
-                vaults = {
-                    ["NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"] = {
-                        balance = 10000000000,
-                        endTimestamp = 14426820000,
-                        startTimestamp = 0
-                    }
-                }
-            },
-        },
-        endTimestamp = 0,
-        observerWallet = "",
-        operatorStake = MIN_OPERATOR_STAKE,
-        settings = {
-            allowDelegatedStaking = true,
-            autoStake = false,
-            delegateRewardShareRatio = 10,
-            fqdn = "test-gateway.com",
-            label = "Test Gateway",
-            minDelegatedStake = MIN_DELEGATED_STAKE,
-            note = "Example note",
-            port = 443,
-            properties = "FH1aVetOoulPGqgYukj0VE0wIhDy90WiQoV3U2PeY44",
-            protocol = "https"
-        },
-        startTimestamp = 1260210,
-        stats = {
-            failedConsecutiveEpochs = 0,
-            passedEpochCount = 0,
-            submittedEpochCount = 0,
-            totalEpochParticipationCount = 0,
-            totalEpochsPrescribedCount = 0
-        },
-        status = JOINED_STATUS,
-        totalDelegatedStake = 0,
-        vaults = {}
-
-    }
 end
 
 --- Counts the number of entries in a Lua table.
@@ -126,6 +82,7 @@ function ensureMilliseconds(timestamp)
     end
 end
 
+-- TODO: we shouldn't need this and can instead use crons
 function tick(currentTimestamp)
     -- tick records
     for key, record in pairs(Records) do
@@ -191,64 +148,6 @@ Handlers.add('getGateways', Handlers.utils.hasMatchingTag('Action', 'Get-Gateway
         Data =
             json.encode(Records)
     })
-end)
-
-Handlers.add('loadGateways', Handlers.utils.hasMatchingTag('Action', 'Load-Gateways'), function(msg, env)
-    print("Received a message for loading records from " .. msg.From)
-
-    -- Validate if the message is from the process owner to ensure that only authorized updates are processed.
-    if msg.From ~= env.Process.Id and msg.From ~= Owner then
-        print("Unauthorized data update attempt detected from: " .. msg.From)
-        -- Sending an error notice back to the sender might be a security concern in some contexts, consider this based on your application's requirements.
-        ao.send({
-            Target = msg.From,
-            Tags = { Action = 'Load-Records-Error', Error = 'Unauthorized attempt detected' }
-        })
-        return
-    end
-
-    local data, err = json.decode(msg.Data)
-    if not data or err then
-        print("Error decoding JSON data: " .. err)
-        -- Handle error (e.g., send an error response)
-        return
-    end
-
-    -- Counter for added or updated records.
-    local recordsAddedOrUpdated = 0
-
-    -- Ensure 'data.records' is present and iterate through the decoded data to update the Records table accordingly.
-    if type(data.records) == 'table' then
-        for key, value in pairs(data.records) do
-            -- Preserve the existing processId if the record already exists.
-            local existingProcessId = Records[key] and Records[key].processId
-
-            -- Check if the record either doesn't exist or differs from the new value.
-            if not Records[key] or (Records[key] and json.encode(Records[key]) ~= json.encode(value)) then
-                recordsAddedOrUpdated = recordsAddedOrUpdated + 1
-                Records[key] = value
-                Records[key].processId = existingProcessId or value.processId -- Preserve or initialize processId.
-            end
-        end
-
-        -- Update the global sync timestamp to mark the latest successful update.
-        LastGARSyncTimestamp = msg.Timestamp
-
-        -- Notify the process owner about the successful update.
-        ao.send({
-            Target = env.Process.Id,
-            Tags = { Action = 'Loaded-Records', RecordsUpdated = tostring(recordsAddedOrUpdated) }
-        })
-    else
-        -- Handle the case where 'data.records' is not in the expected format.
-        print("The 'records' field is missing or not in the expected format.")
-        print(data)
-        -- Notify the process owner about the issue.
-        ao.send({
-            Target = env.Process.Id,
-            Tags = { Action = 'Load-Records-Failure', Error = "'records' field missing or invalid" }
-        })
-    end
 end)
 
 Handlers.add('creditNotice', Handlers.utils.hasMatchingTag('Action', 'Credit-Notice'), function(msg)

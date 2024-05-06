@@ -1,12 +1,45 @@
 -- arns.lua
 
 local utils = require '.utils'
-
 local arns = {}
+local records = {}
+local auctions = {}
+local reserved = {}
+local oneYearSeconds = 60 * 60 * 24 * 365
 
-function arns.buyRecord()
-    -- TODO: implement
-    utils.reply("buyRecord is not implemented yet")
+function arns.buyRecord(name, type, processTxId, caller)
+    if(name == nil or type == nil or processTxId == nil) then
+        utils.reply("name is required")
+    end
+
+    --  TODO: active lease check
+    if(records[name] ~= nil) then
+        utils.reply("name already exists")
+    end
+
+    if(auctions[name] ~= nil) then
+        utils.reply("name is in auction")
+    end
+
+    if(reserved[name] ~= nil) then
+        utils.reply("name is reserved")
+    end
+    
+    -- TODO: get the price of the name and check if the user has enough balance
+    local price = 0
+    records[name] = {
+        owner = caller,
+        price = price,
+        type = type,
+        undernameCount = 10,
+        processTxId = processTxId
+    }
+    
+    if(type == "lease") then 
+        records[name].endTimestamp = os.clock() + oneYearSeconds 
+    end
+
+    return records[name]
 end
 
 function arns.submitAuctionBid()
@@ -23,14 +56,28 @@ function arns.increaseUndernameCount()
     utils.reply("increaseUndernameCount is not implemented yet")
 end
 
-function arns.getRecord()
-    -- TODO: implement
-    utils.reply("getRecord is not implemented yet")
+function arns.getRecord(name)
+    if(name == nil) then
+        utils.reply("name is required")
+    end
+
+    if(records[name] == nil) then
+        utils.reply("name does not exist")
+    end
+
+    utils.reply(records[name])
 end
 
-function arns.getAuction()
-    -- TODO: implement
-    utils.reply("getAuction is not implemented yet")
+function arns.getAuction(name)
+    if(name == nil) then
+        utils.reply("name is required")
+    end
+
+    if(auctions[name] == nil) then
+        utils.reply("name does not exist")
+    end
+
+    utils.reply(auctions[name])
 end
 
 function arns.getReservedName()

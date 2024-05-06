@@ -9,6 +9,22 @@ function utils.reply(msg)
     Handlers.utils.reply(msg)
 end
 
+function utils.printTable(t, indent)
+    indent = indent or ""
+    if type(t) ~= "table" then
+        print(indent .. tostring(t))
+    else
+        for key, value in pairs(t) do
+            if type(value) == "table" then
+                print(indent .. tostring(key) .. ":")
+                utils.printTable(value, indent .. "  ")
+            else
+                print(indent .. tostring(key) .. ": " .. tostring(value))
+            end
+        end
+    end
+end
+
 --- Validates the fields of a 'buy record' message for compliance with expected formats and value ranges.
 -- This function checks the following fields in the message:
 -- 1. 'name' - Required and must be a string matching specific naming conventions.
@@ -188,6 +204,27 @@ function utils.isNameInGracePeriod(record, currentTimestamp)
     return true
 end
 
+function utils.isActiveReservedName(caller, reservedName, currentTimestamp)
+    if not reservedName then return false end
+
+    local target = reservedName.target
+    local endTimestamp = reservedName.endTimestamp
+    local permanentlyReserved = not target and not endTimestamp
+
+    if permanentlyReserved then
+        return true
+    end
+
+    local isCallerTarget = caller ~= nil and target == caller
+    local isActiveReservation = endTimestamp and endTimestamp > currentTimestamp
+
+    -- If the caller is not the target, and it's still active - the name is considered reserved
+    if not isCallerTarget and isActiveReservation then
+        return true
+    end
+    return false
+end
+
 function utils.isExistingActiveRecord(record, currentTimestamp)
     if not record then return false end
 
@@ -200,6 +237,44 @@ function utils.isExistingActiveRecord(record, currentTimestamp)
     else
         return false
     end
+end
+
+function utils.isShortNameRestricted(name, currentTimestamp)
+    return (#name < constants.MINIMUM_ALLOWED_NAME_LENGTH and currentTimestamp < constants.SHORT_NAME_RESERVATION_UNLOCK_TIMESTAMP)
+end
+
+function utils.isNameRequiredToBeAuction(name, type)
+    return (type == 'permabuy' and #name < 12)
+end
+
+function utils.assertAvailableRecord(caller, name, currentTimestamp, type, auction)
+    local isActiveRecord = utils.isExistingActiveRecord(Records[name], currentTimestamp)
+    local isReserved = utils.isActiveReservedName(caller, Reserved[name], currentTimestamp)
+    local isShortName = utils.isShortNameRestricted(name, currentTimestamp)
+    local isAuctionRequired = utils.isNameRequiredToBeAuction(name, type)
+    if isActiveRecord then
+        return false, constants.ARNS_NON_EXPIRED_NAME_MESSAGE
+    end
+
+    if Reserved[name] and Reserved[name].target == caller then
+        -- if the caller is the target of the reserved name, they can buy it
+        return true, ""
+    end
+
+    if isReserved then
+        return false, constants.ARNS_NAME_RESERVED_MESSAGE
+    end
+
+    if isShortName then
+        return false, constants.ARNS_INVALID_SHORT_NAME
+    end
+
+    -- TODO: we may want to move this up if we want to force permabuys for short names on reserved names
+    if isAuctionRequired and not auction then
+        return false, constants.ARNS_NAME_MUST_BE_AUCTIONED_MESSAGE
+    end
+
+    return true
 end
 
 function utils.validateIncreaseUndernames(record, qty, currentTimestamp)

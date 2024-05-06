@@ -11,6 +11,34 @@ if not Auctions then
     Auctions = {}
 end
 
+if not Reserved then
+    Reserved = {}
+    Reserved["gateway"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"
+    }
+
+    Reserved["help"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"
+    }
+
+    Reserved["io"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"
+    }
+
+    Reserved["nodes"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"
+    }
+
+    Reserved["www"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"
+    }
+end
+
 -- Needs auctions
 -- Needs demand factor
 function arns.buyRecord(msg)
@@ -51,16 +79,21 @@ function arns.buyRecord(msg)
             Tags = { Action = 'ArNS-Deny-Notice', Sender = msg.From, Name = tostring(msg.Tags.Name), ProcessId = tostring(msg.Tags.ProcessId) }
         })
         return false
-    elseif utils.isExistingActiveRecord(Records[name], msg.Timestamp) then
+    end
+
+    local availableRecord, err = utils.assertAvailableRecord(msg.From, name, msg.Timestamp, msg.Tags.PurchaseType,
+        msg.Tags.Auction)
+    if not availableRecord then
         -- Notify the original purchaser
         print('Name is already registered')
+        print(err)
         ao.send({
             Target = msg.From,
             Tags = { Action = 'ArNS-Deny-Notice', Sender = msg.From, Name = tostring(msg.Tags.Name), ProcessId = tostring(msg.Tags.ProcessId) }
         })
         return false
     else
-        print('This name is available for purchase!')
+        print('This name is available for ' .. msg.Tags.PurchaseType .. ' purchase!')
 
         -- Transfer tokens to the protocol balance
         if not Balances[msg.From] then Balances[msg.From] = 0 end

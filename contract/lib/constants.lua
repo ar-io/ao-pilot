@@ -19,7 +19,8 @@ constants.MAX_ALLOWED_UNDERNAMES = 10000
 constants.UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
 constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
 constants.MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
-
+constants.MINIMUM_ALLOWED_NAME_LENGTH = 5;                         -- names less than 5 characters are reserved for auction
+constants.SHORT_NAME_RESERVATION_UNLOCK_TIMESTAMP = 1725080400000; -- August 31st, 2024
 -- BALANCES
 constants.GENESIS_FEES = {
     [1] = 5000000,

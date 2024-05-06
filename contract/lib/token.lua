@@ -2,7 +2,9 @@
 local utils = require '.utils'
 local json = require '.json'
 
-
+if not Denomination then
+    Denomination = 6
+end
 if not Balances then
     Balances = {}
 end

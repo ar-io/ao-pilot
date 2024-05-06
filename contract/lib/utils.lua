@@ -217,7 +217,7 @@ function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
     end
 
     -- the new total qty
-    if record.undernames + qty > utils.MAX_ALLOWED_UNDERNAMES then
+    if record.undernames + qty > constants.MAX_ALLOWED_UNDERNAMES then
         return false, constants.ARNS_MAX_UNDERNAME_MESSAGE
     end
 
@@ -226,7 +226,7 @@ end
 
 function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
     local yearsRemainingFloat =
-        (endTimestamp - startTimestamp) / utils.MS_IN_A_YEAR;
+        (endTimestamp - startTimestamp) / constants.MS_IN_A_YEAR;
     return string.format("%.2f", yearsRemainingFloat)
 end
 

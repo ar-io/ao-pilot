@@ -11,6 +11,8 @@ if not Auctions then
     Auctions = {}
 end
 
+-- Needs auctions
+-- Needs demand factor
 function arns.buyRecord(msg)
     local name = string.lower(msg.Tags.Name)
     local validRecord, validRecordErr = utils.validateBuyRecord(msg.Tags)
@@ -104,9 +106,64 @@ function arns.extendLease()
     utils.reply("extendLease is not implemented yet")
 end
 
-function arns.increaseUndernameCount()
-    -- TODO: implement
-    utils.reply("increaseUndernameCount is not implemented yet")
+function arns.increaseUndernameCount(msg)
+    local name = string.lower(msg.Tags.Name)
+    -- validate record can increase undernames
+    local validIncrease, err = utils.validateIncreaseUndernames(Records[name], msg.Tags.Qty, msg.Timestamp)
+    if validIncrease == false then
+        print("Error for name: " .. name)
+        print(err)
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'ArNS-Invalid-Undername-Increase-Notice', Name = tostring(name) }
+        })
+        return false;
+    end
+
+    local record = Records[name]
+    local endTimestamp
+    if utils.isLeaseRecord(record) then
+        endTimestamp = record.endTimestamp
+    else
+        endTimestamp = nil
+    end
+
+    local yearsRemaining
+    if endTimestamp then
+        yearsRemaining = utils.calculateYearsBetweenTimestamps(msg.Timestamp, endTimestamp)
+    else
+        yearsRemaining = constants.PERMABUY_LEASE_FEE_LENGTH -- Assuming PERMABUY_LEASE_FEE_LENGTH is defined somewhere
+    end
+
+    local existingUndernames = record.undernames
+
+    local additionalUndernameCost = utils.calculateUndernameCost(name, msg.Tags.Qty, record.type,
+        yearsRemaining)
+
+    if not utils.walletHasSufficientBalance(msg.From, additionalUndernameCost) then
+        print('Not enough tokens for adding undernames.')
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'ArNS-Insufficient-Funds', Name = tostring(name) }
+        })
+        return false
+    end
+
+    -- Transfer tokens to the protocol balance
+    if not Balances[msg.From] then Balances[msg.From] = 0 end
+    if not Balances[ao.id] then Balances[ao.id] = 0 end
+    Balances[msg.From] = Balances[msg.From] - additionalUndernameCost
+    Balances[ao.id] = Balances[ao.id] + additionalUndernameCost
+
+    local incrementedUndernames = existingUndernames + msg.Tags.Qty
+    Records[name].undernames = incrementedUndernames
+    print('Increased undernames for: ' .. name .. " to " .. incrementedUndernames .. " undernames")
+
+    ao.send({
+        Target = msg.Tags.Sender,
+        Tags = { Action = 'ArNS-Increase-Undername-Notice', Name = tostring(name), IncrementedUndernames = tostring(incrementedUndernames) }
+    })
+    return true
 end
 
 function arns.getRecord()

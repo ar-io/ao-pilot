@@ -1,6 +1,6 @@
 name: Lua Busted Tests
 
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   test:

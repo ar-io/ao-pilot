@@ -1,11 +1,13 @@
 -- Adjust package.path to include the current directory
-local balances = require '.lib.balances'
+local token = require '.lib.token'
 local arns = require '.lib.arns'
 local gar = require '.lib.gar'
 local utils = require '.lib.utils'
 
 local ActionMap = {
     Transfer = 'Transfer',
+    GetBalance = 'GetBalance',
+    GetBalances = 'GetBalances',
     Vault = 'Vault',
     BuyRecord = 'BuyRecord',
     SubmitAuctionBid = 'SubmitAuctionBid',
@@ -21,20 +23,22 @@ local ActionMap = {
 
 -- Handlers for contract functions
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag('Action', ActionMap.Transfer), function(msg)
-    balances.transfer(msg)
+    token.transfer(msg)
 end)
 
-Handlers.add(ActionMap.Vault, utils.hasMatchingTag('Action', ActionMap.Vault), function(msg)
-    balances.vault(msg)
+Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag('Action', ActionMap.Vault), function(msg)
+    token.getBalance(msg)
 end)
 
+Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag('Action', ActionMap.GetBalances), function(msg)
+    token.getBalances(msg)
+end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag('Action', ActionMap.BuyRecord), function(msg)
     arns.buyRecord(msg)
 end)
 
 Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag('Action', ActionMap.SubmitAuctionBid), function(msg)
-
     arns.submitAuctionBid(msg)
 end)
 
@@ -42,9 +46,10 @@ Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag('Action', ActionMap.Ext
     arns.extendLease(msg)
 end)
 
-Handlers.add(ActionMap.IncreaseUndernameCount, utils.hasMatchingTag('Action', ActionMap.IncreaseUndernameCount), function(msg)
-    arns.increaseUndernameCount(msg)
-end)
+Handlers.add(ActionMap.IncreaseUndernameCount, utils.hasMatchingTag('Action', ActionMap.IncreaseUndernameCount),
+    function(msg)
+        arns.increaseUndernameCount(msg)
+    end)
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag('Action', ActionMap.JoinNetwork), function(msg)
     gar.joinNetwork(msg)
@@ -54,17 +59,20 @@ Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag('Action', ActionMap.Jo
     gar.leaveNetwork(msg)
 end)
 
-Handlers.add(ActionMap.IncreaseOperatorStake, utils.hasMatchingTag('Action', ActionMap.IncreaseOperatorStake), function(msg)
-    gar.increaseOperatorStake(msg)
-end)
+Handlers.add(ActionMap.IncreaseOperatorStake, utils.hasMatchingTag('Action', ActionMap.IncreaseOperatorStake),
+    function(msg)
+        gar.increaseOperatorStake(msg)
+    end)
 
-Handlers.add(ActionMap.DecreaseOperatorStake, utils.hasMatchingTag('Action', ActionMap.DecreaseOperatorStake), function(msg)
-    gar.decreaseOperatorStake(msg)
-end)
+Handlers.add(ActionMap.DecreaseOperatorStake, utils.hasMatchingTag('Action', ActionMap.DecreaseOperatorStake),
+    function(msg)
+        gar.decreaseOperatorStake(msg)
+    end)
 
-Handlers.add(ActionMap.UpdateGatewaySettings, utils.hasMatchingTag('Action', ActionMap.UpdateGatewaySettings), function(msg)
-    gar.updateGatewaySettings(msg)
-end)
+Handlers.add(ActionMap.UpdateGatewaySettings, utils.hasMatchingTag('Action', ActionMap.UpdateGatewaySettings),
+    function(msg)
+        gar.updateGatewaySettings(msg)
+    end)
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag('Action', ActionMap.SaveObservations), function(msg)
     gar.saveObservations(msg)

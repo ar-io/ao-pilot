@@ -1,17 +1,40 @@
-
-
 -- Adjust package.path to include the current directory
 package.path = package.path .. ';./lib/?.lua'
 
-local arns = require 'arns'
+ao = {}
+ao.send = function() return end
+
+local token = require '.lib.token'
 local luaunit = require 'luaunit' -- Corrected the variable name
 
-function test_add()
-    luaunit.assertEquals(arns.add(1, 2), 3)
-end
+function testTokenTransfer()
+    Balances["Bob"] = 100
+    local msg = {
+        Action = "Transfer",
+        From = "Bob",
+        Tags = {
+            Recipient = "Alice",
+            Quantity = "100"
+        }
+    }
+    local reply = token.transfer(msg)
+    luaunit.assertEquals(reply, true)
+    luaunit.assertEquals(Balances["Alice"], 100)
+    luaunit.assertEquals(Balances["Bob"], 0)
 
-function test_subtract()
-    luaunit.assertEquals(arns.subtract(2, 1), 1)
+    Balances["Carol"] = 100
+    msg = {
+        Action = "Transfer",
+        From = "Carol",
+        Tags = {
+            Recipient = "Alice",
+            Quantity = "200"
+        }
+    }
+    reply = token.transfer(msg)
+    luaunit.assertEquals(reply, false)
+    luaunit.assertEquals(Balances["Alice"], 100)
+    luaunit.assertEquals(Balances["Carol"], 100)
 end
 
 os.exit(luaunit.LuaUnit.run())

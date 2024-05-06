@@ -16,10 +16,11 @@ jobs:
         luaVersion: '5.3'  # Specify the Lua version you need
 
     - name: Setup LuaRocks
+        
       uses: leafo/gh-actions-luarocks@v4.3.0
 
     - name: Install Busted
-      run: luarocks install ./contract/ar-io-ao-0.1-1.rockspec
+      run: luarocks install ar-io-ao-0.1-1.rockspec
 
     - name: Run Busted Tests
       run: busted -o utfTerminal

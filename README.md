@@ -1,26 +1,69 @@
-# AR.IO Network AO Experiments
+# IO/AO Contract
 
-## Overview
+This repository contains the IO contract implementation on AO.
 
-This repository is part of an experimental suite for the AR.IO Network protocols, focusing on implementing the Arweave Name System (ArNS) within the AO Supercomputer. It contains the essential processs that drive the ArNS-AO Registry, including a lightweight Name Resolver and an Arweave Name Token implementation.
+## Components
 
-## Contents
+- Arweave Name System (ArNS) Registry - Core process code for the Arweave Name System Registry. It handles name registrations, updates, and queries within the ArNS framework.
+- Gateway Registry - Lua module that handles the registration and management of AR.IO Gateways.
+- Balances - Lua module that manages the balances of IO token holders.
 
-- **`scripts/arns-registry.lua`**: Core process code for the Arweave Name System Registry. It handles name registrations, updates, and queries within the ArNS framework.
-- **`scripts/arns-resolver.lua`**: A lightweight resolver process for efficiently fetching name records, owners, and associated data from the ArNS Registry.
-- **`scripts/ant-base.lua`**: Base Arweave Name Token specification for processes that integrate with the ArNS Registry.
-- **`scripts/ant.lua`**: The base Arweave Name Token specification plus additional management controls.
+## Developers
 
-## Getting Started
+### Requirements
 
-Get the power of ArNS in your AOS terminal by loading the ArNS Resolver blueprint
+- Lua 5.3 - [Download](https://www.lua.org/download.html)
+- Luarocks - [Download](https://luarocks.org/)
+
+### Lua Setup
+
+1. Clone the repository and navigate to the project directory.
+1. Install `lua`
+    - `brew install lua`
+1. Install `luarocks`
+    - `brew install luarocks
+1. Install the dependencies by running:
+    - `luarocks install --tree $HOME/.luarocks ao-0.1-1.rockspec`
+1. Update your `.bashrc` or `.bash_profile` or `.zshrc` with the following:
+    ```sh
+    export PATH="$HOME/.luarocks/bin:$PATH"
+    export LUA_PATH="$HOME/.luarocks/share/lua/5.4/?.lua;$HOME/.luarocks/share/lua/5.4/?/init.lua;"
+    export LUA_CPATH="$HOME/.luarocks/lib/lua/5.4/?.so;"
+    ```
+
+### Testing
+
+To run the tests, execute the following command:
 
 ```sh
-.load-blueprint arns
+busted .
 ```
 
-For a comprehensive guide on how to utilize the ArNS Resolver, including how to map an AO Process to the ArNS Registry effectively, please refer to the [AR.IO Docs portal](https://docs.ar.io/guides/experimental/ao-resolver/). The documentation provides step-by-step instructions, best practices, and additional resources to get you started with integrating ArNS functionalities into your Arweave applications.
+### Dependencies
 
-## Community and Support
+To add new dependencies, install using luarocks to the local directory
 
-Join the [AR.IO Experiments Discord channel](https://discord.gg/bcVkn9u45c) to share your feedback, ask questions, and connect with other developers working with the AR.IO Network protocols.
+```sh
+luarocks install --tree $HOME.luarocks <package>
+```
+
+And add the package to the `dependencies` table in the `ar-io-ao-0.1-1.rockspec` file.
+
+```lua
+    -- rest of the file
+    dependencies = {
+        "lua >= 5.3",
+        "luaunit >= 3.3.0",
+        "<package>"
+    }
+```
+
+Validate the changes by running:
+
+```sh
+luarocks install --tree $HOME/.luarocks ar-io-ao-0.1-1.rockspec
+``` 
+
+### Deployment
+
+TODO:

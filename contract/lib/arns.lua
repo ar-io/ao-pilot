@@ -1,6 +1,7 @@
 -- arns.lua
 local utils = require '.utils'
 local constants = require '.constants'
+local json = require '.json'
 local arns = {}
 
 if not Records then
@@ -134,9 +135,25 @@ function arns.submitAuctionBid()
     utils.reply("submitAuctionBid is not implemented yet")
 end
 
-function arns.extendLease()
-    -- TODO: implement
-    utils.reply("extendLease is not implemented yet")
+function arns.extendLease(msg)
+    if Records[msg.Tags.Name] == nil then
+        -- NAME DOES NOT EXIST
+        ao.send({
+            Target = msg.From,
+            Tags = { Action = 'ArNS-Invalid-Extend-Notice', Sender = msg.From, Name = tostring(msg.Tags.Name) }
+        })
+        return false
+    end
+
+    if Balances[msg.From] == nil then
+        return false
+    end
+
+    if not utils.isLeaseRecord(Records[msg.Tags.Name]) then
+        return false
+    end
+
+    return true
 end
 
 function arns.increaseUndernameCount(msg)
@@ -199,9 +216,44 @@ function arns.increaseUndernameCount(msg)
     return true
 end
 
-function arns.getRecord()
-    -- TODO: implement
-    utils.reply("getRecord is not implemented yet")
+function arns.getRecord(msg)
+    -- Ensure the 'Name' tag is present and the record exists before proceeding.
+    if msg.Tags.Name and Records[msg.Tags.Name] then
+        -- Prepare and send a response with the found record's details.
+        local recordDetails = Records[msg.Tags.Name]
+        ao.send({
+            Target = msg.From,
+            Tags = {
+                Action = 'Record-Resolved',
+                Name = msg.Tags.Name,
+                ContractTxId = recordDetails.ContractTxId,
+                ProcessId = recordDetails.ProcessId
+            },
+            Data = json.encode(recordDetails)
+        })
+        return json.encode(recordDetails)
+    else
+        -- Send an error response if the record name is not provided or the record does not exist.
+        ao.send({
+            Target = msg.From,
+            Tags = {
+                Action = 'Get-Record-Error',
+                ['Message-Id'] = msg.Id, -- Ensure message ID is passed for traceability.
+                Error = 'Requested non-existent record'
+            }
+        })
+        return false
+    end
+end
+
+function arns.getRecords(msg)
+    ao.send({
+        Action = 'Records-Resolved',
+        Target = msg.From,
+        Data =
+            json.encode(Records)
+    })
+    return json.encode(Records)
 end
 
 function arns.getAuction()

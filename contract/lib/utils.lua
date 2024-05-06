@@ -277,6 +277,51 @@ function utils.assertAvailableRecord(caller, name, currentTimestamp, type, aucti
     return true
 end
 
+function utils.assertRecordCanBeExtended(
+    record,
+    currentTimestamp,
+    years)
+    -- This name's lease has expired beyond grace period and cannot be extended
+    if not utils.isExistingActiveRecord(record, currentTimestamp) then
+        -- This name has expired and must renewed before its undername support can be extended.`,
+        return false
+    end
+
+    if not utils.isLeaseRecord(record) then
+        return false
+    end
+
+    if years > utils.getMaxAllowedYearsExtensionForRecord(currentTimestamp, record) then
+        return false
+    end
+    return true
+end
+
+function utils.getMaxAllowedYearsExtensionForRecord(
+    currentTimestamp,
+    record)
+    if not record.endTimestamp then
+        return 0;
+    end
+
+    -- if expired return 0 because it cannot be extended and must be re-bought
+    if currentTimestamp > record.endTimestamp + constants.SECONDS_IN_GRACE_PERIOD then
+        return 0;
+    end
+
+    if utils.isNameInGracePeriod(record, currentTimestamp) then
+        return constants.ARNS_LEASE_LENGTH_MAX_YEARS;
+    end
+
+    -- TODO: should we put this as the ceiling? or should we allow people to extend as soon as it is purchased
+    local yearsRemainingOnLease = math.ceil(
+        record.endTimestamp - currentTimestamp /
+        constants.SECONDS_IN_A_YEAR)
+
+    -- a number between 0 and 5 (MAX_YEARS)
+    return constants.ARNS_LEASE_LENGTH_MAX_YEARS - yearsRemainingOnLease
+end
+
 function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
     if qty < 1 or qty > 9990 then
         return false, 'Qty is invalid'

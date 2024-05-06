@@ -8,6 +8,8 @@ local ActionMap = {
     Transfer = 'Transfer',
     GetBalance = 'GetBalance',
     GetBalances = 'GetBalances',
+    GetRecord = 'GetRecord',
+    GetRecords = 'GetRecords',
     Vault = 'Vault',
     BuyRecord = 'BuyRecord',
     SubmitAuctionBid = 'SubmitAuctionBid',
@@ -36,6 +38,14 @@ end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag('Action', ActionMap.BuyRecord), function(msg)
     arns.buyRecord(msg)
+end)
+
+Handlers.add(ActionMap.GetRecord, utils.hasMatchingTag('Action', ActionMap.GetRecord), function(msg)
+    arns.getRecord(msg)
+end)
+
+Handlers.add(ActionMap.GetRecords, utils.hasMatchingTag('Action', ActionMap.GetRecords), function(msg)
+    arns.getRecords(msg)
 end)
 
 Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag('Action', ActionMap.SubmitAuctionBid), function(msg)

@@ -11,6 +11,8 @@ constants.MIN_DELEGATED_STAKE = 50 * 1000000    -- Fifty IO
 constants.DEFAULT_UNDERNAME_COUNT = 10
 constants.DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
 constants.MS_IN_A_YEAR = 31536000 * 1000
+constants.SECONDS_IN_A_YEAR = 525600 * 60       -- Rent song times 60 seconds
+constants.ARNS_LEASE_LENGTH_MAX_YEARS = 5;      -- the maximum amount of years an arns name could be leased for
 constants.PERMABUY_LEASE_FEE_LENGTH = 10
 constants.ANNUAL_PERCENTAGE_FEE = 0.2
 constants.ARNS_NAME_DOES_NOT_EXIST_MESSAGE = "Name does not exist in the ArNS Registry!"
@@ -19,8 +21,11 @@ constants.MAX_ALLOWED_UNDERNAMES = 10000
 constants.UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
 constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
 constants.MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
-constants.MINIMUM_ALLOWED_NAME_LENGTH = 5;                         -- names less than 5 characters are reserved for auction
-constants.SHORT_NAME_RESERVATION_UNLOCK_TIMESTAMP = 1725080400000; -- August 31st, 2024
+constants.SECONDS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60
+
+constants.MINIMUM_ALLOWED_NAME_LENGTH = 5                         -- names less than 5 characters are reserved for auction
+constants.SHORT_NAME_RESERVATION_UNLOCK_TIMESTAMP = 1725080400000 -- August 31st, 2024
+constants.ARNS_LEASE_LENGTH_MAX_YEARS = 5
 -- BALANCES
 constants.GENESIS_FEES = {
     [1] = 5000000,

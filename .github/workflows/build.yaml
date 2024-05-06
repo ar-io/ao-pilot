@@ -23,4 +23,4 @@ jobs:
       run: luarocks install ar-io-ao-0.1-1.rockspec
 
     - name: Run Busted Tests
-      run: busted -o utfTerminal
+      run: busted .

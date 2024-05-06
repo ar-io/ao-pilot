@@ -76,6 +76,7 @@ function token.transfer(msg)
     return true
 end
 
+-- TO DO: Add vaulting
 function token.vault()
     -- TODO: implement
     utils.reply("vault is not implemented yet")

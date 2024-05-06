@@ -14,7 +14,7 @@ constants.defaultUndernameCount = 10
 -- ARNS
 DEFAULT_UNDERNAME_COUNT = 10
 DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
-MS_IN_A_YEAR = 31536000 * 1000
+constants.MS_IN_A_YEAR = 31536000 * 1000
 PERMABUY_LEASE_FEE_LENGTH = 10
 ANNUAL_PERCENTAGE_FEE = 0.2
 ARNS_NAME_DOES_NOT_EXIST_MESSAGE = "Name does not exist in the ArNS Registry!"

@@ -1,5 +1,5 @@
 -- arns.lua
-local utils = require '.utils'
+local utils = require 'utils'
 local constants = require 'constants'
 
 local gar = {}

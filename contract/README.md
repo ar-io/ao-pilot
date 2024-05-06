@@ -12,17 +12,26 @@ This repository contains the IO contract implementation on AO.
 
 ### Requirements
 
-- npm - [Download](https://www.npmjs.com/get-npm)
 - Lua 5.3 - [Download](https://www.lua.org/download.html)
+    > `brew install lua`
 - Luarocks - [Download](https://luarocks.org/)
-- AOS:
-    `npm i -g https://get_ao.g8way.io`
+    > `brew install luarocks`
 
-### Setup
+### Lua Setup
 
 1. Clone the repository and navigate to the project directory.
-2. Install the Lua dependencies by running `luarocks install luaunit`.
-3. Install the AOS CLI by running `npm i -g https://get_ao.g8way.io`.
+1. Install `lua`
+1. Install `luarocks`
+1. Update your `LUAROCKS_PATH` to include the local directory by running `export LUAROCKS_PATH=$LUAROCKS_PATH:$(pwd)/.luarocks`.
+1. Update your `LUA_PATH` to include the local directory by running `export LUA_PATH=$LUA_PATH:$(pwd)/.luarocks/share/lua/5.3/?.lua`.
+
+```sh
+export LUA_PATH=$LUA_PATH:$(pwd)/.luarocks/share/lua/5.3/?.lua
+```
+
+<!-- TODO: update path variables here? -->
+
+### Project Setup
 
 Install the dependencies by running:
 
@@ -35,8 +44,33 @@ luarocks install --tree .luarocks ar-io-ao-0.1-1.rockspec
 To run the tests, execute the following command:
 
 ```sh
-lua test.lua
+busted .
 ```
+
+### Dependencies
+
+To add new dependencies, install using luarocks to the local directory
+
+```sh
+luarocks install --tree .luarocks <package>
+```
+
+And add the package to the `dependencies` table in the `ar-io-ao-0.1-1.rockspec` file.
+
+```lua
+    -- rest of the file
+    dependencies = {
+        "lua >= 5.3",
+        "luaunit >= 3.3.0",
+        "<package>"
+    }
+```
+
+Validate the changes by running:
+
+```sh
+luarocks install --tree .luarocks ar-io-ao-0.1-1.rockspec
+``` 
 
 ### Deployment
 

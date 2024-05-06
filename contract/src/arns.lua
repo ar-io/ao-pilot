@@ -1,11 +1,11 @@
 -- arns.lua
 
-local utils = require '.utils'
+local utils = require 'utils'
+local constants = require 'constants'
 local arns = {}
 local records = {}
 local auctions = {}
 local reserved = {}
-local oneYearSeconds = 60 * 60 * 24 * 365
 
 function arns.buyRecord(name, type, processTxId, caller)
     if(name == nil or type == nil or processTxId == nil) then
@@ -36,7 +36,7 @@ function arns.buyRecord(name, type, processTxId, caller)
     }
     
     if(type == "lease") then 
-        records[name].endTimestamp = os.clock() + oneYearSeconds 
+        records[name].endTimestamp = os.clock() + constants.oneYearSeconds * 1000
     end
 
     return records[name]

@@ -1,0 +1,7 @@
+print("Loading .busted configuration...")
+return {
+  default = {
+    verbose = true,
+    coverage = true,
+  }
+}

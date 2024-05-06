@@ -1,8 +1,8 @@
 -- Adjust package.path to include the current directory
-local balances = require '.lib.balances'
-local arns = require '.lib.arns'
-local gar = require '.lib.gar'
-local utils = require '.lib.utils'
+local balances = require 'contract.srcb.balances'
+local arns = require 'contract.srcb.arns'
+local gar = require 'contract.srcb.gar'
+local utils = require 'contract.srcb.utils'
 
 local ActionMap = {
     Transfer = 'Transfer',

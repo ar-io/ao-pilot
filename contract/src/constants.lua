@@ -7,7 +7,9 @@ MIN_DELEGATED_STAKE = 50 * 1000000    -- Fifty IO
 
 -- Gar
 local constants = {}
+constants.oneYearSeconds = 60 * 60 * 24 * 365
 constants.thirtyDaysSeconds = 60 * 60 * 24 * 30
+constants.defaultUndernameCount = 10
 
 -- ARNS
 DEFAULT_UNDERNAME_COUNT = 10

@@ -5,6 +5,10 @@ MS_IN_A_YEAR = 31536000 * 1000
 MIN_OPERATOR_STAKE = 10000 * 1000000  -- Ten thousand IO
 MIN_DELEGATED_STAKE = 50 * 1000000    -- Fifty IO
 
+-- Gar
+local constants = {}
+constants.thirtyDaysSeconds = 60 * 60 * 24 * 30
+
 -- ARNS
 DEFAULT_UNDERNAME_COUNT = 10
 DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
@@ -72,3 +76,5 @@ GENESIS_FEES = {
     [50] = 1000,
     [51] = 1000
 }
+
+return constants

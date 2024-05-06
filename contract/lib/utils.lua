@@ -1,3 +1,4 @@
+local constants = require '.constants'
 local utils = {}
 
 function utils.hasMatchingTag(tag, value)
@@ -20,16 +21,16 @@ end
 -- and the second return value provides an error message in case of validation failure.
 function utils.validateBuyRecord(tags)
     -- Validate the presence and type of the 'name' field
-    if type(tags.name) ~= "string" then
+    if type(tags.Name) ~= "string" then
         return false, "name is required and must be a string."
     end
 
     -- Validate the character count 'name' field to ensure names 4 characters or below are excluded
-    if string.len(tags.name) <= 4 then
+    if string.len(tags.Name) <= 4 then
         return false, "1-4 character names are not allowed"
     end
 
-    local name = tostring(tags.name)
+    local name = tostring(tags.Name)
     local startsWithAlphanumeric = name:match("^%w")
     local endsWithAlphanumeric = name:match("%w$")
     local middleValid = name:match("^[%w-]+$")
@@ -40,7 +41,7 @@ function utils.validateBuyRecord(tags)
     end
 
     -- First, check for the 'atomic' special case.
-    local processId = tostring(tags.processId)
+    local processId = tostring(tags.ProcessId)
     local isAtomic = processId == "atomic"
 
     -- Then, check for a 43-character base64url pattern.
@@ -52,33 +53,181 @@ function utils.validateBuyRecord(tags)
     end
 
     -- If 'years' is present, validate it as an integer between 1 and 5
-    if tags.years then
-        if type(tags.years) ~= "number" or tags.years % 1 ~= 0 or tags.years < 1 or tags.years > 5 then
+    if tags.Years then
+        if type(tags.Years) ~= "number" or tags.Years % 1 ~= 0 or tags.Years < 1 or tags.Years > 5 then
             return false, "years must be an integer between 1 and 5."
         end
     end
 
-    -- Validate 'purchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
-    if tags.purchaseType then
-        if not (tags.purchaseType == 'lease' or tags.purchaseType == 'permabuy') then
+    -- Validate 'PurchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
+    if tags.PurchaseType then
+        if not (tags.PurchaseType == 'lease' or tags.PurchaseType == 'permabuy') then
             return false, "type pattern is invalid."
         end
 
         -- Do not allow permabuying names 11 characters or below for this experimentation period
-        if tags.purchaseType == 'permabuy' and string.len(tags.name) <= 11 then
+        if tags.PurchaseType == 'permabuy' and string.len(tags.Name) <= 11 then
             return false, "cannot permabuy name 11 characters or below at this time"
         end
     end
 
     -- Validate the 'auction' field if present, ensuring it is a boolean value
-    if tags.auction then
-        if type(tags.auction) ~= "boolean" then
+    if tags.Auction then
+        if type(tags.Auction) ~= "boolean" then
             return false, "auction must be a boolean."
         end
     end
 
     -- If all validations pass, return true with an empty message indicating success
     return true, ""
+end
+
+function utils.walletHasSufficientBalance(wallet, quantity)
+    return Balances[wallet] ~= nil and Balances[wallet] >= quantity
+end
+
+function utils.calculateLeaseFee(name, years)
+    -- Initial cost to register a name
+    -- TODO: Harden the types here to make fees[name.length] an error
+    local initialNamePurchaseFee = constants.GENESIS_FEES[string.len(name)]
+
+    -- total cost to purchase name (no demand factor)
+    return (
+        initialNamePurchaseFee +
+        utils.calculateAnnualRenewalFee(
+            name,
+            years
+        )
+    );
+end
+
+function utils.calculateAnnualRenewalFee(name, years)
+    -- Determine annual registration price of name
+    local initialNamePurchaseFee = constants.GENESIS_FEES[string.len(name)]
+
+    -- Annual fee is specific % of initial purchase cost
+    local nameAnnualRegistrationFee =
+        initialNamePurchaseFee * constants.ANNUAL_PERCENTAGE_FEE;
+
+    local totalAnnualRenewalCost = nameAnnualRegistrationFee * years;
+
+    return totalAnnualRenewalCost;
+end
+
+function utils.calculatePermabuyFee(name)
+    -- genesis price
+    local initialNamePurchaseFee = constants.GENESIS_FEES[string.len(name)]
+
+    -- calculate the annual fee for the name for default of 10 years
+    local permabuyPrice =
+    --  No demand factor
+        initialNamePurchaseFee +
+        -- total renewal cost pegged to 10 years to purchase name
+        utils.calculateAnnualRenewalFee(
+            name,
+            constants.PERMABUY_LEASE_FEE_LENGTH
+        );
+    return permabuyPrice
+end
+
+function utils.calculateRegistrationFee(purchaseType, name, years)
+    if purchaseType == 'lease' then
+        return utils.calculateLeaseFee(
+            name,
+            years
+        );
+    elseif purchaseType == 'permabuy' then
+        return utils.calculatePermabuyFee(
+            name
+        );
+    end
+end
+
+function utils.calculateUndernameCost(name, increaseQty, registrationType, years)
+    local initialNameFee = constants.GENESIS_FEES[string.len(name)] -- Get the fee based on the length of the name
+    if initialNameFee == nil then
+        -- Handle the case where there is no fee for the given name length
+        return 0
+    end
+
+    local undernamePercentageFee = 0
+    if registrationType == 'lease' then
+        undernamePercentageFee = constants.UNDERNAME_LEASE_FEE_PERCENTAGE
+    elseif registrationType == 'permabuy' then
+        undernamePercentageFee = constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE
+    end
+
+    local totalFeeForQtyAndYears = initialNameFee * undernamePercentageFee * increaseQty * years
+    return totalFeeForQtyAndYears
+end
+
+function utils.isLeaseRecord(record)
+    return record.type == 'lease'
+end
+
+function utils.ensureMilliseconds(timestamp)
+    -- Assuming any timestamp before 100000000000 is in seconds
+    -- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous
+    local threshold = 100000000000
+    if timestamp < threshold then
+        -- If the timestamp is below the threshold, it's likely in seconds, so convert to milliseconds
+        return timestamp * 1000
+    else
+        -- If the timestamp is above the threshold, assume it's already in milliseconds
+        return timestamp
+    end
+end
+
+function utils.isNameInGracePeriod(record, currentTimestamp)
+    if not record or not record.endTimestamp then
+        return false
+    end -- if it has no timestamp, it is a permabuy
+    if (utils.ensureMilliseconds(record.endTimestamp) + constants.MS_IN_GRACE_PERIOD) < currentTimestamp then
+        return false
+    end
+    return true
+end
+
+function utils.isExistingActiveRecord(record, currentTimestamp)
+    if not record then return false end
+
+    if not utils.isLeaseRecord(record) then
+        return true
+    end
+
+    if utils.isNameInGracePeriod(record, currentTimestamp) then
+        return true
+    else
+        return false
+    end
+end
+
+function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
+    if qty < 1 or qty > 9990 then
+        return false, 'Qty is invalid'
+    end
+
+    if record == nil then
+        return false, constants.ARNS_NAME_DOES_NOT_EXIST_MESSAGE;
+    end
+
+    -- This name's lease has expired and cannot have undernames increased
+    if not utils.isExistingActiveRecord(record, currentTimestamp) then
+        return false, "This name has expired and must renewed before its undername support can be extended."
+    end
+
+    -- the new total qty
+    if record.undernames + qty > utils.MAX_ALLOWED_UNDERNAMES then
+        return false, constants.ARNS_MAX_UNDERNAME_MESSAGE
+    end
+
+    return true, ""
+end
+
+function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
+    local yearsRemainingFloat =
+        (endTimestamp - startTimestamp) / utils.MS_IN_A_YEAR;
+    return string.format("%.2f", yearsRemainingFloat)
 end
 
 return utils

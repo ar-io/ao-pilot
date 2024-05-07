@@ -9,3 +9,4 @@ node_modules
 /lua_modules
 /.luarocks
 wallet.json
+.DS_Store

@@ -21,28 +21,27 @@ This repository contains the IO contract implementation on AO.
 1. Install `lua`
     - `brew install lua`
 1. Install `luarocks`
-    - `brew install luarocks
+    - `brew install luarocks`
+1. Set the local luarocks path
+    - `luarocks config local_by_default true`
+    - `luarocks path --tree .luarocks`
 1. Install the dependencies by running:
-    - `luarocks install --tree $HOME/.luarocks ao-0.1-1.rockspec`
-1. Update your `.bashrc` or `.bash_profile` or `.zshrc` with the following:
-    ```sh
-    export PATH="$HOME/.luarocks/bin:$PATH"
-    export LUA_PATH="$HOME/.luarocks/share/lua/5.4/?.lua;$HOME/.luarocks/share/lua/5.4/?/init.lua;"
-    export LUA_CPATH="$HOME/.luarocks/lib/lua/5.4/?.so;"
-    ```
+    - `luarocks install ar-io-ao-0.1-1.rockspec`
 
-`luarocks config local_by_default true`
-    `luarocks path --tree .luarocks`
+If you ever need to refresh .luarocks, run the following command:
 
+```sh
+luarocks purge && luarocks install ar-io-ao-0.1-1.rockspec
+```
 
-    `cargo install stylua`
+### Code Formatting
 
-    ### Formatting
-    `stylua contract`
+The code is formatted using `stylua`. To install `stylua`, run the following command:
 
-    ```sh
-    luarocks purge && luarocks install ar-io-ao-0.1-1.rockspec
-    ```
+```sh
+cargo install stylua
+stylua contract
+```
 
 ### Testing
 
@@ -57,7 +56,7 @@ busted .
 To add new dependencies, install using luarocks to the local directory
 
 ```sh
-luarocks install --tree $HOME.luarocks <package>
+luarocks install <package>
 ```
 
 And add the package to the `dependencies` table in the `ar-io-ao-0.1-1.rockspec` file.
@@ -70,12 +69,6 @@ And add the package to the `dependencies` table in the `ar-io-ao-0.1-1.rockspec`
         "<package>"
     }
 ```
-
-Validate the changes by running:
-
-```sh
-luarocks install --tree $HOME/.luarocks ar-io-ao-0.1-1.rockspec
-``` 
 
 ### Deployment
 

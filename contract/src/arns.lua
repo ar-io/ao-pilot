@@ -1,6 +1,6 @@
 -- arns.lua
 local utils = require("utils")
-local constants = require("contsants")
+local constants = require("constants")
 local arns = {}
 
 if not Balances then

@@ -10,16 +10,15 @@ end
 local token = {}
 
 function token.transfer(recipient, from, qty)
-	-- assert(type(recipient) == 'string', 'Recipient is required!')
-	-- assert(type(quantity) == 'string', 'Quantity is required!')
+	assert(type(recipient) == 'string', 'Recipient is required!')
+	assert(type(quantity) == 'string', 'Quantity is required!')
 
 	if not Balances[from] then Balances[from] = 0 end
 
 	if not Balances[recipient] then Balances[recipient] = 0 end
 
-	-- local qty = tonumber(quantity)
-	-- assert(type(qty) == 'number', 'qty must be number')
-	-- assert(qty > 0, 'Quantity must be greater than 0')
+	assert(type(qty) == 'number', 'qty must be number')
+	assert(qty > 0, 'Quantity must be greater than 0')
 	if Balances[from] >= qty then
 		Balances[from] = Balances[from] - qty
 		Balances[recipient] = Balances[recipient] + qty

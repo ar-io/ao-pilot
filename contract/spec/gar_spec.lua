@@ -1,3 +1,5 @@
+package.path = package.path .. ";./contract/src/?.lua"
+
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {

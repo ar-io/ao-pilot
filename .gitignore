@@ -2,3 +2,9 @@ key.json
 node_modules
 .vscode
 .luarocks
+**/coverage/*
+!.gitkeep
+/luarocks
+/lua
+/lua_modules
+/.luarocks

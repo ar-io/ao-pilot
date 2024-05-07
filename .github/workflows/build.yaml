@@ -46,4 +46,4 @@ jobs:
       run: echo '${{ secrets.WALLET }}' > wallet.json
 
     - name: Deploy to AOS
-      run: aos --load contract/src/contract.lua --wallet wallet.json
+      run: aos --load contract/src/main.lua --wallet wallet.json

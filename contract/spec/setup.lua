@@ -1,4 +1,4 @@
-require('luacov')
+require("luacov")
 
 _G.ao = {
 	send = function()
@@ -9,6 +9,5 @@ _G.ao = {
 os.clock = function()
 	return 0
 end
-
 
 print("Global setup loaded successfully")

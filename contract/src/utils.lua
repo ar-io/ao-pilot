@@ -205,9 +205,9 @@ function utils.isExistingActiveRecord(record, currentTimestamp)
 
 	if utils.isNameInGracePeriod(record, currentTimestamp) then
 		return true
-	else
-		return false
 	end
+
+	return false
 end
 
 function utils.isShortNameRestricted(name, currentTimestamp)
@@ -251,24 +251,20 @@ function utils.assertAvailableRecord(caller, name, currentTimestamp, type, aucti
 	return true
 end
 
-function utils.assertRecordCanBeExtended(record, currentTimestamp, years)
+function utils.validateExtendLease(record, currentTimestamp, years)
 	-- This name's lease has expired beyond grace period and cannot be extended
 	if not utils.isExistingActiveRecord(record, currentTimestamp) then
 		-- This name has expired and must renewed before its undername support can be extended.`,
-		return false
+		return false, "This name has expired and must renewed before its undername support can be extended."
 	end
 
-	if not utils.isLeaseRecord(record) then
-		return false
-	end
-
-	if years > utils.getMaxAllowedYearsExtensionForRecord(currentTimestamp, record) then
-		return false
+	if years > utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp) then
+		return false, "Invalid number of years for record extension"
 	end
 	return true
 end
 
-function utils.getMaxAllowedYearsExtensionForRecord(currentTimestamp, record)
+function utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
 	if not record.endTimestamp then
 		return 0
 	end
@@ -296,6 +292,10 @@ end
 -- @param currentTimestamp The current timestamp
 -- @return boolean, string The first return value indicates whether the increase is valid (true) or not (false),
 function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
+	if record == nil then
+		return false, "Record does not exist"
+	end
+
 	if qty < 1 or qty > 9990 then
 		return false, "Qty is invalid"
 	end
@@ -311,11 +311,6 @@ function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
 	end
 
 	return true, ""
-end
-
-function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
-	local yearsRemainingFloat = (endTimestamp - startTimestamp) / constants.MS_IN_A_YEAR
-	return string.format("%.2f", yearsRemainingFloat)
 end
 
 return utils

@@ -110,51 +110,48 @@ function arns.submitAuctionBid()
 	utils.reply("submitAuctionBid is not implemented yet")
 end
 
-function arns.extendLease(msg)
-	if Records[msg.Tags.Name] == nil then
-		-- NAME DOES NOT EXIST
-		ao.send({
-			Target = from,
-			Tags = { Action = "ArNS-Invalid-Extend-Notice", Sender = from, Name = tostring(msg.Tags.Name) },
-		})
-		return false
+function arns.extendLease(name, from, years, timestamp)
+	local record = Records[name]
+	local validExtend, validExtendErr = utils.validateExtendLease(record, timestamp, years)
+	if validExtend == false then
+		return false, validExtendErr
 	end
 
-	if Balances[from] == nil then
-		return false
+	local totalExtensionFee = utils.calculateExtensionFee(name, years, record.type)
+	if not utils.walletHasSufficientBalance(from, totalExtensionFee) then
+		return false, "Insufficient balance"
 	end
 
-	if not utils.isLeaseRecord(Records[msg.Tags.Name]) then
-		return false
+	-- Transfer tokens to the protocol balance
+	if not Balances[from] then
+		Balances[from] = 0
 	end
+	if not Balances[ao.id] then
+		Balances[ao.id] = 0
+	end
+	Balances[from] = Balances[from] - totalExtensionFee
+	Balances[ao.id] = Balances[ao.id] + totalExtensionFee
 
+	Records[name].endTimestamp = Records[name].endTimestamp + constants.MS_IN_A_YEAR * years
 	return true
 end
 
 function arns.increaseUndernameCount(name, from, qty, timestamp)
 	-- validate record can increase undernames
 	local record = Records[name]
-	if record == nil then
-		return false, Records[name]
-	end
 	local validIncrease, err = utils.validateIncreaseUndernames(record, tonumber(qty), timestamp)
 	if validIncrease == false then
 		return false, err
 	end
 
-	local record = Records[name]
 	local endTimestamp
 	if utils.isLeaseRecord(record) then
 		endTimestamp = record.endTimestamp
-	else
-		endTimestamp = nil
 	end
 
-	local yearsRemaining
+	local yearsRemaining = constants.PERMABUY_LEASE_FEE_LENGTH
 	if endTimestamp then
 		yearsRemaining = utils.calculateYearsBetweenTimestamps(timestamp, endTimestamp)
-	else
-		yearsRemaining = constants.PERMABUY_LEASE_FEE_LENGTH -- Assuming PERMABUY_LEASE_FEE_LENGTH is defined somewhere
 	end
 
 	local existingUndernames = record.undernameCount
@@ -174,9 +171,7 @@ function arns.increaseUndernameCount(name, from, qty, timestamp)
 	end
 	Balances[from] = Balances[from] - additionalUndernameCost
 	Balances[ao.id] = Balances[ao.id] + additionalUndernameCost
-
-	local incrementedUndernames = existingUndernames + qty
-	Records[name].undernameCount = incrementedUndernames
+	Records[name].undernameCount = existingUndernames + qty
 	return Records[name]
 end
 

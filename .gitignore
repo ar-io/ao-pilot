@@ -4,3 +4,7 @@ node_modules
 .luarocks
 **/coverage/*
 !.gitkeep
+/luarocks
+/lua
+/lua_modules
+/.luarocks

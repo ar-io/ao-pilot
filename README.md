@@ -31,6 +31,19 @@ This repository contains the IO contract implementation on AO.
     export LUA_CPATH="$HOME/.luarocks/lib/lua/5.4/?.so;"
     ```
 
+`luarocks config local_by_default true`
+    `luarocks path --tree .luarocks`
+
+
+    `cargo install stylua`
+
+    ### Formatting
+    `stylua contract`
+
+    ```sh
+    luarocks purge && luarocks install ar-io-ao-0.1-1.rockspec
+    ```
+
 ### Testing
 
 To run the tests, execute the following command:

@@ -1,0 +1,9 @@
+print("Loading .busted configuration...")
+return {
+    default = {
+        root = ".",
+        pattern = ".*_spec.lua$",
+        verbose = true,
+        output = "utfTerminal"
+  }
+}

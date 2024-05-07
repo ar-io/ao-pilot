@@ -24,6 +24,11 @@ jobs:
 
     - name: Run Busted Tests
       run: busted .
+    
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   deploy:
     runs-on: ubuntu-latest

@@ -1,3 +1,5 @@
+package.path = package.path .. ";./contract/src/?.lua"
+
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {
@@ -85,5 +87,45 @@ describe("gar", function()
 			status = "leaving",
 			observerWallet = "observerWallet",
 		})
+	end)
+
+	it("should fetch a gateway from the global object", function ()
+		Gateways['test'] = 			{
+			operatorStake = 100,
+			vaults = {},
+			delegates = {},
+			startTimestamp = 100,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}
+		local result = gar.getGateway('test')
+		assert.are.same({
+			operatorStake = 100,
+			vaults = {},
+			delegates = {},
+			startTimestamp = 100,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}, result)
 	end)
 end)

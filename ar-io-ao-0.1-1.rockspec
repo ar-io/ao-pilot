@@ -7,6 +7,7 @@ source = {
 dependencies = {
     "busted >= 2.2.0",
     "luacov >= 0.15.0"
+    "luacov-html >-1.0.0"
 }
 test = {
   type = "busted",

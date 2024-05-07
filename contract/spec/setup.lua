@@ -1,4 +1,4 @@
-package.path = package.path .. ";../src/?.lua"
+package.path = package.path .. ";./contract/src/?.lua"
 
 require("luacov")
 

@@ -14,12 +14,24 @@ local initialStats = {
 	passedConsecutiveEpochs = 0,
 }
 
+if not Gateways then
+	Gateways = {}
+end
+
+if not Observations then
+	Observations = {}
+end
+
+if not Epochs then
+	Epochs = {}
+end
+
 function gar.joinNetwork(caller, stake, settings, observerWallet)
 	if caller == nil or settings == nil or stake == nil then
 		utils.reply("caller, settings and stake are required")
 	end
 
-	if gar[caller] ~= nil then
+	if Gateways[caller] ~= nil then
 		utils.reply("Gateway already exists in the network")
 	end
 
@@ -38,7 +50,7 @@ function gar.joinNetwork(caller, stake, settings, observerWallet)
 		observerWallet = observerWallet,
 	}
 
-	gar[caller] = newGateway
+	Gateways[caller] = newGateway
 	return newGateway
 end
 
@@ -47,11 +59,11 @@ function gar.leaveNetwork(caller)
 		utils.reply("caller is required")
 	end
 
-	if gar[caller] == nil then
+	if Gateways[caller] == nil then
 		utils.reply("Gateway does not exist in the network")
 	end
 
-	local gateway = gar[caller]
+	local gateway = Gateways[caller]
 
 	if gateway.status ~= "joined" then
 		utils.reply("gateway cannot leave the network. current status: " .. gateway.status)
@@ -70,7 +82,7 @@ function gar.leaveNetwork(caller)
 	gateway.operatorStake = 0
 
 	-- update global state
-	gar[caller] = gateway
+	Gateways[caller] = gateway
 	return gateway
 end
 
@@ -94,9 +106,12 @@ function gar.saveObservations()
 	utils.reply("saveObservations is not implemented yet")
 end
 
-function gar.getGateway()
-	-- TODO: implement
-	utils.reply("getGateway is not implemented yet")
+function gar.getGateway(processId)
+	local gateway = Gateways[processId]
+	if gateway == nil then
+		return nil, "Gateway does not exist in the network"
+	end
+	return gateway
 end
 
 function gar.getPrescribedObservers()

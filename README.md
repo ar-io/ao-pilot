@@ -42,13 +42,21 @@ To load the module into the `aos` REPL, run the following command:
 aos --load contract/src/main.lua
 ```
 
+### ao
+
+To build the ao module use the `ao` cli tool:
+
+```sh
+cd contract
+ao build
+```
+
 ### Code Formatting
 
 The code is formatted using `stylua`. To install `stylua`, run the following command:
 
 ```sh
-cargo install stylua
-stylua contract
+luaformatter contract
 ```
 
 ### Testing

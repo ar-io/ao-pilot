@@ -1,8 +1,8 @@
--- Adjust package.path to include the current directory
-local balances = require("balances")
-local arns = require("arns")
-local gar = require("gar")
-local utils = require("utils")
+-- main.lua
+local balances = require("contract.src.balances")
+local arns = require("contract.src.arns")
+local gar = require("contract.src.gar")
+local utils = require("contract.src.utils")
 
 local ActionMap = {
 	Transfer = "Transfer",

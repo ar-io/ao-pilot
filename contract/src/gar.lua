@@ -1,6 +1,6 @@
 -- arns.lua
-local utils = require("utils")
-local constants = require("constants")
+local utils = require("contract.src.utils")
+local constants = require("contract.src.constants")
 
 local gar = {}
 

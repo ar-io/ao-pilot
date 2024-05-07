@@ -1,5 +1,5 @@
 -- arns.lua
-local utils = require(".utils")
+local utils = require("src.utils")
 
 local balances = {}
 

@@ -1,21 +1,53 @@
--- arns.lua
-local utils = require(".utils")
-
-local balances = {}
-
-function balances.transfer()
-	-- TODO: implement
-	utils.reply("transfer is not implemented yet")
+-- token.lua
+local json = require '.json'
+if not Denomination then
+	Denomination = 6
+end
+if not Balances then
+	Balances = {}
 end
 
-function balances.vault()
-	-- TODO: implement
-	utils.reply("vault is not implemented yet")
+local token = {}
+
+function token.transfer(recipient, from, qty)
+	-- assert(type(recipient) == 'string', 'Recipient is required!')
+	-- assert(type(quantity) == 'string', 'Quantity is required!')
+
+	if not Balances[from] then Balances[from] = 0 end
+
+	if not Balances[recipient] then Balances[recipient] = 0 end
+
+	-- local qty = tonumber(quantity)
+	-- assert(type(qty) == 'number', 'qty must be number')
+	-- assert(qty > 0, 'Quantity must be greater than 0')
+	if Balances[from] >= qty then
+		Balances[from] = Balances[from] - qty
+		Balances[recipient] = Balances[recipient] + qty
+		return true
+	else
+		return false, Balances[from];
+	end
 end
 
-function balances.getBalance()
+-- TO DO: Add vaulting
+function token.vault()
 	-- TODO: implement
-	utils.reply("getBalance is not implemented yet")
+	return false
 end
 
-return balances
+function token.getBalance(target, from)
+	local bal = '0'
+	-- If not Target is provided, then return the Senders balance
+	if (target and Balances[target]) then
+		bal = tostring(Balances[target])
+	elseif Balances[from] then
+		bal = tostring(Balances[from])
+	end
+	return bal
+end
+
+function token.getBalances()
+	return json.encode(Balances)
+end
+
+return token

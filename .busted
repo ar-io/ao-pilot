@@ -1,11 +1,12 @@
 print("Loading .busted configuration...")
 return {
     default = {
-        root = ".",
+        root = "contract",
         pattern = ".*_spec.lua$",
         helper = "contract/spec/setup.lua",
         verbose = true,
-        coverage = true,
-        output = "utfTerminal"
-  }
+        coverage = false,
+        output = "utfTerminal",
+        jobs = 4
+    }
 }

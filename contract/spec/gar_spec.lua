@@ -1,8 +1,5 @@
-package.path = package.path .. ";../lib/?.lua"
-
 local gar = require("gar")
 local constants = require("constants")
-
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",

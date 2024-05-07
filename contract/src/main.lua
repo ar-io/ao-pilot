@@ -1,8 +1,8 @@
 -- Adjust package.path to include the current directory
-local balances = require("contract.srcb.balances")
-local arns = require("contract.srcb.arns")
-local gar = require("contract.srcb.gar")
-local utils = require("contract.srcb.utils")
+local balances = require("balances")
+local arns = require("arns")
+local gar = require("gar")
+local utils = require("utils")
 
 local ActionMap = {
 	Transfer = "Transfer",
@@ -29,6 +29,7 @@ Handlers.add(ActionMap.Vault, utils.hasMatchingTag("Action", ActionMap.Vault), f
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
+	-- TODO: parse out name, processId, type, qty, from, type, timestamp from message
 	arns.buyRecord(msg)
 end)
 

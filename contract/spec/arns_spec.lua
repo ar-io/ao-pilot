@@ -1,8 +1,8 @@
--- package.path = "./src/?.lua;" .. package.path
+package.path = package.path .. ";../src/?.lua"
 
 local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
-local arns = require("contract.src.arns")
-local constants = require("contract.src.constants")
+local arns = require("arns")
+local constants = require("constants")
 
 describe("arns", function()
 	local original_clock = os.clock

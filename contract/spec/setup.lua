@@ -1,3 +1,5 @@
+package.path = package.path .. ";../src/?.lua"
+
 require("luacov")
 
 _G.ao = {

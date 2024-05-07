@@ -8,3 +8,6 @@ dependencies = {
     "busted >= 2.2.0",
     "luacov >= 0.15.0"
 }
+test = {
+  type = "busted",
+}

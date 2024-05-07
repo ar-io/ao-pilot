@@ -1,4 +1,4 @@
-name: Lua Busted Tests
+name: Test / Deploy
 
 on: [push, workflow_dispatch]
 
@@ -43,7 +43,7 @@ jobs:
       run: npm i -g https://get_ao.g8way.io
 
     - name: Setup wallet
-      run: echo ${{ secrets.WALLET }} > wallet.json
+      run: echo '${{ secrets.WALLET }}' > wallet.json
 
     # - name: Deploy to AOS
     #   run: aos --load contract/src/contract.lua --wallet wallet.json

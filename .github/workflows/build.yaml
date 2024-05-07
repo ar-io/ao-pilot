@@ -45,5 +45,6 @@ jobs:
     - name: Setup wallet
       run: echo '${{ secrets.WALLET }}' > wallet.json
 
-    - name: Deploy to AOS
-      run: aos --load contract/src/main.lua --wallet wallet.json
+    # TODO: should we deploy this way or use ao cli to deploy the module?
+    # - name: Deploy to AOS
+    #   run: aos --load contract/src/main.lua --wallet wallet.json

@@ -186,14 +186,18 @@ function arns.getRecords()
 	return Records
 end
 
-function arns.getAuction()
-	-- TODO: implement
-	utils.reply("getAuction is not implemented yet")
+function arns.getAuction(name)
+	if Auctions[name] == nil then
+		return nil
+	end
+	return Auctions[name]
 end
 
-function arns.getReservedName()
-	-- TODO: implement
-	utils.reply("getReservedName is not implemented yet")
+function arns.getReservedName(name)
+	if Reserved[name] == nil then
+		return nil
+	end
+	return Reserved[name]
 end
 
 return arns

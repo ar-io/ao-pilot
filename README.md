@@ -34,6 +34,14 @@ If you ever need to refresh .luarocks, run the following command:
 luarocks purge && luarocks install ar-io-ao-0.1-1.rockspec
 ```
 
+### aos
+
+To load the module into the `aos` REPL, run the following command:
+
+```sh
+aos --load contract/src/main.lua
+```
+
 ### Code Formatting
 
 The code is formatted using `stylua`. To install `stylua`, run the following command:

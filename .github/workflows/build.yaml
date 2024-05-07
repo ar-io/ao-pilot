@@ -24,3 +24,26 @@ jobs:
 
     - name: Run Busted Tests
       run: busted .
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+    - uses: actions/checkout@v4
+      name: Check out repository code
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4.0.2
+      with:
+        node-version: '20'
+      
+    - name: Install aos
+      run: npm i -g https://get_ao.g8way.io
+
+    - name: Setup wallet
+      run: echo ${{ secrets.WALLET }} > wallet.json
+
+    # - name: Deploy to AOS
+    #   run: aos --load contract/src/contract.lua --wallet wallet.json

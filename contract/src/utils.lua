@@ -313,4 +313,9 @@ function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
 	return true, ""
 end
 
+function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
+	local yearsRemainingFloat = math.floor((endTimestamp - startTimestamp) / constants.MS_IN_A_YEAR)
+	return yearsRemainingFloat
+end
+
 return utils

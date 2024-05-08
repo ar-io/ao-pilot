@@ -1,7 +1,9 @@
-package.path = package.path .. ";../src/?.lua"
-
+package.path = "./contract/src/?.lua;" .. package.path
 require("luacov")
-package.loaded["ar-io-ao"] = nil
+require("state")
+require('token')
+require('demand')
+require('constants')
 
 _G.ao = {
 	send = function()
@@ -22,4 +24,4 @@ os.clock = function()
 	return 0
 end
 
-print("Global setup loaded successfully")
+print("Setup global ao mocks successfully...")

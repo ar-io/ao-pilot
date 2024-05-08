@@ -1,4 +1,3 @@
-require("state")
 local token = require("token")
 -- local constants = require("constants")
 local testSettings = {

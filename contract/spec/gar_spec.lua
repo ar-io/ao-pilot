@@ -1,5 +1,3 @@
-require("token")
-require("state")
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {
@@ -93,12 +91,12 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 				Bob = {
 					balance = constants.MIN_OPERATOR_STAKE,
 					startTimestamp = startTimestamp,
-					endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
+					endTimestamp = constants.gatewaySettings.leaveLength,
 				},
 				msgId = {
 					balance = 1000,
 					startTimestamp = startTimestamp,
-					endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength,
+					endTimestamp = constants.gatewaySettings.withdrawLength.operators,
 				},
 			},
 			delegates = {
@@ -109,13 +107,13 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 						msgId = {
 							balance = constants.MIN_DELEGATED_STAKE,
 							startTimestamp = startTimestamp,
-							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
+							endTimestamp = constants.gatewaySettings.withdrawLength.delegates
 						}
 					}
 				}
 			},
 			startTimestamp = startTimestamp,
-			endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
+			endTimestamp = constants.gatewaySettings.leaveLength,
 			stats = {
 				prescribedEpochCount = 0,
 				observeredEpochCount = 0,
@@ -202,7 +200,7 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 				msgId = {
 					balance = 1000,
 					startTimestamp = startTimestamp,
-					endTimestamp = startTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength
+					endTimestamp = startTimestamp + constants.gatewaySettings.withdrawLength.operators
 				}
 			},
 			delegates = {},

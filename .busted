@@ -3,8 +3,7 @@ return {
     default = {
         root = "contract",
         pattern = "**/*_spec.lua$",
-        setup = "contract/spec/setup.lua",
-        helper = "contract/spec/helper.lua",
+        helper = "contract/spec/setup.lua",
         verbose = true,
         coverage = true,
         output = "utfTerminal",

@@ -91,12 +91,12 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 				Bob = {
 					balance = constants.MIN_OPERATOR_STAKE,
 					startTimestamp = startTimestamp,
-					endTimestamp = constants.gatewaySettings.leaveLength,
+					endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
 				},
 				msgId = {
 					balance = 1000,
 					startTimestamp = startTimestamp,
-					endTimestamp = constants.gatewaySettings.withdrawLength.operators,
+					endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength,
 				},
 			},
 			delegates = {
@@ -107,13 +107,13 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 						msgId = {
 							balance = constants.MIN_DELEGATED_STAKE,
 							startTimestamp = startTimestamp,
-							endTimestamp = constants.gatewaySettings.withdrawLength.delegates
+							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
 						}
 					}
 				}
 			},
 			startTimestamp = startTimestamp,
-			endTimestamp = constants.gatewaySettings.leaveLength,
+			endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
 			stats = {
 				prescribedEpochCount = 0,
 				observeredEpochCount = 0,
@@ -200,7 +200,7 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 				msgId = {
 					balance = 1000,
 					startTimestamp = startTimestamp,
-					endTimestamp = startTimestamp + constants.gatewaySettings.withdrawLength.operators
+					endTimestamp = startTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength
 				}
 			},
 			delegates = {},

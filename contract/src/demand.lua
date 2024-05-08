@@ -1,7 +1,10 @@
+local demand = { _version = "0.0.1" }
+
+
 Fees = {}
 Fees.__index = Fees
 
-function Fees:init(genesisFees)
+function Fees:new(genesisFees)
 	local fees = {} -- our new object
 	setmetatable(fees, Fees) -- make Account handle lookup
 	fees = genesisFees
@@ -17,8 +20,8 @@ end
 DemandFactor = {}
 DemandFactor.__index = DemandFactor
 
-function DemandFactor:init(settings, fees)
-	setmetatable({}, DemandFactor) -- make Account handle lookup
+function DemandFactor:new(settings, fees)
+	local self = setmetatable({}, DemandFactor) -- make DemandFactor lookup table
 	self.startTimestamp = os.clock() -- TODO: The timestamp at which the contract was initialized
 	self.currentPeriod = 1 -- TODO: the # of days since the last demand factor adjustment
 	self.trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 } -- Acts as a ring buffer of trailing period purchase counts
@@ -106,3 +109,5 @@ end
 function DemandFactor:getDemandFactor()
 	return self.currentDemandFactor
 end
+
+return demand

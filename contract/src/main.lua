@@ -1,9 +1,17 @@
 -- Adjust package.path to include the current directory
+local process = { _version = "0.0.1" }
+
 local token = require("token")
 local arns = require("arns")
 local gar = require("gar")
 local utils = require("utils")
 local json = require("json")
+local constants = require("constants")
+
+if not Demand then
+	require('demand') -- Load the demand module
+	Demand = DemandFactor:init(constants.DEMAND_SETTINGS, fees)
+end
 
 local ActionMap = {
 	Transfer = "Transfer",
@@ -20,6 +28,7 @@ local ActionMap = {
 	DecreaseOperatorStake = "DecreaseOperatorStake",
 	UpdateGatewaySettings = "UpdateGatewaySettings",
 	SaveObservations = "SaveObservations",
+	DemandFactor = "DemandFactor"
 }
 
 -- Handlers for contract functions
@@ -29,56 +38,58 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 		-- Send Debit-Notice to the Sender
 		ao.send({
 			Target = msg.From,
-			Action = 'Debit-Notice',
+			Action = "Debit-Notice",
 			Recipient = msg.Tags.Recipient,
 			Quantity = tostring(msg.Tags.Quantity),
-			Data = "You transferred " .. msg.Tags.Quantity .. " to " .. msg.Tags.Recipient
+			Data = "You transferred " .. msg.Tags.Quantity .. " to " .. msg.Tags.Recipient,
 		})
 		if msg.Tags.Function and msg.Tags.Parameters then
 			-- Send Credit-Notice to the Recipient and include the function and parameters tags
 			ao.send({
 				Target = msg.Tags.Recipient,
-				Action = 'Credit-Notice',
+				Action = "Credit-Notice",
 				Sender = msg.From,
 				Quantity = tostring(msg.Tags.Quantity),
 				Function = tostring(msg.Tags.Function),
 				Parameters = msg.Tags.Parameters,
-				Data = "You received " ..
-					msg.Tags.Quantity .. " from " .. msg.Tags.Recipient ..
-					" with the instructions for function " .. msg.Tags.Function ..
-					" with the parameters " .. msg.Tags.Parameters
+				Data = "You received "
+					.. msg.Tags.Quantity
+					.. " from "
+					.. msg.Tags.Recipient
+					.. " with the instructions for function "
+					.. msg.Tags.Function
+					.. " with the parameters "
+					.. msg.Tags.Parameters,
 			})
 		else
 			-- Send Credit-Notice to the Recipient
 			ao.send({
 				Target = msg.Tags.Recipient,
-				Action = 'Credit-Notice',
+				Action = "Credit-Notice",
 				Sender = msg.From,
 				Quantity = tostring(msg.Tags.Quantity),
-				Data = "You received " ..
-					msg.Tags.Quantity ..
-					" from " .. msg.Tags.Recipient
+				Data = "You received " .. msg.Tags.Quantity .. " from " .. msg.Tags.Recipient,
 			})
 		end
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = tostring(err) },
-			Data = tostring(err)
+			Tags = { Action = "Transfer-Error", ["Message-Id"] = msg.Id, Error = tostring(err) },
+			Data = tostring(err),
 		})
 	end
 end)
 
-Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag('Action', ActionMap.GetBalance), function(msg)
+Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetBalance), function(msg)
 	local result = token.getBalance(msg.Tags.Target, msg.From)
 	ao.send({
 		Target = msg.From,
 		Balance = tostring(result),
-		Data = json.encode(tonumber(result))
+		Data = json.encode(tonumber(result)),
 	})
 end)
 
-Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag('Action', ActionMap.GetBalances), function(msg)
+Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag("Action", ActionMap.GetBalances), function(msg)
 	local result = token.getBalances()
 	ao.send({ Target = msg.From, Data = json.encode(result) })
 end)
@@ -88,19 +99,30 @@ Handlers.add(ActionMap.Vault, utils.hasMatchingTag("Action", ActionMap.Vault), f
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
-	local result, err = arns.buyRecord(msg.Tags.Name, msg.Tags.PurchaseType, msg.Tags.Years, msg.From, msg.Tags.Auction,
-		msg.Timestamp, msg.Tags.ProcessId)
+	local result, err = arns.buyRecord(
+		msg.Tags.Name,
+		msg.Tags.PurchaseType,
+		msg.Tags.Years,
+		msg.From,
+		msg.Tags.Auction,
+		msg.Timestamp,
+		msg.Tags.ProcessId
+	)
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'ArNS-Invalid-Buy-Record-Notice', Name = tostring(msg.Tags.Name), ProcessId = tostring(msg.Tags.ProcessId) },
-			Data = tostring(err)
+			Tags = {
+				Action = "ArNS-Invalid-Buy-Record-Notice",
+				Name = tostring(msg.Tags.Name),
+				ProcessId = tostring(msg.Tags.ProcessId),
+			},
+			Data = tostring(err),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'ArNS-Purchase-Notice', Sender = msg.From },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "ArNS-Purchase-Notice", Sender = msg.From },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
@@ -156,3 +178,16 @@ Handlers.add(
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
 	gar.saveObservations(msg)
 end)
+
+-- handler showing how we can fetch data from classes in lua
+Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.DemandFactor), function(msg)
+	-- wrap in a protected call, and return the result or error accoringly to sender
+	local status, result = pcall(function() return Demand:getDemandFactor() end)
+	if status then
+		ao.send({ Target = msg.From, Data = tostring(result) })
+	else
+		ao.send({ Target = msg.From, Error = json.encode(result) })
+	end
+end)
+
+return process;

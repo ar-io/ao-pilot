@@ -1,14 +1,12 @@
 local demand = { _version = "0.0.1" }
 
-
+-- A class like structure for fees that manages its state internally and can be injected into other classes depedenent on fees
 Fees = {}
 Fees.__index = Fees
-
 function Fees:new(genesisFees)
-	local fees = {} -- our new object
-	setmetatable(fees, Fees) -- make Account handle lookup
-	fees = genesisFees
-	return fees
+	local self = setmetatable({}, Fees) -- make Account handle lookup
+	self.fees = genesisFees
+	return self
 end
 
 function Fees:updateFees(demandFactor)
@@ -17,6 +15,8 @@ function Fees:updateFees(demandFactor)
 	end
 end
 
+
+-- a class like structure for demand factor that manages its state internally and can be injected into other classes depedenent on demand factor
 DemandFactor = {}
 DemandFactor.__index = DemandFactor
 

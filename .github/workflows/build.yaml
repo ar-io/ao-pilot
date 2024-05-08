@@ -25,6 +25,12 @@ jobs:
     - name: Run Busted Tests
       run: busted .
 
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        files: ./coverage/coverage_report.out
+        token: ${{ secrets.CODECOV_TOKEN }}
+
   deploy:
     runs-on: ubuntu-latest
     needs: test
@@ -47,4 +53,4 @@ jobs:
 
     # TODO: should we deploy this way or use ao cli to deploy the module?
     # - name: Deploy to AOS
-    #   run: aos --load contract/src/main.lua --wallet wallet.json
+    #   run: aos --load contract/src/main.lua --wallet wallet.json devnet

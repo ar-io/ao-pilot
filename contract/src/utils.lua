@@ -1,6 +1,4 @@
-package.path = "./src/?.lua;" .. package.path
-
-local constants = require(".constants")
+local constants = require("constants")
 local utils = {}
 
 function utils.hasMatchingTag(tag, value)

@@ -1,5 +1,3 @@
-require("token")
-require("state")
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {

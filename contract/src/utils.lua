@@ -112,7 +112,7 @@ function utils.calculatePermabuyFee(name)
 
 	-- calculate the annual fee for the name for default of 10 years
 	local permabuyPrice =
-		--  No demand factor
+	--  No demand factor
 		initialNamePurchaseFee -- total renewal cost pegged to 10 years to purchase name
 		+ utils.calculateAnnualRenewalFee(name, constants.PERMABUY_LEASE_FEE_LENGTH)
 	return permabuyPrice
@@ -316,6 +316,24 @@ end
 function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 	local yearsRemainingFloat = math.floor((endTimestamp - startTimestamp) / constants.MS_IN_A_YEAR)
 	return yearsRemainingFloat
+end
+
+function utils.isGatewayEligibleToLeave(gateway,
+										currentTimestamp,
+										minimumGatewayJoinLength)
+	if gateway == nil then
+		return false
+	end
+	local joinedForMinimum =
+		currentTimestamp >=
+		gateway.startTimestamp + minimumGatewayJoinLength;
+	local isActive = utils.isGatewayJoined(gateway, currentTimestamp);
+	return joinedForMinimum and isActive;
+end
+
+function utils.isGatewayJoined(gateway, currentTimestamp)
+	return
+		gateway.status == 'joined' and gateway.startTimestamp <= currentTimestamp
 end
 
 return utils

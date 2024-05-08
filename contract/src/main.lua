@@ -147,8 +147,21 @@ Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.Joi
 	gar.joinNetwork(msg)
 end)
 
-Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
-	gar.leaveNetwork(msg)
+Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.LeaveNetwork), function(msg)
+	local result, err = gar.leaveNetwork(msg.From, msg.Timestamp, msg.Id)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'GAR-Invalid-Network-Leave' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'GAR-Leaving-Network', EndTimeStamp = tostring(result.endTimestamp) },
+			Data = tostring(json.encode(result))
+		})
+	end
 end)
 
 Handlers.add(

@@ -1,8 +1,11 @@
--- arns.lua
+-- gar.lua
 local utils = require("utils")
 local constants = require("constants")
-
 local gar = {}
+
+if not Gateways then
+	Gateways = {}
+end
 
 local initialStats = {
 	prescribedEpochCount = 0,
@@ -14,16 +17,22 @@ local initialStats = {
 	passedConsecutiveEpochs = 0,
 }
 
-function gar.joinNetwork(caller, stake, settings, observerWallet)
-	if caller == nil or settings == nil or stake == nil then
-		utils.reply("caller, settings and stake are required")
+function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
+	if from == nil or settings == nil or stake == nil or timeStamp == nil then
+		return false, "from, settings, stake and timestamp are required"
 	end
 
-	if gar[caller] ~= nil then
-		utils.reply("Gateway already exists in the network")
+	if Gateways[from] ~= nil then
+		return false, "Gateway already exists in the network"
 	end
 
-	-- TODO: check if the caller has enough balance
+	if stake < constants.MIN_OPERATOR_STAKE then
+		return false, "Caller did not provide enough tokens to stake"
+	end
+
+	if Balances[from] < constants.MIN_OPERATOR_STAKE then
+		return false, "Caller does not have enough tokens to stake"
+	end
 
 	-- TODO: check the params meet the requirements
 
@@ -31,46 +40,79 @@ function gar.joinNetwork(caller, stake, settings, observerWallet)
 		operatorStake = stake,
 		vaults = {},
 		delegates = {},
-		startTimestamp = os.clock(),
+		startTimestamp = timeStamp,
 		stats = initialStats,
 		settings = settings,
 		status = "joined",
 		observerWallet = observerWallet,
 	}
 
-	gar[caller] = newGateway
+	Gateways[from] = newGateway
 	return newGateway
 end
 
-function gar.leaveNetwork(caller)
-	if caller == nil then
-		utils.reply("caller is required")
+function gar.leaveNetwork(from, currentTimestamp, msgId)
+	if from == nil then
+		return false, "from is required"
 	end
 
-	if gar[caller] == nil then
-		utils.reply("Gateway does not exist in the network")
+	if Gateways[from] == nil then
+		return false, "Gateway does not exist in the network"
 	end
 
-	local gateway = gar[caller]
+	local gateway = Gateways[from]
 
-	if gateway.status ~= "joined" then
-		utils.reply("gateway cannot leave the network. current status: " .. gateway.status)
+	if utils.isGatewayEligibleToLeave(gateway, currentTimestamp, constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength) then
+		return false,
+			"The gateway is not eligible to leave the network. It must be joined for a minimum of " ..
+			constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength ..
+			" miliseconds and can not already be leaving the network. Current status: " .. gateway.status
 	end
 
-	gateway.vaults = {
-		-- TODO: append the vaults
-		[caller] = {
-			startTimestamp = os.clock(),
-			endTimestamp = os.clock() + (constants.thirtyDaysSeconds * 1000),
-			amount = gateway.operatorStake,
-		},
-	}
+
+	local gatewayEndHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength
+	local gatewayStakeWithdrawHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS
+		.operatorStakeWithdrawLength
+	local delegateEndHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
+
+	-- Add minimum staked tokens to a vault that unlocks after the gateway completely leaves the network
+	gateway[from].vaults[from] = {
+		balance = constants.MIN_OPERATOR_STAKE,
+		startTimestamp = currentTimestamp,
+		endTimestamp = gatewayEndHeight
+	};
+
+	gateway[from].operatorStake = gateway[from].operatorStake - constants.MIN_OPERATOR_STAKE;
+
+	-- Add remainder to another vault
+	if gateway[from].operatorStake > 0 then
+		gateway[from].vaults[msgId] = {
+			balance = gateway[from].operatorStake,
+			startTimestamp = currentTimestamp,
+			endTimestamp = gatewayStakeWithdrawHeight
+		};
+	end
+
 	gateway.status = "leaving"
-	gateway.endTimestamp = os.clock() + (constants.thirtyDaysSeconds * 1000)
+	gateway.endTimestamp = gatewayEndHeight
 	gateway.operatorStake = 0
 
+	-- Add tokens from each delegate to a vault that unlocks after the delegate withdrawal period ends
+	for address, delegate in pairs(gateway[from].delegates) do
+		-- Assuming SmartWeave and interactionHeight are previously defined in your Lua environment
+		gateway.delegates[address].vaults[msgId] = {
+			balance = delegate.delegatedStake,
+			startTimestamp = currentTimestamp,
+			endTimeStamp = delegateEndHeight
+		}
+
+		-- Reduce gateway stake and set this delegate stake to 0
+		gateway.totalDelegatedStake = gateway.totalDelegatedStake - delegate.delegatedStake
+		gateway.delegates[address].delegatedStake = 0
+	end
+
 	-- update global state
-	gar[caller] = gateway
+	Gateways[from] = gateway
 	return gateway
 end
 

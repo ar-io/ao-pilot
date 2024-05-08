@@ -1,3 +1,4 @@
+require("token")
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {
@@ -10,17 +11,36 @@ local testSettings = {
 	label = "test",
 }
 
+local startTimestamp = os.clock()
+local testGateway = {
+	operatorStake = 100,
+	vaults = {},
+	delegates = {},
+	startTimestamp = 100,
+	stats = {
+		prescribedEpochCount = 0,
+		observeredEpochCount = 0,
+		totalEpochParticipationCount = 0,
+		passedEpochCount = 0,
+		failedEpochCount = 0,
+		failedConsecutiveEpochs = 0,
+		passedConsecutiveEpochs = 0,
+	},
+	settings = testSettings,
+	status = "joined",
+	observerWallet = "observerWallet"
+}
+
 describe("gar", function()
 	it("should join the network", function()
-		os.clock = function()
-			return 100
-		end
-		local reply = gar.joinNetwork("caller", 100, testSettings, "observerWallet")
-		assert.are.same(reply, {
-			operatorStake = 100,
+		Balances['Bob'] = constants.MIN_OPERATOR_STAKE
+		local result, err = gar.joinNetwork("Bob", constants.MIN_OPERATOR_STAKE, testSettings, "observerWallet",
+			startTimestamp)
+		assert.are.same({
+			operatorStake = constants.MIN_OPERATOR_STAKE,
 			vaults = {},
 			delegates = {},
-			startTimestamp = 100,
+			startTimestamp = startTimestamp,
 			stats = {
 				prescribedEpochCount = 0,
 				observeredEpochCount = 0,
@@ -33,18 +53,15 @@ describe("gar", function()
 			settings = testSettings,
 			status = "joined",
 			observerWallet = "observerWallet",
-		})
+		}, result)
 	end)
 
 	it("should leave the network", function()
-		os.clock = function()
-			return 200
-		end
-		gar["caller"] = {
-			operatorStake = 100,
+		Gateways["Bob"] = {
+			operatorStake = constants.MIN_OPERATOR_STAKE + 100,
 			vaults = {},
 			delegates = {},
-			startTimestamp = 100,
+			startTimestamp = 0,
 			stats = {
 				prescribedEpochCount = 0,
 				observeredEpochCount = 0,
@@ -59,8 +76,9 @@ describe("gar", function()
 			observerWallet = "observerWallet",
 		}
 
-		local reply = gar.leaveNetwork("caller")
-		assert.are.same(reply, {
+		local result, err = gar.leaveNetwork("Bob", 10000000000000, 1984)
+		print(err)
+		assert.are.same(result, {
 			operatorStake = 0,
 			vaults = {
 				caller = {

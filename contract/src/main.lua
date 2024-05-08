@@ -168,7 +168,20 @@ Handlers.add(
 	ActionMap.IncreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseOperatorStake),
 	function(msg)
-		gar.increaseOperatorStake(msg)
+		local result, err = gar.increaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity))
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Invalid-Stake-Increase' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Stake-Increased', OperatorStake = tostring(result.operatorStake) },
+				Data = tostring(json.encode(result))
+			})
+		end
 	end
 )
 
@@ -176,7 +189,20 @@ Handlers.add(
 	ActionMap.DecreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseOperatorStake),
 	function(msg)
-		gar.decreaseOperatorStake(msg)
+		local result, err = gar.decreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Invalid-Stake-Decrease' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Stake-Decreased', OperatorStake = tostring(result.operatorStake) },
+				Data = tostring(json.encode(result))
+			})
+		end
 	end
 )
 

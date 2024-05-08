@@ -114,14 +114,56 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 	return gateway
 end
 
-function gar.increaseOperatorStake()
-	-- TODO: implement
-	utils.reply("increaseOperatorStake is not implemented yet")
+function gar.increaseOperatorStake(from, qty)
+	assert(type(qty) == 'number', 'Quantity is required and must be a number!')
+	assert(qty > 0, 'Quantity must be greater than 0')
+
+	if Gateways[from] == nil then
+		return false, "Gateway does not exist"
+	end
+
+	if Gateways[from].status == 'leaving' then
+		return false, 'Gateway is leaving the network and cannot accept additional stake.'
+	end
+
+	if not Balances[from] then Balances[from] = 0 end
+
+	if Balances[from] < qty then
+		return false, "Insufficient funds!"
+	end
+
+	Balances[from] = Balances[from] - qty
+	Gateways[from].operatorStake = Gateways[from].operatorStake + qty
+	return Gateways[from]
 end
 
-function gar.decreaseOperatorStake()
-	-- TODO: implement
-	utils.reply("decreaseOperatorStake is not implemented yet")
+function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
+	assert(type(qty) == 'number', 'Quantity is required and must be a number!')
+	assert(qty > 0, 'Quantity must be greater than 0')
+
+	if Gateways[from] == nil then
+		return false, "Gateway does not exist"
+	end
+
+	if Gateways[from].status == 'leaving' then
+		return false, 'Gateway is leaving the network and withdraw more stake.'
+	end
+
+	local maxWithdraw = Gateways[from].operatorStake - constants.MIN_OPERATOR_STAKE
+
+	if qty > maxWithdraw then
+		return false,
+			"Resulting stake is not enough maintain the minimum operator stake of " ..
+			constants.MIN_OPERATOR_STAKE .. " IO"
+	end
+
+	Gateways[from].operatorStake = Gateways[from].operatorStake - qty
+	Gateways[from].vaults[msgId] = {
+		balance = qty,
+		startTimestamp = currentTimestamp,
+		endTimestamp = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength
+	}
+	return Gateways[from]
 end
 
 function gar.updateGatewaySettings()

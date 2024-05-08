@@ -23,7 +23,7 @@ function token.transfer(recipient, from, qty)
 		Balances[recipient] = Balances[recipient] + qty
 		return true
 	else
-		return false, Balances[from];
+		return false, "Insufficient funds!";
 	end
 end
 

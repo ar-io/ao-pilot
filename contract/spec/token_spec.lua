@@ -18,6 +18,6 @@ describe("token", function()
         Balances["Bob"] = 0
         local success, err = token.transfer("Alice", "Bob", 100)
         assert.are.same(success, false)
-        assert.are.equal(err, 0)
+        assert.are.equal(err, "Insufficient funds!")
     end)
 end)

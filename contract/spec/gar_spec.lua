@@ -86,7 +86,6 @@ describe("gar", function()
 		}
 
 		local result, err = gar.leaveNetwork("Bob", startTimestamp, "msgId")
-		utils.printTable(result)
 		assert.are.same(result, {
 			operatorStake = 0,
 			totalDelegatedStake = 0,
@@ -129,6 +128,97 @@ describe("gar", function()
 			settings = testSettings,
 			status = "leaving",
 			observerWallet = "observerWallet",
+		})
+	end)
+
+	it("should increase operator stake", function()
+		Balances["Bob"] = 1000
+		Gateways["Bob"] = {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = 0,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}
+		local result, err = gar.increaseOperatorStake("Bob", 1000)
+		assert.are.same(result, {
+			operatorStake = constants.MIN_OPERATOR_STAKE + 1000,
+			totalDelegatedStake = 0,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet"
+		})
+	end)
+
+	it("should decrease operator stake", function()
+		Gateways["Bob"] = {
+			operatorStake = constants.MIN_OPERATOR_STAKE + 1000,
+			totalDelegatedStake = 0,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}
+		local result, err = gar.decreaseOperatorStake("Bob", 1000, startTimestamp, "msgId")
+		assert.are.same(result, {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = 0,
+			vaults = {
+				msgId = {
+					balance = 1000,
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength
+				}
+			},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet"
 		})
 	end)
 end)

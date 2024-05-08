@@ -15,4 +15,7 @@ if not Gateways then
     Gateways = {}
 end
 
+if not Vaults then
+    Vaults = {}
+end
 return state

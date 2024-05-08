@@ -166,19 +166,75 @@ function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
 	return Gateways[from]
 end
 
-function gar.updateGatewaySettings()
-	-- TODO: implement
-	utils.reply("updateGatewaySettings is not implemented yet")
+function gar.updateGatewaySettings(from, updatedSettings, observerWallet, currentTimestamp, msgId)
+	if Gateways[from] == nil then
+		return false, "Gateway does not exist"
+	end
+
+	local validSettings, err = utils.validateUpdateGatewaySettings(updatedSettings, observerWallet)
+	if not validSettings then
+		return false, err
+	end
+
+	if updatedSettings.minDelegatedStake and updatedSettings.minDelegatedStake < constants.MIN_DELEGATED_STAKE then
+		return false, "The minimum delegated stake must be at least " .. constants.MIN_DELEGATED_STAKE .. " IO"
+	end
+
+	for gatewayAddress, gateway in pairs(Gateways) do
+		if gateway.observerWallet == observerWallet and gatewayAddress ~= from then
+			return false, "Invalid observer wallet. The provided observer wallet is correlated with another gateway."
+		end
+	end
+
+	-- vault all delegated stakes if it is disabled, we'll return stake at the proper end heights of the vault
+	if not updatedSettings.allowDelegatedStaking and next(Gateways[from].delegates) ~= nil then
+		-- Add tokens from each delegate to a vault that unlocks after the delegate withdrawal period ends
+		local delegateEndHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
+
+		for address, delegate in pairs(Gateways[from].delegates) do
+			if not Gateways[from].delegates[address].vaults then
+				Gateways[from].delegates[address].vaults = {}
+			end
+			Gateways[from].delegates[address].vaults[msgId] = {
+				balance = delegate.delegatedStake,
+				startTimestamp = currentTimestamp,
+				endTimestamp = delegateEndHeight
+			}
+
+			-- reduce gateway stake and set this delegate stake to 0
+			Gateways[from].totalDelegatedStake = Gateways[from].totalDelegatedStake - delegate.delegatedStake
+			Gateways[from].delegates[address].delegatedStake = 0
+		end
+	end
+
+	-- if allowDelegateStaking is currently false, and you want to set it to true - you have to wait until all the vaults have been returned
+	if updatedSettings.allowDelegatedStaking == true and
+		Gateways[from].settings.allowDelegatedStaking == false and
+		next(Gateways[from].delegates) ~= nil then -- checks if the delegates table is not empty
+		return false, "You cannot enable delegated staking until all delegated stakes have been withdrawn."
+	end
+
+	Gateways[from].settings = updatedSettings
+	if observerWallet then
+		Gateways[from].observerWallet = observerWallet
+	end
+	return Gateways[from]
+end
+
+function gar.getGateway(target)
+	if Gateways[target] == nil then
+		return false, "Gateway does not exist"
+	end
+	return Gateways[target]
+end
+
+function gar.getGateways()
+	return Gateways
 end
 
 function gar.saveObservations()
 	-- TODO: implement
 	utils.reply("saveObservations is not implemented yet")
-end
-
-function gar.getGateway()
-	-- TODO: implement
-	utils.reply("getGateway is not implemented yet")
 end
 
 function gar.getPrescribedObservers()

@@ -32,7 +32,7 @@ local testGateway = {
 	observerWallet = "observerWallet"
 }
 
-describe("gar", function()
+describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 	it("should join the network", function()
 		Balances['Bob'] = constants.MIN_OPERATOR_STAKE
 		local result, err = gar.joinNetwork("Bob", constants.MIN_OPERATOR_STAKE, testSettings, "observerWallet",
@@ -219,6 +219,78 @@ describe("gar", function()
 			settings = testSettings,
 			status = "joined",
 			observerWallet = "observerWallet"
+		})
+	end)
+
+	it("should update gateway settings", function()
+		Gateways["Bob"] = {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = 0,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}
+		local newObserverWallet = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"
+		local updatedSettings = {
+			fqdn = "example.com",
+			port = 80,
+			protocol = "http",
+			properties = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g",
+			note = "This is a test update.",
+			label = "Test Label Update",
+			autoStake = true,
+			allowDelegatedStaking = false,
+			delegateRewardShareRatio = 15,
+			minDelegatedStake = constants.MIN_DELEGATED_STAKE + 5
+		}
+		local result, err = gar.updateGatewaySettings("Bob", updatedSettings, newObserverWallet, startTimestamp, "msgId")
+		updatedSettings.observerWallet = nil -- this is not an actual setting in a gateway
+		assert.are.same(result, {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			observerWallet = newObserverWallet,
+			totalDelegatedStake = 0,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = updatedSettings,
+			status = "joined"
+		})
+	end)
+
+	it("should get single gateway", function()
+		Gateways["Bob"] = testGateway
+		local result = gar.getGateway("Bob")
+		assert.are.same(result, testGateway)
+	end)
+
+	it("should get multiple gateways", function()
+		Gateways["Bob"] = testGateway
+		Gateways["Alice"] = testGateway
+		local result = gar.getGateways()
+		assert.are.same(result, {
+			Bob = testGateway,
+			Alice = testGateway
 		})
 	end)
 end)

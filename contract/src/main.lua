@@ -27,6 +27,8 @@ local ActionMap = {
 	IncreaseOperatorStake = "IncreaseOperatorStake",
 	DecreaseOperatorStake = "DecreaseOperatorStake",
 	UpdateGatewaySettings = "UpdateGatewaySettings",
+	GetGateway = "GetGateway",
+	GetGateways = "GetGateways",
 	SaveObservations = "SaveObservations",
 	DemandFactor = "DemandFactor"
 }
@@ -135,13 +137,11 @@ Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.Ext
 	arns.extendLease(msg)
 end)
 
-Handlers.add(
-	ActionMap.IncreaseUndernameCount,
+Handlers.add(ActionMap.IncreaseUndernameCount,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
 		arns.increaseUndernameCount(msg)
-	end
-)
+	end)
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
 	gar.joinNetwork(msg)
@@ -210,7 +210,55 @@ Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
-		gar.updateGatewaySettings(msg)
+		local result, err = gar.updateGatewaySettings(msg.From, msg.Tags.UpdatedSettings, msg.Tags.ObserverWallet,
+			msg.Timestamp, msg.Id)
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Invalid-Update-Gateway-Settings' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Gateway-Settings-Updated' },
+				Data = tostring(json.encode(result))
+			})
+		end
+	end
+)
+
+Handlers.add(
+	ActionMap.GetGateway,
+	utils.hasMatchingTag("Action", ActionMap.GetGateway),
+	function(msg)
+		local result, err = gar.getGateway(msg.Tags.Target)
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Invalid-Gateway-Target' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Get-Gateway' },
+				Data = tostring(json.encode(result))
+			})
+		end
+	end
+)
+
+Handlers.add(
+	ActionMap.GetGateways,
+	utils.hasMatchingTag("Action", ActionMap.GetGateways),
+	function(msg)
+		local result = gar.getGateways()
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'GAR-Get-Gateways' },
+			Data = tostring(json.encode(result))
+		})
 	end
 )
 

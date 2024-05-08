@@ -38,6 +38,7 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 
 	local newGateway = {
 		operatorStake = stake,
+		totalDelegatedStake = 0,
 		vaults = {},
 		delegates = {},
 		startTimestamp = timeStamp,
@@ -62,13 +63,10 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 
 	local gateway = Gateways[from]
 
-	if utils.isGatewayEligibleToLeave(gateway, currentTimestamp, constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength) then
+	if not utils.isGatewayEligibleToLeave(gateway, currentTimestamp) then
 		return false,
-			"The gateway is not eligible to leave the network. It must be joined for a minimum of " ..
-			constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength ..
-			" miliseconds and can not already be leaving the network. Current status: " .. gateway.status
+			"The gateway is not eligible to leave the network."
 	end
-
 
 	local gatewayEndHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength
 	local gatewayStakeWithdrawHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS
@@ -76,18 +74,18 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 	local delegateEndHeight = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
 
 	-- Add minimum staked tokens to a vault that unlocks after the gateway completely leaves the network
-	gateway[from].vaults[from] = {
+	gateway.vaults[from] = {
 		balance = constants.MIN_OPERATOR_STAKE,
 		startTimestamp = currentTimestamp,
 		endTimestamp = gatewayEndHeight
 	};
 
-	gateway[from].operatorStake = gateway[from].operatorStake - constants.MIN_OPERATOR_STAKE;
+	gateway.operatorStake = gateway.operatorStake - constants.MIN_OPERATOR_STAKE;
 
 	-- Add remainder to another vault
-	if gateway[from].operatorStake > 0 then
-		gateway[from].vaults[msgId] = {
-			balance = gateway[from].operatorStake,
+	if gateway.operatorStake > 0 then
+		gateway.vaults[msgId] = {
+			balance = gateway.operatorStake,
 			startTimestamp = currentTimestamp,
 			endTimestamp = gatewayStakeWithdrawHeight
 		};
@@ -98,12 +96,12 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 	gateway.operatorStake = 0
 
 	-- Add tokens from each delegate to a vault that unlocks after the delegate withdrawal period ends
-	for address, delegate in pairs(gateway[from].delegates) do
+	for address, delegate in pairs(gateway.delegates) do
 		-- Assuming SmartWeave and interactionHeight are previously defined in your Lua environment
 		gateway.delegates[address].vaults[msgId] = {
 			balance = delegate.delegatedStake,
 			startTimestamp = currentTimestamp,
-			endTimeStamp = delegateEndHeight
+			endTimestamp = delegateEndHeight
 		}
 
 		-- Reduce gateway stake and set this delegate stake to 0

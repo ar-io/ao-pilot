@@ -319,21 +319,31 @@ function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 end
 
 function utils.isGatewayEligibleToLeave(gateway,
-										currentTimestamp,
-										minimumGatewayJoinLength)
+										currentTimestamp)
 	if gateway == nil then
+		print('gateway is nil')
 		return false
 	end
-	local joinedForMinimum =
-		currentTimestamp >=
-		gateway.startTimestamp + minimumGatewayJoinLength;
-	local isActive = utils.isGatewayJoined(gateway, currentTimestamp);
-	return joinedForMinimum and isActive;
+	local isJoined = utils.isGatewayJoined(gateway, currentTimestamp);
+	return isJoined;
 end
 
 function utils.isGatewayJoined(gateway, currentTimestamp)
 	return
 		gateway.status == 'joined' and gateway.startTimestamp <= currentTimestamp
+end
+
+function utils.printTable(tbl, indent)
+	if not indent then indent = 0 end -- Start with no indentation
+	for k, v in pairs(tbl) do
+		local formatting = string.rep("  ", indent) .. k .. ": "
+		if type(v) == "table" then
+			print(formatting)
+			utils.printTable(v, indent + 1)
+		else
+			print(formatting .. tostring(v))
+		end
+	end
 end
 
 return utils

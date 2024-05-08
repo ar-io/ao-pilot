@@ -1,4 +1,5 @@
 require("token")
+local utils = require("utils")
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {
@@ -11,7 +12,7 @@ local testSettings = {
 	label = "test",
 }
 
-local startTimestamp = os.clock()
+local startTimestamp = 0
 local testGateway = {
 	operatorStake = 100,
 	vaults = {},
@@ -38,6 +39,7 @@ describe("gar", function()
 			startTimestamp)
 		assert.are.same({
 			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = 0,
 			vaults = {},
 			delegates = {},
 			startTimestamp = startTimestamp,
@@ -58,10 +60,11 @@ describe("gar", function()
 
 	it("should leave the network", function()
 		Gateways["Bob"] = {
-			operatorStake = constants.MIN_OPERATOR_STAKE + 100,
+			operatorStake = (constants.MIN_OPERATOR_STAKE + 1000),
+			totalDelegatedStake = constants.MIN_DELEGATED_STAKE,
 			vaults = {},
 			delegates = {},
-			startTimestamp = 0,
+			startTimestamp = startTimestamp,
 			stats = {
 				prescribedEpochCount = 0,
 				observeredEpochCount = 0,
@@ -76,20 +79,44 @@ describe("gar", function()
 			observerWallet = "observerWallet",
 		}
 
-		local result, err = gar.leaveNetwork("Bob", 10000000000000, 1984)
-		print(err)
+		Gateways["Bob"].delegates['Alice'] = {
+			delegatedStake = constants.MIN_DELEGATED_STAKE,
+			startTimestamp = 0,
+			vaults = {}
+		}
+
+		local result, err = gar.leaveNetwork("Bob", startTimestamp, "msgId")
+		utils.printTable(result)
 		assert.are.same(result, {
 			operatorStake = 0,
+			totalDelegatedStake = 0,
 			vaults = {
-				caller = {
-					amount = 100,
-					startTimestamp = 200,
-					endTimestamp = 200 + constants.thirtyDaysSeconds * 1000,
+				Bob = {
+					balance = constants.MIN_OPERATOR_STAKE,
+					startTimestamp = startTimestamp,
+					endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
+				},
+				msgId = {
+					balance = 1000,
+					startTimestamp = startTimestamp,
+					endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength,
 				},
 			},
-			delegates = {},
-			startTimestamp = 100,
-			endTimestamp = 200 + constants.thirtyDaysSeconds * 1000,
+			delegates = {
+				Alice = {
+					delegatedStake = 0,
+					startTimestamp = 0,
+					vaults = {
+						msgId = {
+							balance = constants.MIN_DELEGATED_STAKE,
+							startTimestamp = startTimestamp,
+							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
+						}
+					}
+				}
+			},
+			startTimestamp = startTimestamp,
+			endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
 			stats = {
 				prescribedEpochCount = 0,
 				observeredEpochCount = 0,

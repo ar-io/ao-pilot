@@ -1,5 +1,5 @@
 package.path = package.path .. ";../src/?.lua"
-
+require("state")
 local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
 local arns = require("arns")
 local constants = require("constants")

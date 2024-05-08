@@ -1,6 +1,7 @@
 -- Adjust package.path to include the current directory
 local process = { _version = "0.0.1" }
 
+require("state")
 local token = require("token")
 local arns = require("arns")
 local gar = require("gar")
@@ -13,10 +14,13 @@ if not Demand then
 	Demand = DemandFactor:init(constants.DEMAND_SETTINGS, fees)
 end
 
+
+
 local ActionMap = {
+	Info = "Info",
 	Transfer = "Transfer",
-	GetBalance = "GetBalance",
-	GetBalances = "GetBalances",
+	GetBalance = "Balance",
+	GetBalances = "Balances",
 	Vault = "Vault",
 	BuyRecord = "BuyRecord",
 	SubmitAuctionBid = "SubmitAuctionBid",
@@ -34,6 +38,14 @@ local ActionMap = {
 }
 
 -- Handlers for contract functions
+
+Handlers.add("info", Handlers.utils.hasMatchingTag("Action", "Info"), function(msg)
+	ao.send({
+		Target = msg.From,
+		Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination) },
+	})
+end)
+
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transfer), function(msg)
 	local result, err = token.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
 	if result and not msg.Cast then

@@ -1,4 +1,5 @@
 require("token")
+require("state")
 local utils = require("utils")
 local gar = require("gar")
 local constants = require("constants")

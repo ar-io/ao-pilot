@@ -1,12 +1,6 @@
 -- token.lua
+require("state")
 local json = require '.json'
-if not Denomination then
-	Denomination = 6
-end
-if not Balances then
-	Balances = {}
-end
-
 local token = {}
 
 function token.transfer(recipient, from, qty)

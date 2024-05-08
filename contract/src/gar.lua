@@ -1,11 +1,8 @@
 -- gar.lua
+require("state")
 local utils = require("utils")
 local constants = require("constants")
 local gar = {}
-
-if not Gateways then
-	Gateways = {}
-end
 
 local initialStats = {
 	prescribedEpochCount = 0,

@@ -1,4 +1,5 @@
 -- arns.lua
+require("state")
 local utils = require("utils")
 local constants = require("constants")
 local arns = {}

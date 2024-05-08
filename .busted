@@ -8,6 +8,5 @@ return {
         coverage = true,
         output = "utfTerminal",
         jobs = 4,
-        luacov = true
     }
 }

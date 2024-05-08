@@ -32,7 +32,9 @@ local ActionMap = {
 	GetGateway = "GetGateway",
 	GetGateways = "GetGateways",
 	SaveObservations = "SaveObservations",
-	DemandFactor = "DemandFactor"
+	DemandFactor = "DemandFactor",
+	DelegateStake = "DelegateStake",
+	DecreaseDelegateStake = "DecreaseDelegateStake"
 }
 
 -- Handlers for contract functions
@@ -215,6 +217,50 @@ Handlers.add(
 		end
 	end
 )
+
+Handlers.add(
+	ActionMap.DelegateStake,
+	utils.hasMatchingTag("Action", ActionMap.DelegateStake),
+	function(msg)
+		local result, err = gar.delegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Invalid-Delegate-Stake-Increase' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Delegate-Stake-Increased', DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake) },
+				Data = tostring(json.encode(result))
+			})
+		end
+	end
+)
+
+Handlers.add(
+	ActionMap.DecreaseDelegateStake,
+	utils.hasMatchingTag("Action", ActionMap.DecreaseDelegateStake),
+	function(msg)
+		local result, err = gar.decreaseDelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity),
+			msg.Timestamp)
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Invalid-Delegate-Stake-Decrease' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'GAR-Delegate-Stake-Decreased', DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake) },
+				Data = tostring(json.encode(result))
+			})
+		end
+	end
+)
+
 
 Handlers.add(
 	ActionMap.UpdateGatewaySettings,

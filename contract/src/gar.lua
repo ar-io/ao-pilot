@@ -229,6 +229,105 @@ function gar.getGateways()
 	return Gateways
 end
 
+function gar.delegateStake(from, target, qty, currentTimestamp)
+	assert(type(qty) == 'number', 'Quantity is required and must be a number!')
+	assert(qty > 0, 'Quantity must be greater than 0')
+	if Gateways[target] == nil then
+		return false, "Gateway does not exist"
+	end
+
+	if Balances[from] < qty then
+		return false, "Insufficient funds!"
+	end
+
+	if Gateways[target].status == 'leaving' then
+		return false, "This Gateway is in the process of leaving the network and cannot have more stake delegated to it."
+	end
+
+	-- TODO: when allowedDelegates is supported, check if it's in the array of allowed delegates
+	if not Gateways[target].settings.allowDelegatedStaking then
+		return false,
+			"This Gateway does not allow delegated staking. Only allowed delegates can delegate stake to this Gateway."
+	end
+
+	local count = 0
+	for _ in pairs(Gateways[target].delegates) do
+		count = count + 1
+	end
+
+	if count > constants.MAX_DELEGATES then
+		return false, "This Gateway has reached its maximum amount of delegated stakers."
+	end
+
+	-- Assuming `gateway` is a table and `fromAddress` is defined
+	local existingDelegate = Gateways[target].delegates[from]
+	local minimumStakeForGatewayAndDelegate
+	if existingDelegate and existingDelegate.delegatedStake ~= 0 then
+		-- It already has a stake that is not zero
+		minimumStakeForGatewayAndDelegate = 1 -- Delegate must provide at least one additional IO
+	else
+		-- Consider if the operator increases the minimum amount after you've already staked
+		minimumStakeForGatewayAndDelegate = Gateways[target].settings.minDelegatedStake
+	end
+	if qty < minimumStakeForGatewayAndDelegate then
+		return false, "Quantity must be greater than the minimum delegated stake amount."
+	end
+
+	-- Decrement the user's balance
+	Balances[from] = Balances[from] - qty
+	Gateways[target].totalDelegatedStake = Gateways[target].totalDelegatedStake + qty
+	-- If this delegate has staked before, update its amount, if not, create a new delegated staker
+	if existingDelegate == nil then
+		-- create the new delegate stake
+		Gateways[target].delegates[from] = {
+			delegatedStake = qty,
+			startTimestamp = currentTimestamp,
+			vaults = {},
+		}
+	else
+		-- increment the existing delegate's stake
+		Gateways[target].delegates[from].delegatedStake = Gateways[target].delegates[from].delegatedStake + qty;
+	end
+	return Gateways[target]
+end
+
+function gar.decreaseDelegateStake(from, target, qty, currentTimestamp, msgId)
+	assert(type(qty) == 'number', 'Quantity is required and must be a number!')
+	assert(qty > 0, 'Quantity must be greater than 0')
+
+	if Gateways[from] == nil then
+		return false, "Gateway does not exist"
+	end
+
+	if Gateways[from].status == 'leaving' then
+		return false, 'Gateway is leaving the network and withdraw more stake.'
+	end
+	if Gateways[target].delegates[from] == nil then
+		return false, "This delegate is not staked at this gateway."
+	end
+
+	local existingStake = Gateways[target].delegates[from].delegatedStake
+	local requiredMinimumStake = Gateways[target].settings.minDelegatedStake
+	local maxAllowedToWithdraw = existingStake - requiredMinimumStake
+	if maxAllowedToWithdraw < qty and qty ~= existingStake then
+		return false, "Remaining delegated stake must be greater than the minimum delegated stake amount."
+	end
+
+	-- Withdraw the delegate's stake
+	Gateways[target].delegates[from].delegatedStake = Gateways[target].delegates[from].delegatedStake - qty
+
+	-- Lock the qty in a vault to be unlocked after withdrawal period
+	Gateways[target].delegates[from].vaults[msgId] = {
+		balance = qty,
+		startTimestamp = currentTimestamp,
+		endTimestamp = currentTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
+	}
+
+	-- Decrease the gateway's total delegated stake.
+	Gateways[target].totalDelegatedStake = Gateways[target].totalDelegatedStake - qty
+	return Gateways[target]
+end
+
 function gar.saveObservations()
 	-- TODO: implement
 	utils.reply("saveObservations is not implemented yet")

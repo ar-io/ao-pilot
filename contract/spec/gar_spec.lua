@@ -1,6 +1,5 @@
 require("token")
 require("state")
-local utils = require("utils")
 local gar = require("gar")
 local constants = require("constants")
 local testSettings = {
@@ -292,6 +291,118 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 		assert.are.same(result, {
 			Bob = testGateway,
 			Alice = testGateway
+		})
+	end)
+end)
+
+describe("Delegate Staking", function()
+	it("should delegate stake to a gateway", function()
+		Balances["Alice"] = constants.MIN_DELEGATED_STAKE
+		Gateways["Bob"] = {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = 0,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}
+		local result, err = gar.delegateStake("Alice", "Bob", constants.MIN_DELEGATED_STAKE, startTimestamp)
+		assert.are.same(result, {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = constants.MIN_DELEGATED_STAKE,
+			vaults = {},
+			delegates = {
+				Alice = {
+					delegatedStake = constants.MIN_DELEGATED_STAKE,
+					startTimestamp = startTimestamp,
+					vaults = {}
+				}
+			},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet"
+		})
+	end)
+
+	it("should decrease delegated stake", function()
+		Gateways["Bob"] = {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = constants.MIN_DELEGATED_STAKE + 1000,
+			vaults = {},
+			delegates = {},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
+		}
+
+		Gateways["Bob"].delegates['Alice'] = {
+			delegatedStake = constants.MIN_DELEGATED_STAKE + 1000,
+			startTimestamp = 0,
+			vaults = {}
+		}
+
+		local result, err = gar.decreaseDelegateStake("Alice", "Bob", 1000, startTimestamp, "msgId")
+		assert.are.same(result, {
+			operatorStake = constants.MIN_OPERATOR_STAKE,
+			totalDelegatedStake = constants.MIN_DELEGATED_STAKE,
+			vaults = {},
+			delegates = {
+				Alice = {
+					delegatedStake = constants.MIN_DELEGATED_STAKE,
+					startTimestamp = 0,
+					vaults = {
+						msgId = {
+							balance = 1000,
+							startTimestamp = startTimestamp,
+							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
+						}
+					}
+				}
+			},
+			startTimestamp = startTimestamp,
+			stats = {
+				prescribedEpochCount = 0,
+				observeredEpochCount = 0,
+				totalEpochParticipationCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 0,
+			},
+			settings = testSettings,
+			status = "joined",
+			observerWallet = "observerWallet",
 		})
 	end)
 end)

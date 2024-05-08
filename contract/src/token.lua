@@ -21,8 +21,22 @@ function token.transfer(recipient, from, qty)
 	end
 end
 
--- TO DO: Add vaulting
-function token.vault()
+function token.createVault()
+	-- TODO: implement
+	return false
+end
+
+function token.vaultedTransfer()
+	-- TODO: implement
+	return false
+end
+
+function token.extendVault()
+	-- TODO: implement
+	return false
+end
+
+function token.increaseVault()
 	-- TODO: implement
 	return false
 end

@@ -11,7 +11,6 @@ local token = {}
 
 function token.transfer(recipient, from, qty)
 	assert(type(recipient) == 'string', 'Recipient is required!')
-	assert(type(qty) == 'string', 'Quantity is required!')
 
 	if not Balances[from] then Balances[from] = 0 end
 

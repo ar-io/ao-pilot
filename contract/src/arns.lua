@@ -104,6 +104,8 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 	if purchaseType == "lease" then
 		newRecord.endTimestamp = timestamp + constants.MS_IN_A_YEAR * years
 	end
+
+	Records[name] = newRecord
 	return newRecord
 end
 

@@ -14,8 +14,6 @@ if not Demand then
 	Demand = DemandFactor:init(constants.DEMAND_SETTINGS, fees)
 end
 
-
-
 local ActionMap = {
 	Info = "Info",
 	Transfer = "Transfer",

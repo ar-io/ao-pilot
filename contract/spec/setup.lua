@@ -14,8 +14,8 @@ _G.Handlers = {
 	utils = {
 		reply = function()
 			return true
-		end
-	}
+		end,
+	},
 }
 
 os.clock = function()

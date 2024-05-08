@@ -11,6 +11,13 @@ constants.MIN_DELEGATED_STAKE = 50 * 1000000 -- Fifty IO
 constants.oneYearSeconds = 60 * 60 * 24 * 365
 constants.thirtyDaysSeconds = 60 * 60 * 24 * 30
 constants.defaultUndernameCount = 10
+constants.GATEWAY_REGISTRY_SETTINGS = {
+	gatewayLeaveLength = 90 * 24 * 60 * 60 * 1000, -- 90 days
+	maxLockLength = 3 * 365 * 24 * 60 * 60 * 1000, -- 3 years
+	minLockLength = 24 * 60 * 60 * 1000, -- 1 day
+	operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
+	delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
+}
 
 -- ARNS
 constants.DEFAULT_UNDERNAME_COUNT = 10
@@ -24,6 +31,18 @@ constants.MAX_ALLOWED_UNDERNAMES = 10000
 constants.UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
 constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
 constants.MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
+
+-- DEMAND
+constants.DEMAND_SETTINGS = {
+	movingAvgPeriodCount = 7,
+	periodLengthMs = 60 * 1000 * 24, -- one day
+	demandFactorBaseValue = 1,
+	demandFactorMin = 0.5,
+	demandFactorUpAdjustment = 0.05,
+	demandFactorDownAdjustment = 0.025,
+	stepDownThreshold = 3,
+	criteria = "revenue",
+}
 
 -- BALANCES
 constants.genesisFees = {

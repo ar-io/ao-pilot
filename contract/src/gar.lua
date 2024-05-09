@@ -1,5 +1,6 @@
 -- gar.lua
 require("state")
+local crypto = require('.crypto')
 local utils = require("utils")
 local constants = require("constants")
 local gar = {}
@@ -333,9 +334,72 @@ function gar.saveObservations()
 	utils.reply("saveObservations is not implemented yet")
 end
 
-function gar.getPrescribedObservers()
-	-- TODO: implement
-	utils.reply("getPrescribedObservers is not implemented yet")
+function gar.getEpochDataForTimestamp(currentTimestamp)
+	local epochIndexForCurrentTimestamp = math.floor(
+		math.max(
+			0,
+			(currentTimestamp - constants.epochZeroStartTimestamp) / constants.epochTimeLength
+		)
+	)
+
+	local epochStartTimestamp = constants.epochZeroStartTimestamp +
+		constants.epochTimeLength * epochIndexForCurrentTimestamp
+	local epochEndTimestamp = epochStartTimestamp + constants.epochTimeLength
+	local epochDistributionTimestamp = epochEndTimestamp + constants.EPOCH_DISTRIBUTION_DELAY
+	return epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp
+end
+
+function gar.getPrescribedObservers(currentTimestamp)
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp = gar
+		.getEpochDataForTimestamp(currentTimestamp)
+
+	local existingOrComputedObservers = PrescribedObservers[epochIndexForCurrentTimestamp] or {}
+	return existingOrComputedObservers
+end
+
+function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimestamp, hashchain)
+	local eligibleGateways = utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+	local weightedObservers = utils.getObserverWeightsForEpoch(epochStartTimestamp)
+	-- Filter out any observers that could have a normalized composite weight of 0
+	local filteredObservers = {}
+	for _, observer in ipairs(weightedObservers) do
+		if observer.normalizedCompositeWeight > 0 then
+			table.insert(filteredObservers, observer)
+		end
+	end
+
+	weightedObservers = filteredObservers
+	if constants.MAXIMUM_OBSERVERS_PER_EPOCH >= weightedObservers then
+		return weightedObservers
+	end
+
+	local timestampEntropyHash = utils.getEntropyHashForEpoch(hashchain)
+	local prescribedObserversAddresses = {}
+	local hash = timestampEntropyHash
+	while (utils.tableLength(prescribedObserversAddresses) < constants.MAXIMUM_OBSERVERS_PER_EPOCH) do
+		--local random = readUInt32BE(hash) / 0xffffffff -- Convert hash to a value between 0 and 1
+		local random = 1
+		local cumulativeNormalizedCompositeWeight = 0
+
+		for _, observer in ipairs(weightedObservers) do
+			-- skip observers that have already been prescribed
+			if prescribedObserversAddresses[observer.gatewayAddress] then
+				goto continue
+			end
+			-- add the observers normalized composite weight to the cumulative weight
+			cumulativeNormalizedCompositeWeight = cumulativeNormalizedCompositeWeight +
+				observer.normalizedCompositeWeight
+			-- if the random value is less than the cumulative weight, we have found our observer
+			if random <= cumulativeNormalizedCompositeWeight then
+				prescribedObserversAddresses[observer.gatewayAddress] = true
+				break
+			end
+			::continue::
+		end
+		-- Compute the next hash for the next iteration
+		-- hash = hashFunction(hash) -- Assuming hashFunction is synchronous and already defined
+		hash = 1
+	end
 end
 
 function gar.getEpoch()

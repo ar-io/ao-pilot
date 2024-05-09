@@ -18,4 +18,8 @@ end
 if not Vaults then
     Vaults = {}
 end
+
+if not PrescribedObservers then
+    PrescribedObservers = {}
+end
 return state

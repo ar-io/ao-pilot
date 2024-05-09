@@ -1,5 +1,6 @@
 local constants = require("constants")
 local utils = {}
+local crypto = require('.crypto')
 
 function utils.hasMatchingTag(tag, value)
 	return Handlers.utils.hasMatchingTag(tag, value)
@@ -417,14 +418,104 @@ function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 	return yearsRemainingFloat
 end
 
+function utils.isGatewayLeaving(gateway, currentTimestamp)
+	return gateway.status == 'leaving' and gateway.endTimestamp <= currentTimestamp
+end
+
 function utils.isGatewayEligibleToLeave(gateway,
-										currentTimestamp)
+										timestamp)
 	if gateway == nil then
 		print('gateway is nil')
 		return false
 	end
-	local isJoined = utils.isGatewayJoined(gateway, currentTimestamp);
+	local isJoined = utils.isGatewayJoined(gateway, timestamp);
 	return isJoined;
+end
+
+function utils.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway)
+	local didStartBeforeEpoch = gateway.startTimestamp <= epochStartTimestamp
+	local didNotLeaveDuringEpoch = not utils.isGatewayLeaving(gateway, epochEndTimestamp)
+	return didStartBeforeEpoch and didNotLeaveDuringEpoch
+end
+
+function utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+	local eligibleGateways = {}
+	for address, gateway in pairs(Gateways) do
+		if utils.isGatewayEligibleForDistribution(
+				epochStartTimestamp,
+				epochEndTimestamp,
+				gateway
+			) then
+			eligibleGateways[address] = gateway
+		end
+	end
+	return eligibleGateways
+end
+
+function utils.getObserverWeightsForEpoch(epochStartTimestamp)
+	local weightedObservers = {}
+	local totalCompositeWeight = 0
+
+	-- Iterate over gateways to calculate weights
+	for address, gateway in pairs(Gateways) do
+		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
+		local stakeWeightRatio = totalStake /
+			constants
+			.MIN_OPERATOR_STAKE -- this is always greater than 1 as the minOperatorStake is always less than the stake
+		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
+		local gatewayStartTimestamp = gateway.startTimestamp
+		local totalTimeForGateway = epochStartTimestamp >= gatewayStartTimestamp and
+			(epochStartTimestamp - gatewayStartTimestamp) or -1
+		-- TODO: should we increment by one here or are observers that join at the epoch start not eligible to be selected as an observer
+
+
+
+		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0 or
+			(totalTimeForGateway > 0 and totalTimeForGateway / constants.TENURE_WEIGHT_PERIOD or 1 / constants.TENURE_WEIGHT_PERIOD)
+		local gatewayTenureWeight = math.min(calculatedTenureWeightForGateway, constants.MAX_TENURE_WEIGHT)
+
+		local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
+		local totalEpochsParticipatedIn = gateway.stats.totalEpochParticipationCount or 0
+		local gatewayRewardRatioWeight = (1 + totalEpochsGatewayPassed) / (1 + totalEpochsParticipatedIn)
+
+		local totalEpochsPrescribed = gateway.stats.totalEpochsPrescribedCount or 0
+		local totalEpochsSubmitted = gateway.stats.submittedEpochCount or 0
+		local observerRewardRatioWeight = (1 + totalEpochsSubmitted) / (1 + totalEpochsPrescribed)
+
+		local compositeWeight = stakeWeightRatio * gatewayTenureWeight * gatewayRewardRatioWeight *
+			observerRewardRatioWeight
+
+		table.insert(weightedObservers, {
+			gatewayAddress = address,
+			observerAddress = gateway.observerWallet,
+			stake = totalStake,
+			startTimestamp = gateway.startTimestamp,
+			stakeWeight = stakeWeightRatio,
+			tenureWeight = gatewayTenureWeight,
+			gatewayRewardRatioWeight = gatewayRewardRatioWeight,
+			observerRewardRatioWeight = observerRewardRatioWeight,
+			compositeWeight = compositeWeight,
+			normalizedCompositeWeight = nil -- set later once we have the total composite weight
+		})
+
+		totalCompositeWeight = totalCompositeWeight + compositeWeight
+	end
+
+	-- Calculate the normalized composite weight for each observer
+	for _, weightedObserver in ipairs(weightedObservers) do
+		if totalCompositeWeight > 0 then
+			weightedObserver.normalizedCompositeWeight = weightedObserver.compositeWeight / totalCompositeWeight
+		else
+			weightedObserver.normalizedCompositeWeight = 0
+		end
+	end
+	return weightedObservers
+end
+
+function utils.getEntropyHashForEpoch(hashChain)
+	local bufferHash = Buffer.from('')
+	bufferHash = Buffer.concat([bufferHash, Buffer.from(hashChain, 'base64url')])
+	return crypto.hash(bufferHash, 'SHA-256')
 end
 
 function utils.isGatewayJoined(gateway, currentTimestamp)
@@ -443,6 +534,12 @@ function utils.printTable(tbl, indent)
 			print(formatting .. tostring(v))
 		end
 	end
+end
+
+function utils.tableLength(T)
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
 end
 
 return utils

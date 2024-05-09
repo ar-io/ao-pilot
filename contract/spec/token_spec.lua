@@ -1,8 +1,11 @@
 local token = require("token")
+local constants = require("constants")
+
 -- local constants = require("constants")
 local testSettings = {
     testTransferQuantity = 100
 }
+local startTimestamp = 0
 
 describe("token", function()
     it("should transfer tokens", function()
@@ -19,5 +22,20 @@ describe("token", function()
         local success, err = token.transfer("Alice", "Bob", 100)
         assert.are.same(success, false)
         assert.are.equal(err, "Insufficient funds!")
+    end)
+end)
+
+describe("vaults", function()
+    it("should create vault", function()
+        Balances["Bob"] = testSettings.testTransferQuantity
+        local reply, err = token.createVault("Bob", testSettings.testTransferQuantity, constants.MIN_TOKEN_LOCK_TIME,
+            startTimestamp,
+            "msgId")
+        print(err)
+        assert.are.same(reply, {
+            balance = testSettings.testTransferQuantity,
+            startTimestamp = startTimestamp,
+            endTimestamp = startTimestamp + constants.MIN_TOKEN_LOCK_TIME
+        })
     end)
 end)

@@ -1,5 +1,6 @@
 -- token.lua
 require("state")
+local constants = require("constants")
 local json = require '.json'
 local token = {}
 
@@ -28,29 +29,26 @@ function token.createVault(from, qty, lockLength, currentTimestamp, msgId)
 		return false, "Insufficient funds!"
 	end
 
-	
 	if Vaults[from] and Vaults[from][msgId] ~= nil then
 		return false, "Vault with id " .. msgId .. " already exists"
 	end
-	
-	  if (
-		lockLength.valueOf() < MIN_TOKEN_LOCK_BLOCK_LENGTH ||
-		lockLength.valueOf() > MAX_TOKEN_LOCK_BLOCK_LENGTH
-	  ) {
-		throw new ContractError(INVALID_VAULT_LOCK_LENGTH_MESSAGE);
-	  }
-	
-	  const end = startHeight.valueOf() + lockLength.valueOf();
-	  const newVault: VaultData = {
-		balance: qty.valueOf(),
-		start: startHeight.valueOf(),
-		end,
-	  };
-	  vaults[address] = {
-		...vaults[address],
-		[id]: newVault,
-	  };
-	  unsafeDecrementBalance(balances, address, qty);
+
+	if lockLength < constants.MIN_TOKEN_LOCK_TIME or lockLength > constants.MAX_TOKEN_LOCK_TIME then
+		return false, "Invalid lock length. Must be between 10080 - 3153600."
+	end
+
+	Balances[from] = Balances[from] - qty
+
+	if Vaults[from] == nil then
+		Vaults[from] = {}
+	end
+
+	Vaults[from][msgId] = {
+		balance = qty,
+		startTimestamp = currentTimestamp,
+		endTimestamp = currentTimestamp + lockLength
+	}
+	return Vaults[from][msgId]
 end
 
 function token.vaultedTransfer()

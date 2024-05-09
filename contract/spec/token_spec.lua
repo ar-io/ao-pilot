@@ -31,7 +31,6 @@ describe("vaults", function()
         local reply, err = token.createVault("Bob", testSettings.testTransferQuantity, constants.MIN_TOKEN_LOCK_TIME,
             startTimestamp,
             "msgId")
-        print(err)
         assert.are.same(reply, {
             balance = testSettings.testTransferQuantity,
             startTimestamp = startTimestamp,

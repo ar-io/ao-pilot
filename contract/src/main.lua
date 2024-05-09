@@ -418,7 +418,21 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
-	gar.saveObservations(msg)
+	local result, err = gar.saveObservations(msg.From, msg.Tags.ObserverReportTxId, msg.Tags.FailedGateways,
+		msg.Timestamp)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Save-Observation' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Observation-Saved' },
+			Data = tostring(json.encode(result))
+		})
+	end
 end)
 
 -- handler showing how we can fetch data from classes in lua

@@ -18,4 +18,17 @@ end
 if not Vaults then
     Vaults = {}
 end
+
+if not PrescribedObservers then
+    PrescribedObservers = {}
+end
+
+if not Observations then
+    Observations = {}
+end
+
+if not Distributions then
+    Distributions = {}
+end
+
 return state

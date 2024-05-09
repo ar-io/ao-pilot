@@ -6,7 +6,8 @@ source = {
 }
 dependencies = {
     "busted >= 2.2.0",
-    "luacov >= 0.15.0"
+    "luacov >= 0.15.0",
+    "luacheck >= 1.1.2",
 }
 test = {
   type = "busted",

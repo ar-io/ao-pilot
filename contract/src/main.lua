@@ -7,12 +7,6 @@ local arns = require("arns")
 local gar = require("gar")
 local utils = require("utils")
 local json = require("json")
-local constants = require("constants")
-
-if not Demand then
-	require('demand') -- Load the demand module
-	Demand = DemandFactor:init(constants.DEMAND_SETTINGS, fees)
-end
 
 local ActionMap = {
 	Info = "Info",
@@ -418,21 +412,7 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
-	local result, err = gar.saveObservations(msg.From, msg.Tags.ObserverReportTxId, msg.Tags.FailedGateways,
-		msg.Timestamp)
-	if err then
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = 'Invalid-Save-Observation' },
-			Data = tostring(err)
-		})
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = 'Observation-Saved' },
-			Data = tostring(json.encode(result))
-		})
-	end
+	gar.saveObservations(msg)
 end)
 
 -- handler showing how we can fetch data from classes in lua

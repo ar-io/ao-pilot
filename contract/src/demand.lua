@@ -1,68 +1,46 @@
-local demand = { _version = "0.0.1" }
+local constants = require "constants"
+local demand = { 
+	_version = "0.0.1" ,
+	startTimestamp = os.clock(), -- TODO: The timestamp at which the contract was initialized
+	currentPeriod = 1, -- TODO: the # of days since the last demand factor adjustment
+	trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period purchase counts
+	trailingPeriodRevenues = { 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period revenues
+	purchasesThisPeriod = 0,
+	revenueThisPeriod = 0,
+	currentDemandFactor = 1,
+	consecutivePeriodsWithMinDemandFactor = 0,
+	settings = constants.DEMAND_SETTINGS,
+	fees = constants.genesisFees
+}
 
--- A class like structure for fees that manages its state internally and can be injected into other classes depedenent on fees
-Fees = {}
-Fees.__index = Fees
-function Fees:new(genesisFees)
-	local self = setmetatable({}, Fees) -- make Account handle lookup
-	self.fees = genesisFees
-	return self
+function demand.tallyNamePurchase(qty)
+	demand.purchasesThisPeriod = demand.purchasesThisPeriod + 1
+	demand.revenueThisPeriod = demand.revenueThisPeriod + qty
 end
 
-function Fees:updateFees(demandFactor)
-	for i = 1, #self do
-		self[i] = self[i] * demandFactor
-	end
-end
-
-
--- a class like structure for demand factor that manages its state internally and can be injected into other classes depedenent on demand factor
-DemandFactor = {}
-DemandFactor.__index = DemandFactor
-
-function DemandFactor:new(settings, fees)
-	local self = setmetatable({}, DemandFactor) -- make DemandFactor lookup table
-	self.startTimestamp = os.clock() -- TODO: The timestamp at which the contract was initialized
-	self.currentPeriod = 1 -- TODO: the # of days since the last demand factor adjustment
-	self.trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 } -- Acts as a ring buffer of trailing period purchase counts
-	self.trailingPeriodRevenues = { 0, 0, 0, 0, 0, 0 } -- Acts as a ring buffer of trailing period revenues
-	self.purchasesThisPeriod = 0
-	self.revenueThisPeriod = 0
-	self.currentDemandFactor = 1
-	self.consecutivePeriodsWithMinDemandFactor = 0
-	self.settings = settings
-	self.fees = fees
-	return self
-end
-
-function DemandFactor:tallyNamePurchase(qty)
-	self.purchasesThisPeriod = self.purchasesThisPeriod + 1
-	self.revenueThisPeriod = self.revenueThisPeriod + qty
-end
-
-function DemandFactor:mvgAvgTrailingPurchaseCounts()
+function demand.mvgAvgTrailingPurchaseCounts()
 	local sum = 0
-	for i = 1, #self.trailingPeriodPurchases do
-		sum = sum + self.trailingPeriodPurchases[i]
+	for i = 1, #demand.trailingPeriodPurchases do
+		sum = sum + demand.trailingPeriodPurchases[i]
 	end
-	return sum / #self.trailingPeriodPurchases
+	return sum / #demand.trailingPeriodPurchases
 end
 
-function DemandFactor:mvgAvgTrailingRevenues()
+function demand.mvgAvgTrailingRevenues()
 	local sum = 0
-	for i = 1, #self.trailingPeriodRevenues do
-		sum = sum + self.trailingPeriodRevenues[i]
+	for i = 1, #demand.trailingPeriodRevenues do
+		sum = sum + demand.trailingPeriodRevenues[i]
 	end
-	return sum / #self.trailingPeriodRevenues
+	return sum / #demand.trailingPeriodRevenues
 end
 
-function DemandFactor:isDemandIncreasing()
-	local purchasesLastPeriod = self.trailingPeriodPurchases[self.currentPeriod]
-	local revenueInLastPeriod = self.trailingPeriodRevenues[self.currentPeriod]
-	local mvgAvgOfTrailingNamePurchases = self:mvgAvgTrailingPurchaseCounts()
-	local mvgAvgOfTrailingRevenue = self:mvgAvgTrailingRevenues()
+function demand.isDemandIncreasing()
+	local purchasesLastPeriod = demand.trailingPeriodPurchases[demand.currentPeriod]
+	local revenueInLastPeriod = demand.trailingPeriodRevenues[demand.currentPeriod]
+	local mvgAvgOfTrailingNamePurchases = demand.mvgAvgTrailingPurchaseCounts()
+	local mvgAvgOfTrailingRevenue = demand.mvgAvgTrailingRevenues()
 
-	if self.settings.criteria == "revenue" then
+	if demand.settings.criteria == "revenue" then
 		return revenueInLastPeriod > 0 and revenueInLastPeriod > mvgAvgOfTrailingRevenue
 	else
 		return purchasesLastPeriod > 0 and purchasesLastPeriod > mvgAvgOfTrailingNamePurchases
@@ -70,44 +48,44 @@ function DemandFactor:isDemandIncreasing()
 end
 
 -- update at the end of the demand if the current timestamp results in a period greater than our current state
-function DemandFactor:shouldUpdateDemandFactor(timestamp)
-	local calculatedPeriod = math.floor((timestamp - self.startTimestamp) / self.settings.periodLengthMs) + 1
-	return calculatedPeriod > self.currentPeriod
+function demand.shouldUpdateDemandFactor(timestamp)
+	local calculatedPeriod = math.floor((timestamp - demand.startTimestamp) / demand.settings.periodLengthMs) + 1
+	return calculatedPeriod > demand.currentPeriod
 end
 
-function DemandFactor:updateDemandFactor(timestamp)
-	if not self:shouldUpdateDemandFactor(timestamp) then
+function demand.updateDemandFactor(timestamp)
+	if not demand.shouldUpdateDemandFactor(timestamp) then
 		return
 	end
 
-	if self:isDemandIncreasing() then
-		self.demandFactor = self.demandFactor * (1 + self.self.settings.demandFactorUpAdjustment)
+	if demand.isDemandIncreasing() then
+		demand.demandFactor = demand.demandFactor * (1 + demand.demand.settings.demandFactorUpAdjustment)
 	else
-		if self.demandFactor > self.settings.demandFactorMin then
-			self.demandFactor = self.currentDemandFactor * (1 - self.settings.demandFactorDownAdjustment)
+		if demand.demandFactor > demand.settings.demandFactorMin then
+			demand.demandFactor = demand.currentDemandFactor * (1 - demand.settings.demandFactorDownAdjustment)
 		end
 	end
 
-	if self.demandFactor == self.settings.demandFactorMin then
-		if self.consecutivePeriodsWithMinDemandFactor >= self.settings.stepDownThreshold then
-			self.consecutivePeriodsWithMinDemandFactor = 0
-			self.demandFactor = self.settings.demandFactorBaseValue
-			self.fees.updateFees(self.settings.demandFactorMin)
+	if demand.demandFactor == demand.settings.demandFactorMin then
+		if demand.consecutivePeriodsWithMinDemandFactor >= demand.settings.stepDownThreshold then
+			demand.consecutivePeriodsWithMinDemandFactor = 0
+			demand.demandFactor = demand.settings.demandFactorBaseValue
+			demand.fees.updateFees(demand.settings.demandFactorMin)
 		end
 	else
-		self.consecutivePeriodsWithMinDemandFactor = 0
+		demand.consecutivePeriodsWithMinDemandFactor = 0
 	end
 
-	self.trailingPeriodPurchases[self.currentPeriod] = self.purchasesThisPeriod
-	self.trailingPeriodRevenues[self.currentPeriod] = self.revenueThisPeriod
-	self.currentPeriod = self.currentPeriod + 1
-	self.purchasesThisPeriod = 0
-	self.revenueThisPeriod = 0
+	demand.trailingPeriodPurchases[demand.currentPeriod] = demand.purchasesThisPeriod
+	demand.trailingPeriodRevenues[demand.currentPeriod] = demand.revenueThisPeriod
+	demand.currentPeriod = demand.currentPeriod + 1
+	demand.purchasesThisPeriod = 0
+	demand.revenueThisPeriod = 0
 	return
 end
 
-function DemandFactor:getDemandFactor()
-	return self.currentDemandFactor
+function demand.getDemandFactor()
+	return demand.currentDemandFactor
 end
 
 return demand

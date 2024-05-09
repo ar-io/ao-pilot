@@ -1,6 +1,6 @@
 local constants = require("constants")
 local base64    = require("base64")
-local crypto    = require("crypto")
+local crypto 	= require("crypto.init")
 
 local utils     = {}
 

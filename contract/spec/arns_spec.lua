@@ -1,5 +1,3 @@
-package.path = package.path .. ";../src/?.lua"
-
 local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
 local arns = require("arns")
 local constants = require("constants")
@@ -59,7 +57,7 @@ describe("arns", function()
 			type = "lease",
 			undernameCount = 10,
 		}
-		local result, err = arns.increaseUndernameCount("test-name-4", "Bob", 50, timestamp)
+		local result, err = arns.increaseUndernameCount("Bob", "test-name-4", 50, timestamp)
 		assert.are.same({
 			endTimestamp = timestamp + constants.MS_IN_A_YEAR,
 			processId = testProcessId,

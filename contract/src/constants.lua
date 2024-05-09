@@ -1,16 +1,32 @@
 local constants = {}
 
+-- OIP
+constants.epochTimeLength = 24 * 60 * 60 * 1000     -- One day of miliseconds
+constants.epochZeroStartTimestamp = 0
+constants.EPOCH_DISTRIBUTION_DELAY = 30 * 60 * 1000 -- 30 minutes of miliseconds
+constants.TENURE_WEIGHT_DAYS = 180
+constants.TENURE_WEIGHT_PERIOD = constants.TENURE_WEIGHT_DAYS * 24 * 60 * 60 * 1000
+constants.MAX_TENURE_WEIGHT = 4
+constants.MAXIMUM_OBSERVERS_PER_EPOCH = 50
+
 -- GAR
 constants.DEFAULT_UNDERNAME_COUNT = 10
 constants.DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
 constants.MS_IN_A_YEAR = 31536000 * 1000
-constants.MIN_OPERATOR_STAKE = 10000 * 1000000 -- Ten thousand IO
-constants.MIN_DELEGATED_STAKE = 50 * 1000000 -- Fifty IO
-
--- Gar
+constants.MIN_OPERATOR_STAKE = 10000 * 1000000  -- Ten thousand IO
+constants.MIN_DELEGATED_STAKE = 50 * 1000000    -- Fifty IO
 constants.oneYearSeconds = 60 * 60 * 24 * 365
 constants.thirtyDaysSeconds = 60 * 60 * 24 * 30
 constants.defaultUndernameCount = 10
+constants.MAX_DELEGATES = 10000
+constants.GATEWAY_REGISTRY_SETTINGS = {
+	gatewayLeaveLength = 90 * 24 * 60 * 60 * 1000,        -- 90 days
+	maxLockLength = 3 * 365 * 24 * 60 * 60 * 1000,        -- 3 years
+	minLockLength = 24 * 60 * 60 * 1000,                  -- 1 day
+	operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
+	delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
+}
+constants.NETWORK_JOIN_STATUS = 'joined'
 
 -- ARNS
 constants.DEFAULT_UNDERNAME_COUNT = 10
@@ -25,7 +41,24 @@ constants.UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
 constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
 constants.MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
 
+-- DEMAND
+constants.DEMAND_SETTINGS = {
+	movingAvgPeriodCount = 7,
+	periodLengthMs = 60 * 1000 * 24, -- one day
+	demandFactorBaseValue = 1,
+	demandFactorMin = 0.5,
+	demandFactorUpAdjustment = 0.05,
+	demandFactorDownAdjustment = 0.025,
+	stepDownThreshold = 3,
+	criteria = "revenue",
+}
+
 -- BALANCES
+constants.MAX_TOKEN_LOCK_TIME = 12 * 365 * 24 * 60 * 60 *
+	1000 -- The maximum amount of blocks tokens can be locked in a vault (12 years of blocks)
+constants.MIN_TOKEN_LOCK_TIME = 14 * 24 * 60 * 60 *
+	1000 -- The minimum amount of blocks tokens can be locked in a vault (14 days of blocks)
+
 constants.genesisFees = {
 	[1] = 5000000,
 	[2] = 500000,

@@ -1,6 +1,6 @@
 -- gar.lua
 require("state")
-local crypto = require('.crypto')
+local crypto = require("crypto")
 local utils = require("utils")
 local constants = require("constants")
 local gar = {}

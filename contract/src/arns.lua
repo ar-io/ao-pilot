@@ -1,4 +1,5 @@
 -- arns.lua
+require("state")
 local utils = require("utils")
 local constants = require("constants")
 local arns = {}
@@ -103,6 +104,8 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 	if purchaseType == "lease" then
 		newRecord.endTimestamp = timestamp + constants.MS_IN_A_YEAR * years
 	end
+
+	Records[name] = newRecord
 	return newRecord
 end
 
@@ -110,7 +113,7 @@ function arns.submitAuctionBid()
 	utils.reply("submitAuctionBid is not implemented yet")
 end
 
-function arns.extendLease(name, from, years, timestamp)
+function arns.extendLease(from, name, years, timestamp)
 	local record = Records[name]
 	local validExtend, validExtendErr = utils.validateExtendLease(record, timestamp, years)
 	if validExtend == false then
@@ -133,10 +136,10 @@ function arns.extendLease(name, from, years, timestamp)
 	Balances[ao.id] = Balances[ao.id] + totalExtensionFee
 
 	Records[name].endTimestamp = Records[name].endTimestamp + constants.MS_IN_A_YEAR * years
-	return true
+	return Records[name]
 end
 
-function arns.increaseUndernameCount(name, from, qty, timestamp)
+function arns.increaseUndernameCount(from, name, qty, timestamp)
 	-- validate record can increase undernames
 	local record = Records[name]
 	local validIncrease, err = utils.validateIncreaseUndernames(record, tonumber(qty), timestamp)

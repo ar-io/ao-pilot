@@ -1,6 +1,4 @@
-package.path = "./src/?.lua;" .. package.path
-
-local constants = require(".constants")
+local constants = require("constants")
 local utils = {}
 
 function utils.hasMatchingTag(tag, value)
@@ -43,11 +41,7 @@ function utils.validateBuyRecord(name, years, purchaseType, auction, processId)
 
 	-- TODO: validate atomic tags
 
-	-- Then, check for a 43-character base64url pattern.
-	-- The pattern checks for a string of length 43 containing alphanumeric characters, hyphens, or underscores.
-	local isValidBase64Url = #processId == 43 and string.match(processId, "^[%w-_]+$") ~= nil
-
-	if not isValidBase64Url then
+	if not utils.isValidBase64Url(processId) then
 		return false, "processId pattern is invalid."
 	end
 
@@ -78,6 +72,111 @@ function utils.validateBuyRecord(name, years, purchaseType, auction, processId)
 	end
 
 	-- If all validations pass, return true with an empty message indicating success
+	return true
+end
+
+-- Then, check for a 43-character base64url pattern.
+-- The pattern checks for a string of length 43 containing alphanumeric characters, hyphens, or underscores.
+function utils.isValidBase64Url(url)
+	local isValidBase64Url = #url == 43 and string.match(url, "^[%w-_]+$") ~= nil
+
+	if not isValidBase64Url then
+		return false, "processId pattern is invalid."
+	end
+	return true
+end
+
+function utils.validateFQDN(fqdn)
+	-- Check if the fqdn is not nil and not empty
+	if not fqdn or fqdn == "" then
+		return false, "FQDN is empty"
+	end
+
+	-- Split the fqdn into parts by dot and validate each part
+	local parts = {}
+	for part in fqdn:gmatch("[^%.]+") do
+		table.insert(parts, part)
+	end
+
+	-- Validate each part of the domain
+	for _, part in ipairs(parts) do
+		-- Check that the part length is between 1 and 63 characters
+		if #part < 1 or #part > 63 then
+			return false, "Invalid fqdn format: each part must be between 1 and 63 characters"
+		end
+		-- Check that the part does not start or end with a hyphen
+		if part:match("^-") or part:match("-$") then
+			return false, "Invalid fqdn format: parts must not start or end with a hyphen"
+		end
+		-- Check that the part contains only alphanumeric characters and hyphen
+		if not part:match("^[A-Za-z0-9-]+$") then
+			return false, "Invalid fqdn format: parts must contain only alphanumeric characters or hyphen"
+		end
+	end
+
+	-- Check if there is at least one top-level domain (TLD)
+	if #parts < 2 then
+		return false, "Invalid fqdn format: missing top-level domain"
+	end
+
+	return true
+end
+
+function utils.validateUpdateGatewaySettings(settings, observerWallet)
+	-- Validate 'fqdn' field
+	if settings.fqdn and not utils.validateFQDN(settings.fqdn) then
+		print('invalid fqdn!! ' .. settings.fqdn)
+		return false, "Invalid fqdn format"
+	end
+
+	-- Validate 'port' field
+	if settings.port and (settings.port < 0 or settings.port > 65535) then
+		return false, "Invalid port number"
+	end
+
+	-- Validate 'protocol' field
+	if settings.protocol and not (settings.protocol == "https" or settings.protocol == "http") then
+		return false, "Invalid protocol"
+	end
+
+	-- Validate 'properties' field
+	if settings.properties and not utils.isValidBase64Url(settings.properties) then
+		return false, "Invalid properties format"
+	end
+
+	-- Validate 'note' field
+	if settings.note and #settings.note > 256 then
+		return false, "Invalid note length"
+	end
+
+	-- Validate 'label' field
+	if settings.label and #settings.label > 64 then
+		return false, "Invalid label length"
+	end
+
+	-- Validate 'observerWallet' field
+	if observerWallet and not utils.isValidBase64Url(observerWallet) then
+		return false, "Invalid observerWallet format"
+	end
+
+	-- Validate 'autoStake' and 'allowDelegatedStaking' booleans
+	if settings.autoStake ~= nil and type(settings.autoStake) ~= "boolean" then
+		return false, "Invalid autoStake value"
+	end
+	if settings.allowDelegatedStaking ~= nil and type(settings.allowDelegatedStaking) ~= "boolean" then
+		return false, "Invalid allowDelegatedStaking value"
+	end
+
+	-- Validate 'delegateRewardShareRatio' field
+	if settings.delegateRewardShareRatio and (settings.delegateRewardShareRatio < 0 or settings.delegateRewardShareRatio > 100) then
+		return false, "Invalid delegateRewardShareRatio value"
+	end
+
+	-- Validate 'minDelegatedStake' field
+	if settings.minDelegatedStake and settings.minDelegatedStake < 100 then
+		return false, "Invalid minDelegatedStake value"
+	end
+
 	return true
 end
 
@@ -112,7 +211,7 @@ function utils.calculatePermabuyFee(name)
 
 	-- calculate the annual fee for the name for default of 10 years
 	local permabuyPrice =
-		--  No demand factor
+	--  No demand factor
 		initialNamePurchaseFee -- total renewal cost pegged to 10 years to purchase name
 		+ utils.calculateAnnualRenewalFee(name, constants.PERMABUY_LEASE_FEE_LENGTH)
 	return permabuyPrice
@@ -316,6 +415,34 @@ end
 function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 	local yearsRemainingFloat = math.floor((endTimestamp - startTimestamp) / constants.MS_IN_A_YEAR)
 	return yearsRemainingFloat
+end
+
+function utils.isGatewayEligibleToLeave(gateway,
+										currentTimestamp)
+	if gateway == nil then
+		print('gateway is nil')
+		return false
+	end
+	local isJoined = utils.isGatewayJoined(gateway, currentTimestamp);
+	return isJoined;
+end
+
+function utils.isGatewayJoined(gateway, currentTimestamp)
+	return
+		gateway.status == 'joined' and gateway.startTimestamp <= currentTimestamp
+end
+
+function utils.printTable(tbl, indent)
+	if not indent then indent = 0 end -- Start with no indentation
+	for k, v in pairs(tbl) do
+		local formatting = string.rep("  ", indent) .. k .. ": "
+		if type(v) == "table" then
+			print(formatting)
+			utils.printTable(v, indent + 1)
+		else
+			print(formatting .. tostring(v))
+		end
+	end
 end
 
 return utils

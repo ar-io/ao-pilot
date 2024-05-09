@@ -1,6 +1,7 @@
 local constants = require("constants")
-local utils = {}
-local crypto = require('.crypto')
+local base64    = require("base64")
+local utils     = {}
+local crypto    = require('.crypto')
 
 function utils.hasMatchingTag(tag, value)
 	return Handlers.utils.hasMatchingTag(tag, value)
@@ -512,10 +513,10 @@ function utils.getObserverWeightsForEpoch(epochStartTimestamp)
 	return weightedObservers
 end
 
-function utils.getEntropyHashForEpoch(hashChain)
-	local bufferHash = Buffer.from('')
-	bufferHash = Buffer.concat([bufferHash, Buffer.from(hashChain, 'base64url')])
-	return crypto.hash(bufferHash, 'SHA-256')
+function utils.getEntropyHashForEpoch(hash)
+	local decodedHash = base64.decode(hash)
+	local hashStream = crypto.utils.stream.fromString(decodedHash)
+	return crypto.digest.sha2_256(hashStream).asBytes()
 end
 
 function utils.isGatewayJoined(gateway, currentTimestamp)
@@ -537,9 +538,9 @@ function utils.printTable(tbl, indent)
 end
 
 function utils.tableLength(T)
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
+	local count = 0
+	for _ in pairs(T) do count = count + 1 end
+	return count
 end
 
 return utils

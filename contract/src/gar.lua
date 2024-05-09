@@ -466,8 +466,8 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 			::continue::
 		end
 		-- Compute the next hash for the next iteration
-		-- hash = hashFunction(hash) -- Assuming hashFunction is synchronous and already defined
-		hash = 1
+		local newHash = crypto.utils.stream.fromString(hash)
+		hash = crypto.digest.sha2_256(newHash).asBytes()
 	end
 end
 

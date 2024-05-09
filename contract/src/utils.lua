@@ -1,7 +1,8 @@
 local constants = require("constants")
 local base64    = require("base64")
-local utils     = {}
 local crypto    = require("crypto")
+
+local utils     = {}
 
 function utils.hasMatchingTag(tag, value)
 	return Handlers.utils.hasMatchingTag(tag, value)

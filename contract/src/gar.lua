@@ -471,9 +471,25 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 	end
 end
 
-function gar.getEpoch()
+function gar.getEpoch(timeStamp, currentTimestamp)
 	-- TODO: implement
-	utils.reply("getEpoch is not implemented yet")
+	local requestedTimestamp = timeStamp or currentTimestamp
+	if requestedTimestamp == nil or requestedTimestamp <= 0 then
+		return false, "Invalid height. Must be a number greater than 0."
+	end
+
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp = gar
+		.getEpochDataForTimestamp(currentTimestamp)
+
+	local result = {
+		epochStartTimestamp,
+		epochEndTimestamp,
+		Distributions.epochZeroStartTimestamp,
+		epochDistributionTimestamp,
+		epochIndexForCurrentTimestamp,
+		constants.epochTimeLength
+	}
+	return result
 end
 
 function gar.getObservations()

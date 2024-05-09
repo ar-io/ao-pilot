@@ -27,5 +27,8 @@ if not Observations then
     Observations = {}
 end
 
+if not Distributions then
+    Distributions = {}
+end
 
 return state

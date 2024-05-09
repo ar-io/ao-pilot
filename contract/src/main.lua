@@ -19,7 +19,10 @@ local ActionMap = {
 	Transfer = "Transfer",
 	GetBalance = "Balance",
 	GetBalances = "Balances",
-	Vault = "Vault",
+	CreateVault = "CreateVault",
+	VaultedTransfer = "VaultedTransfer",
+	ExtendVault = "ExtendVault",
+	IncreaseVault = "IncreaseVault",
 	BuyRecord = "BuyRecord",
 	SubmitAuctionBid = "SubmitAuctionBid",
 	ExtendLease = "ExtendLease",
@@ -108,8 +111,78 @@ Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag("Action", ActionMap.Get
 	ao.send({ Target = msg.From, Data = json.encode(result) })
 end)
 
-Handlers.add(ActionMap.Vault, utils.hasMatchingTag("Action", ActionMap.Vault), function(msg)
-	token.vault(msg)
+Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.CreateVault), function(msg)
+	local result, err = token.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Create-Vault' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Vault-Created-Notice' },
+			Data = tostring(json.encode(result))
+		})
+	end
+end)
+
+Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap.VaultedTransfer), function(msg)
+	local result, err = token.vaultedTransfer(msg.From, msg.Tags.Recipient, msg.Tags.Quantity, msg.Tags.LockLength,
+		msg.Timestamp, msg.Id)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Vaulted-Transfer' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Debit-Notice' },
+			Data = tostring(json.encode(result))
+		})
+		ao.send({
+			Target = msg.Tags.Recipient,
+			Tags = { Action = 'Vaulted-Credit-Notice' },
+			Data = tostring(json.encode(result))
+		})
+	end
+end)
+
+Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.ExtendVault), function(msg)
+	local result, err = token.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Extend-Vault' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Vault-Extended' },
+			Data = tostring(json.encode(result))
+		})
+	end
+end)
+
+Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.IncreaseVault), function(msg)
+	local result, err = token.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Increase-Vault' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Vault-Increased' },
+			Data = tostring(json.encode(result))
+		})
+	end
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
@@ -146,13 +219,39 @@ Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMa
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
-	arns.extendLease(msg)
+	local result, err = arns.extendLease(msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Extend-Lease' },
+			Data = tostring(err)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Lease-Extended' },
+			Data = tostring(json.encode(result))
+		})
+	end
 end)
 
 Handlers.add(ActionMap.IncreaseUndernameCount,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
-		arns.increaseUndernameCount(msg)
+		local result, err = arns.increaseUndernameCount(msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
+		if err then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'Invalid-Undername-Increase' },
+				Data = tostring(err)
+			})
+		else
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = 'Undername-Quantity-Increased' },
+				Data = tostring(json.encode(result))
+			})
+		end
 	end)
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)

@@ -57,7 +57,7 @@ describe("arns", function()
 			type = "lease",
 			undernameCount = 10,
 		}
-		local result, err = arns.increaseUndernameCount("test-name-4", "Bob", 50, timestamp)
+		local result, err = arns.increaseUndernameCount("Bob", "test-name-4", 50, timestamp)
 		assert.are.same({
 			endTimestamp = timestamp + constants.MS_IN_A_YEAR,
 			processId = testProcessId,

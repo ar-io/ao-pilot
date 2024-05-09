@@ -329,9 +329,78 @@ function gar.decreaseDelegateStake(from, target, qty, currentTimestamp, msgId)
 	return Gateways[target]
 end
 
-function gar.saveObservations()
-	-- TODO: implement
-	utils.reply("saveObservations is not implemented yet")
+function gar.saveObservations(from, observerReportTxId, failedGateways, currentTimestamp)
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp
+	= gar.getEpochDataForTimestamp(currentTimestamp)
+
+	-- avoid observations before the previous epoch distribution has occurred, as distributions affect weights of the current epoch
+	if currentTimestamp < epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY then
+		return false, "Observations for the current epoch cannot be submitted before block height: " ..
+			epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY
+	end
+
+	local prescribedObservers = PrescribedObservers[epochIndexForCurrentTimestamp] or {}
+	local observer -- This will hold the matching observer or remain nil if no match is found
+	for _, prescribedObserver in ipairs(prescribedObservers) do
+		if prescribedObserver.observerAddress == from then
+			observer = prescribedObserver
+			break -- Stop the loop once a matching observer is found
+		end
+	end
+
+	if observer == nil then
+		return false, "Invalid caller. Caller is not eligible to submit observation reports for this epoch."
+	end
+
+	local observingGateway = Gateways[observer.gatewayAddress]
+
+	if observingGateway == nil then
+		return false, "The associated gateway does not exist in the registry."
+	end
+
+	-- check if this is the first report filed in this epoch (TODO: use start or end?)
+	if Observations[epochIndexForCurrentTimestamp] == nil then
+		Observations[epochIndexForCurrentTimestamp] = {
+			failureSummaries = {},
+			reports = {}
+		}
+	end
+
+	for _, address in ipairs(failedGateways) do
+		local failedGateway = Gateways[address]
+
+		-- Validate the gateway is in the gar or is leaving
+		if not failedGateway or
+			failedGateway.start > epochStartTimestamp or
+			failedGateway.status ~= constants.NETWORK_JOIN_STATUS then
+			-- Continue to the next iteration of the loop
+			goto continue
+		end
+
+		-- Get the existing set of failed gateways for this observer
+		local existingObservers = Observations[epochIndexForCurrentTimestamp].failureSummaries[address] or {}
+
+		-- Simulate Set behavior using tables
+		local updatedObserversForFailedGateway = {}
+		for _, observer in ipairs(existingObservers) do
+			updatedObserversForFailedGateway[observer] = true
+		end
+
+		-- Add new observation
+		updatedObserversForFailedGateway[observingGateway.observerWallet] = true
+
+		-- Update the list of observers that mark the gateway as failed
+		-- Convert set back to list
+		local observersList = {}
+		for observer, _ in pairs(updatedObserversForFailedGateway) do
+			table.insert(observersList, observer)
+		end
+		Observations[epochIndexForCurrentTimestamp].failureSummaries[address] = observersList
+		::continue::
+	end
+
+	Observations[epochIndexForCurrentTimestamp].reports[observingGateway.observerWallet] = observerReportTxId
+	return true
 end
 
 function gar.getEpochDataForTimestamp(currentTimestamp)

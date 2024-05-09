@@ -22,4 +22,10 @@ end
 if not PrescribedObservers then
     PrescribedObservers = {}
 end
+
+if not Observations then
+    Observations = {}
+end
+
+
 return state

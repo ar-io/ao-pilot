@@ -26,6 +26,7 @@ constants.GATEWAY_REGISTRY_SETTINGS = {
 	operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
 	delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
 }
+constants.NETWORK_JOIN_STATUS = 'joined'
 
 -- ARNS
 constants.DEFAULT_UNDERNAME_COUNT = 10

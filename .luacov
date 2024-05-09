@@ -2,10 +2,6 @@ return {
   statsfile = "coverage/luacov.stats.out", 
   reportfile = "coverage/coverage_report.out",
   runreport = true,
-  reporter = "html",
-  html = {
-    outputDirectory = 'coverage'
-  },
   deleteStatsFile = true,
   include = {"contract"},
   exclude = {"contract/spec"}

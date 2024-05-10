@@ -4,5 +4,5 @@ return {
   runreport = true,
   deleteStatsFile = true,
   include = {"contract"},
-  exclude = {"contract/spec"}
+  exclude = {"contract/spec", "crypto"}
 }

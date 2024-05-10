@@ -1,9 +1,4 @@
 package.path = "./contract/src/?.lua;" .. package.path
-require("luacov")
-require("state")
-require('token')
-require('demand')
-require('constants')
 
 _G.ao = {
 	send = function()

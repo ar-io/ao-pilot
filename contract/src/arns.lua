@@ -1,20 +1,13 @@
 -- arns.lua
-require("state")
 local utils = require("utils")
 local constants = require("constants")
 local arns = {}
 
-if not Balances then
-	Balances = {}
-end
+Balances = Balances or {}
+Records = Records or {}
+Auctions = Auctions or {}
+Reserved = Reserved or {}
 
-if not Records then
-	Records = {}
-end
-
-if not Auctions then
-	Auctions = {}
-end
 
 if not Reserved then
 	Reserved = {}
@@ -71,15 +64,15 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 	local totalRegistrationFee = utils.calculateRegistrationFee(purchaseType, name, years)
 
 	if not Balances[from] or Balances[from] < totalRegistrationFee then
-		return false, "Insufficient balance"
+		error("Insufficient balance")
 	end
 
 	if Auctions[name] then
-		return false, "Name is in auction"
+		error("Name is in auction")
 	end
 
 	if Records[name] then
-		return false, "Name already exists"
+		error("Name is already registered")
 	end
 
 	-- Transfer tokens to the protocol balance
@@ -122,7 +115,7 @@ function arns.extendLease(from, name, years, timestamp)
 
 	local totalExtensionFee = utils.calculateExtensionFee(name, years, record.type)
 	if not utils.walletHasSufficientBalance(from, totalExtensionFee) then
-		return false, "Insufficient balance"
+		error("Insufficient balance")
 	end
 
 	-- Transfer tokens to the protocol balance
@@ -162,7 +155,7 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 	local additionalUndernameCost = utils.calculateUndernameCost(name, qty, record.type, yearsRemaining)
 
 	if not utils.walletHasSufficientBalance(from, additionalUndernameCost) then
-		return false, "Insufficient balance"
+		error("Insufficient balance")
 	end
 
 	-- Transfer tokens to the protocol balance

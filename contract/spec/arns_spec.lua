@@ -8,6 +8,8 @@ describe("arns", function()
 	-- stub out the global state for these tests
 	before_each(function()
 		_G.Records = {}
+		_G.Reserved = {}
+		_G.Auctions = {}
 		_G.Balances = {
 			["Bob"] = 5000000,
 		}
@@ -68,7 +70,7 @@ describe("arns", function()
 	end)
 
 	it('should throw an error if the record already exists', function()
-		Records["test-name"] = {
+		local existingRecord = {
 			endTimestamp = timestamp + constants.MS_IN_A_YEAR,
 			processId = testProcessId,
 			purchasePrice = 1500,
@@ -76,9 +78,51 @@ describe("arns", function()
 			type = "lease",
 			undernameCount = 10,
 		}
+		Records["test-name"] = existingRecord
 		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
 		assert.is_false(status)
     	assert.match("Name is already registered", result)
+		assert.are.same(existingRecord, Records['test-name'])
+	end)
+
+	it('should throw an error if the record is reserved for someone else', function()
+		local reservedName = {
+			target = 'test',
+			endTimestamp = 1000
+		}
+		Reserved["test-name"] = reservedName
+		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+		assert.is_false(status)
+    	assert.match("Name is reserved", result)
+		assert.are.same({}, Records)
+		assert.are.same(reservedName, Reserved['test-name'])
+	end)
+
+	it('should allow you to buy a reserved name if reserved for you', function()
+		Reserved["test-name"] = {
+			target = 'Bob',
+			endTimestamp = 1000
+		}
+		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+		local expectation = {
+			endTimestamp = timestamp + constants.MS_IN_A_YEAR,
+			processId = testProcessId,
+			purchasePrice = 1500,
+			startTimestamp = 0,
+			type = "lease",
+			undernameCount = 10,
+		}
+		assert.is_true(status)
+    	assert.are.same(expectation, result)
+		assert.are.same({["test-name"] = expectation}, Records)
+	end)
+
+	it('should throw an error if the record is in auction', function()
+		Auctions["test-name"] = {}
+		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+		assert.is_false(status)
+    	assert.match("Name is in auction", result)
+		assert.are.same({}, Records)
 	end)
 
 	it('should throw an error if the user does not have enough funds', function()
@@ -86,7 +130,9 @@ describe("arns", function()
 		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
 		assert.is_false(status)
 		assert.match("Insufficient funds", result)
+		assert.are.same({}, Records)
 	end)
+	
 
 	it("should increase the undername count and properly deduct balance", function()
 		Records["test-name"] = {
@@ -98,25 +144,17 @@ describe("arns", function()
 			undernameCount = 10,
 		}
 		local status, result = pcall(arns.increaseUndernameCount, "Bob", "test-name", 50, timestamp)
-		assert.is_true(status)
-		assert.are.same({
+		local expectation = {
 			endTimestamp = timestamp + constants.MS_IN_A_YEAR,
 			processId = testProcessId,
 			purchasePrice = 1500,
 			startTimestamp = 0,
 			type = "lease",
 			undernameCount = 60,
-		}, result)
-		assert.are.same({
-			["test-name"] = {
-				endTimestamp = timestamp + constants.MS_IN_A_YEAR,
-				processId = testProcessId,
-				purchasePrice = 1500,
-				startTimestamp = 0,
-				type = "lease",
-				undernameCount = 60,
-			},
-		}, Records)
+		}
+		assert.is_true(status)
+		assert.are.same(expectation, result)
+		assert.are.same({["test-name"] = expectation}, Records)
 		assert.are.same({
 			["Bob"] = 4999937.5,
 			[_G.ao.id] = 62.5,

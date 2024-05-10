@@ -46,6 +46,10 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 		error("Name is already registered")
 	end
 
+	if Reserved[name] and Reserved[name].target ~= from then
+		error('Name is reserved')
+	end
+
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalRegistrationFee)
 
@@ -63,6 +67,7 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 	end
 
 	Records[name] = newRecord
+	Reserved[name] = nil -- delete reserved if necessary
 	return newRecord
 end
 

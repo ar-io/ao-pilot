@@ -15,7 +15,6 @@ describe("arns", function()
 
 	it("adds validate a lease request and add it to global records object", function()
 		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
-		print(result)
 		assert.is_true(status)
 		assert.are.same({
 			purchasePrice = 1500,

@@ -4,37 +4,13 @@ local demand = require('demand')
 Name = Name or "Test IO"
 Ticker = Ticker or "tIO"
 Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
-
-if not Denomination then
-    Denomination = 6
-end
-
-if not Balances then
-    Balances = {}
-end
-
-if not Gateways then
-    Gateways = {}
-end
-
-if not Vaults then
-    Vaults = {}
-end
-
-if not PrescribedObservers then
-    PrescribedObservers = {}
-end
-
-if not Observations then
-    Observations = {}
-end
-
-if not Distributions then
-    Distributions = {}
-end
-
-if not Demand then
-    Demand = demand
-end
+Denomination = Denomination or 6
+Balances = Balances or {}
+Gateways = Gateways or {}
+Vaults = Vaults or {}
+PrescribedObservers = PrescribedObservers or {}
+Observations = Observations or {}
+Distributions = Distributions or {}
+Demand = Demand or demand
 
 return state

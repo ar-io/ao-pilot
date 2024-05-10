@@ -370,33 +370,29 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 		local failedGateway = Gateways[address]
 
 		-- Validate the gateway is in the gar or is leaving
-		if not failedGateway or
-			failedGateway.start > epochStartTimestamp or
-			failedGateway.status ~= constants.NETWORK_JOIN_STATUS then
-			-- Continue to the next iteration of the loop
-			goto continue
+		if failedGateway and failedGateway.start > epochStartTimestamp or
+			failedGateway.status == constants.NETWORK_JOIN_STATUS then
+
+			-- Get the existing set of failed gateways for this observer
+			local existingObservers = Observations[epochIndexForCurrentTimestamp].failureSummaries[address] or {}
+
+			-- Simulate Set behavior using tables
+			local updatedObserversForFailedGateway = {}
+			for _, observer in ipairs(existingObservers) do
+				updatedObserversForFailedGateway[observer] = true
+			end
+
+			-- Add new observation
+			updatedObserversForFailedGateway[observingGateway.observerWallet] = true
+
+			-- Update the list of observers that mark the gateway as failed
+			-- Convert set back to list
+			local observersList = {}
+			for observer, _ in pairs(updatedObserversForFailedGateway) do
+				table.insert(observersList, observer)
+			end
+			Observations[epochIndexForCurrentTimestamp].failureSummaries[address] = observersList
 		end
-
-		-- Get the existing set of failed gateways for this observer
-		local existingObservers = Observations[epochIndexForCurrentTimestamp].failureSummaries[address] or {}
-
-		-- Simulate Set behavior using tables
-		local updatedObserversForFailedGateway = {}
-		for _, observer in ipairs(existingObservers) do
-			updatedObserversForFailedGateway[observer] = true
-		end
-
-		-- Add new observation
-		updatedObserversForFailedGateway[observingGateway.observerWallet] = true
-
-		-- Update the list of observers that mark the gateway as failed
-		-- Convert set back to list
-		local observersList = {}
-		for observer, _ in pairs(updatedObserversForFailedGateway) do
-			table.insert(observersList, observer)
-		end
-		Observations[epochIndexForCurrentTimestamp].failureSummaries[address] = observersList
-		::continue::
 	end
 
 	Observations[epochIndexForCurrentTimestamp].reports[observingGateway.observerWallet] = observerReportTxId
@@ -428,7 +424,7 @@ end
 
 function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimestamp, hashchain)
 	local eligibleGateways = utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
-	local weightedObservers = utils.getObserverWeightsForEpoch(epochStartTimestamp)
+	local weightedObservers = utils.getObserverWeightsForEpoch(epochStartTimestamp, eligibleGateways)
 	-- Filter out any observers that could have a normalized composite weight of 0
 	local filteredObservers = {}
 	for _, observer in ipairs(weightedObservers) do
@@ -445,25 +441,23 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 	local timestampEntropyHash = utils.getEntropyHashForEpoch(hashchain)
 	local prescribedObserversAddresses = {}
 	local hash = timestampEntropyHash
-	while (utils.tableLength(prescribedObserversAddresses) < constants.MAXIMUM_OBSERVERS_PER_EPOCH) do
+	while (#prescribedObserversAddresses < constants.MAXIMUM_OBSERVERS_PER_EPOCH) do
 		--local random = readUInt32BE(hash) / 0xffffffff -- Convert hash to a value between 0 and 1
-		local random = 1
+		local random = 1 -- TODO: this should be a random value bewteen 0 and 1
 		local cumulativeNormalizedCompositeWeight = 0
 
 		for _, observer in ipairs(weightedObservers) do
-			-- skip observers that have already been prescribed
-			if prescribedObserversAddresses[observer.gatewayAddress] then
-				goto continue
-			end
+			-- add only if observer has not already been prescribed
+			if not prescribedObserversAddresses[observer.gatewayAddress] then
 			-- add the observers normalized composite weight to the cumulative weight
-			cumulativeNormalizedCompositeWeight = cumulativeNormalizedCompositeWeight +
-				observer.normalizedCompositeWeight
-			-- if the random value is less than the cumulative weight, we have found our observer
-			if random <= cumulativeNormalizedCompositeWeight then
-				prescribedObserversAddresses[observer.gatewayAddress] = true
-				break
+				cumulativeNormalizedCompositeWeight = cumulativeNormalizedCompositeWeight +
+					observer.normalizedCompositeWeight
+				-- if the random value is less than the cumulative weight, we have found our observer
+				if random <= cumulativeNormalizedCompositeWeight then
+					prescribedObserversAddresses[observer.gatewayAddress] = true
+					break
+				end
 			end
-			::continue::
 		end
 		-- Compute the next hash for the next iteration
 		local newHash = crypto.utils.stream.fromString(hash)
@@ -472,10 +466,9 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 end
 
 function gar.getEpoch(timeStamp, currentTimestamp)
-	-- TODO: implement
 	local requestedTimestamp = timeStamp or currentTimestamp
 	if requestedTimestamp == nil or requestedTimestamp <= 0 then
-		return false, "Invalid height. Must be a number greater than 0."
+		return error("Invalid timestamp")
 	end
 
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp = gar

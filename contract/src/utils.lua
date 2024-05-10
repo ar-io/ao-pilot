@@ -25,12 +25,12 @@ end
 function utils.validateBuyRecord(name, years, purchaseType, auction, processId)
 	-- Validate the presence and type of the 'name' field
 	if type(name) ~= "string" then
-		return false, "name is required and must be a string."
+		error("name is required and must be a string.")
 	end
 
 	-- Validate the character count 'name' field to ensure names 4 characters or below are excluded
 	if string.len(name) <= 4 then
-		return false, "1-4 character names are not allowed"
+		error("1-4 character names are not allowed")
 	end
 
 	local startsWithAlphanumeric = name:match("^%w")
@@ -39,38 +39,38 @@ function utils.validateBuyRecord(name, years, purchaseType, auction, processId)
 	local validLength = #name >= 5 and #name <= 51
 
 	if not (startsWithAlphanumeric and endsWithAlphanumeric and middleValid and validLength) then
-		return false, "name pattern is invalid."
+		error("name pattern is invalid.")
 	end
 
 	-- TODO: validate atomic tags
 
 	if not utils.isValidBase64Url(processId) then
-		return false, "processId pattern is invalid."
+		error("processId pattern is invalid.")
 	end
 
 	-- If 'years' is present, validate it as an integer between 1 and 5
 	if years then
 		if type(years) ~= "number" or years % 1 ~= 0 or years < 1 or years > 5 then
-			return false, "years must be an integer between 1 and 5."
+			return error("years must be an integer between 1 and 5.")
 		end
 	end
 
 	-- Validate 'PurchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
 	if purchaseType then
 		if not (purchaseType == "lease" or purchaseType == "permabuy") then
-			return false, "type pattern is invalid."
+			error("type pattern is invalid.")
 		end
 
 		-- Do not allow permabuying names 11 characters or below for this experimentation period
 		if purchaseType == "permabuy" and string.len(name) <= 11 then
-			return false, "cannot permabuy name 11 characters or below at this time"
+			error("cannot permabuy name 11 characters or below at this time")
 		end
 	end
 
 	-- Validate the 'auction' field if present, ensuring it is a boolean value
 	if auction then
 		if type(auction) ~= "boolean" then
-			return false, "auction must be a boolean."
+			error("auction must be a boolean.")
 		end
 	end
 
@@ -84,15 +84,15 @@ function utils.isValidBase64Url(url)
 	local isValidBase64Url = #url == 43 and string.match(url, "^[%w-_]+$") ~= nil
 
 	if not isValidBase64Url then
-		return false, "processId pattern is invalid."
+		error("processId pattern is invalid.")
 	end
-	return true
+	return url
 end
 
 function utils.validateFQDN(fqdn)
 	-- Check if the fqdn is not nil and not empty
 	if not fqdn or fqdn == "" then
-		return false, "FQDN is empty"
+ 		error("FQDN is empty")
 	end
 
 	-- Split the fqdn into parts by dot and validate each part
@@ -105,79 +105,78 @@ function utils.validateFQDN(fqdn)
 	for _, part in ipairs(parts) do
 		-- Check that the part length is between 1 and 63 characters
 		if #part < 1 or #part > 63 then
-			return false, "Invalid fqdn format: each part must be between 1 and 63 characters"
+			error("Invalid fqdn format: each part must be between 1 and 63 characters")
 		end
 		-- Check that the part does not start or end with a hyphen
 		if part:match("^-") or part:match("-$") then
-			return false, "Invalid fqdn format: parts must not start or end with a hyphen"
+			error("Invalid fqdn format: parts must not start or end with a hyphen")
 		end
 		-- Check that the part contains only alphanumeric characters and hyphen
 		if not part:match("^[A-Za-z0-9-]+$") then
-			return false, "Invalid fqdn format: parts must contain only alphanumeric characters or hyphen"
+			error("Invalid fqdn format: parts must contain only alphanumeric characters or hyphen")
 		end
 	end
 
 	-- Check if there is at least one top-level domain (TLD)
 	if #parts < 2 then
-		return false, "Invalid fqdn format: missing top-level domain"
+		error("Invalid fqdn format: missing top-level domain")
 	end
 
-	return true
+	return fqdn
 end
 
 function utils.validateUpdateGatewaySettings(settings, observerWallet)
 	-- Validate 'fqdn' field
 	if settings.fqdn and not utils.validateFQDN(settings.fqdn) then
-		print('invalid fqdn!! ' .. settings.fqdn)
-		return false, "Invalid fqdn format"
+		error("Invalid fqdn format")
 	end
 
 	-- Validate 'port' field
 	if settings.port and (settings.port < 0 or settings.port > 65535) then
-		return false, "Invalid port number"
+		error("Invalid port number")
 	end
 
 	-- Validate 'protocol' field
 	if settings.protocol and not (settings.protocol == "https" or settings.protocol == "http") then
-		return false, "Invalid protocol"
+		error("Invalid protocol")
 	end
 
 	-- Validate 'properties' field
 	if settings.properties and not utils.isValidBase64Url(settings.properties) then
-		return false, "Invalid properties format"
+		error("Invalid properties format")
 	end
 
 	-- Validate 'note' field
 	if settings.note and #settings.note > 256 then
-		return false, "Invalid note length"
+		error("Invalid note length")
 	end
 
 	-- Validate 'label' field
 	if settings.label and #settings.label > 64 then
-		return false, "Invalid label length"
+		error("Invalid label length")
 	end
 
 	-- Validate 'observerWallet' field
 	if observerWallet and not utils.isValidBase64Url(observerWallet) then
-		return false, "Invalid observerWallet format"
+		error("Invalid observerWallet format")
 	end
 
 	-- Validate 'autoStake' and 'allowDelegatedStaking' booleans
 	if settings.autoStake ~= nil and type(settings.autoStake) ~= "boolean" then
-		return false, "Invalid autoStake value"
+		error("Invalid autoStake value")
 	end
 	if settings.allowDelegatedStaking ~= nil and type(settings.allowDelegatedStaking) ~= "boolean" then
-		return false, "Invalid allowDelegatedStaking value"
+		error("Invalid allowDelegatedStaking value")
 	end
 
 	-- Validate 'delegateRewardShareRatio' field
 	if settings.delegateRewardShareRatio and (settings.delegateRewardShareRatio < 0 or settings.delegateRewardShareRatio > 100) then
-		return false, "Invalid delegateRewardShareRatio value"
+		error("Invalid delegateRewardShareRatio value")
 	end
 
 	-- Validate 'minDelegatedStake' field
 	if settings.minDelegatedStake and settings.minDelegatedStake < 100 then
-		return false, "Invalid minDelegatedStake value"
+		error("Invalid minDelegatedStake value")
 	end
 
 	return true
@@ -329,25 +328,25 @@ function utils.assertAvailableRecord(caller, name, currentTimestamp, type, aucti
 	local isShortName = utils.isShortNameRestricted(name, currentTimestamp)
 	local isAuctionRequired = utils.isNameRequiredToBeAuction(name, type)
 	if isActiveRecord then
-		return false, constants.ARNS_NON_EXPIRED_NAME_MESSAGE
+		error(constants.ARNS_NON_EXPIRED_NAME_MESSAGE)
 	end
 
 	if Reserved[name] and Reserved[name].target == caller then
 		-- if the caller is the target of the reserved name, they can buy it
-		return true, ""
+		return true
 	end
 
 	if isReserved then
-		return false, constants.ARNS_NAME_RESERVED_MESSAGE
+		error(constants.ARNS_NAME_RESERVED_MESSAGE)
 	end
 
 	if isShortName then
-		return false, constants.ARNS_INVALID_SHORT_NAME
+		error(constants.ARNS_INVALID_SHORT_NAME)
 	end
 
 	-- TODO: we may want to move this up if we want to force permabuys for short names on reserved names
 	if isAuctionRequired and not auction then
-		return false, constants.ARNS_NAME_MUST_BE_AUCTIONED_MESSAGE
+		error(constants.ARNS_NAME_MUST_BE_AUCTIONED_MESSAGE)
 	end
 
 	return true
@@ -357,11 +356,11 @@ function utils.validateExtendLease(record, currentTimestamp, years)
 	-- This name's lease has expired beyond grace period and cannot be extended
 	if not utils.isExistingActiveRecord(record, currentTimestamp) then
 		-- This name has expired and must renewed before its undername support can be extended.`,
-		return false, "This name has expired and must renewed before its undername support can be extended."
+		error("This name has expired and must renewed before its undername support can be extended.")
 	end
 
 	if years > utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp) then
-		return false, "Invalid number of years for record extension"
+		error("Invalid number of years for record extension")
 	end
 	return true
 end
@@ -395,24 +394,24 @@ end
 -- @return boolean, string The first return value indicates whether the increase is valid (true) or not (false),
 function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
 	if record == nil then
-		return false, "Record does not exist"
+		error("Record does not exist")
 	end
 
 	if qty < 1 or qty > 9990 then
-		return false, "Qty is invalid"
+		error("Qty is invalid")
 	end
 
 	-- This name's lease has expired and cannot have undernames increased
 	if not utils.isExistingActiveRecord(record, currentTimestamp) then
-		return false, "This name has expired and must renewed before its undername support can be extended."
+		error("This name has expired and must renewed before its undername support can be extended.")
 	end
 
 	-- the new total qty
 	if record.undernameCount + qty > constants.MAX_ALLOWED_UNDERNAMES then
-		return false, constants.ARNS_MAX_UNDERNAME_MESSAGE
+		error(constants.ARNS_MAX_UNDERNAME_MESSAGE)
 	end
 
-	return true, ""
+	return true
 end
 
 function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
@@ -424,11 +423,9 @@ function utils.isGatewayLeaving(gateway, currentTimestamp)
 	return gateway.status == 'leaving' and gateway.endTimestamp <= currentTimestamp
 end
 
-function utils.isGatewayEligibleToLeave(gateway,
-										timestamp)
+function utils.isGatewayEligibleToLeave(gateway, timestamp)
 	if gateway == nil then
-		print('gateway is nil')
-		return false
+		return error("Gateway does not exist")
 	end
 	local isJoined = utils.isGatewayJoined(gateway, timestamp);
 	return isJoined;
@@ -454,12 +451,12 @@ function utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestam
 	return eligibleGateways
 end
 
-function utils.getObserverWeightsForEpoch(epochStartTimestamp)
+function utils.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 	local weightedObservers = {}
 	local totalCompositeWeight = 0
 
 	-- Iterate over gateways to calculate weights
-	for address, gateway in pairs(Gateways) do
+	for address, gateway in pairs(eligbileGateways) do
 		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
 		local stakeWeightRatio = totalStake /
 			constants
@@ -525,23 +522,5 @@ function utils.isGatewayJoined(gateway, currentTimestamp)
 		gateway.status == 'joined' and gateway.startTimestamp <= currentTimestamp
 end
 
-function utils.printTable(tbl, indent)
-	if not indent then indent = 0 end -- Start with no indentation
-	for k, v in pairs(tbl) do
-		local formatting = string.rep("  ", indent) .. k .. ": "
-		if type(v) == "table" then
-			print(formatting)
-			utils.printTable(v, indent + 1)
-		else
-			print(formatting .. tostring(v))
-		end
-	end
-end
-
-function utils.tableLength(T)
-	local count = 0
-	for _ in pairs(T) do count = count + 1 end
-	return count
-end
 
 return utils

@@ -6,37 +6,39 @@ local token = {}
 
 function token.transfer(recipient, from, qty)
 	assert(type(recipient) == 'string', 'Recipient is required!')
+	-- TODO: assert to/from are 43 character arweave tx ids
 	assert(type(qty) == 'number', 'Quantity is required and must be a number!')
 	assert(qty > 0, 'Quantity must be greater than 0')
 
-	if not Balances[from] then Balances[from] = 0 end
+	Balances[from] = Balances[from] or 0
+	Balances[recipient] = Balances[recipient] or 0
 
-	if not Balances[recipient] then Balances[recipient] = 0 end
-
-	if Balances[from] >= qty then
-		Balances[from] = Balances[from] - qty
-		Balances[recipient] = Balances[recipient] + qty
-		return true
-	else
-		return false, "Insufficient funds!";
+	if Balances[from] < qty then
+		error("Insufficient balance")
 	end
+
+	Balances[from] = Balances[from] - qty
+	Balances[recipient] = Balances[recipient] + qty
+
+	return {
+		[from] = Balances[from],
+		[recipient] = Balances[recipient]
+	}
 end
 
 function token.createVault(from, qty, lockLength, currentTimestamp, msgId)
 	if not Balances[from] then Balances[from] = 0 end
 
 	if Balances[from] < qty then
-		return false, "Insufficient funds!"
+		error("Insufficient funds!")
 	end
 
 	if Vaults[from] and Vaults[from][msgId] ~= nil then
-		return false, "Vault with id " .. msgId .. " already exists"
+		error("Vault with id " .. msgId .. " already exists")
 	end
 
 	if lockLength < constants.MIN_TOKEN_LOCK_TIME or lockLength > constants.MAX_TOKEN_LOCK_TIME then
-		return false,
-			"Invalid lock length. Must be between " ..
-			constants.MIN_TOKEN_LOCK_TIME .. " - " .. constants.MAX_TOKEN_LOCK_TIME
+		error("Invalid lock length. Must be between " ..constants.MIN_TOKEN_LOCK_TIME .. " - " .. constants.MAX_TOKEN_LOCK_TIME)
 	end
 
 	Balances[from] = Balances[from] - qty
@@ -57,17 +59,15 @@ function token.vaultedTransfer(from, recipient, qty, lockLength, currentTimestam
 	if not Balances[from] then Balances[from] = 0 end
 
 	if Balances[from] < qty then
-		return false, "Insufficient funds!"
+		error("Insufficient funds!")
 	end
 
 	if Vaults[recipient] and Vaults[recipient][msgId] then
-		return false, "Vault with id " .. msgId .. " already exists"
+		error("Vault with id " .. msgId .. " already exists")
 	end
 
 	if lockLength < constants.MIN_TOKEN_LOCK_TIME or lockLength > constants.MAX_TOKEN_LOCK_TIME then
-		return false,
-			"Invalid lock length. Must be between " ..
-			constants.MIN_TOKEN_LOCK_TIME .. " - " .. constants.MAX_TOKEN_LOCK_TIME
+		error("Invalid lock length. Must be between " .. constants.MIN_TOKEN_LOCK_TIME .. " - " .. constants.MAX_TOKEN_LOCK_TIME)
 	end
 
 	Balances[from] = Balances[from] - qty
@@ -87,11 +87,11 @@ end
 
 function token.extendVault(from, extendLength, currentTimestamp, vaultId)
 	if Vaults[from] == nil or Vaults[from][vaultId] == nil then
-		return false, "Invalid vault ID."
+		error("Invalid vault ID.")
 	end
 
 	if currentTimestamp >= Vaults[from][vaultId].endTimestamp then
-		return false, "This vault has ended."
+		error("This vault has ended.")
 	end
 
 	local totalTimeRemaining = Vaults[from][vaultId].endTimestamp - currentTimestamp;
@@ -100,8 +100,7 @@ function token.extendVault(from, extendLength, currentTimestamp, vaultId)
 		extendLength > constants.MAX_TOKEN_LOCK_BLOCK_LENGTH or
 		totalTimeRemaining + extendLength > constants.MAX_TOKEN_LOCK_BLOCK_LENGTH
 	then
-		return false, "Invalid lock length. Must be between " ..
-			constants.MIN_TOKEN_LOCK_TIME .. " - " .. constants.MAX_TOKEN_LOCK_TIME
+		error("Invalid lock length. Must be between " .. constants.MIN_TOKEN_LOCK_TIME .. " - " .. constants.MAX_TOKEN_LOCK_TIME)
 	end
 
 	local newEnd = Vaults[from][vaultId].endTimestamp + extendLength
@@ -113,15 +112,15 @@ function token.increaseVault(from, qty, vaultId, currentTimestamp)
 	if not Balances[from] then Balances[from] = 0 end
 
 	if Balances[from] < qty then
-		return false, "Insufficient funds!"
+		error("Insufficient funds!")
 	end
 
 	if Vaults[from] == nil or Vaults[from][vaultId] == nil then
-		return false, "Invalid vault ID."
+		error("Invalid vault ID.")
 	end
 
 	if currentTimestamp >= Vaults[from][vaultId].endTimestamp then
-		return false, "This vault has ended."
+		error("This vault has ended.")
 	end
 
 	Balances[from] = Balances[from] - qty

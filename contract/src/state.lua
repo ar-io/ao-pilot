@@ -5,6 +5,43 @@ Name = Name or "Test IO"
 Ticker = Ticker or "tIO"
 Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
 
+
+if not Records then
+    Records = {}
+end
+
+if not Auctions then
+    Auctions = {}
+end
+
+if not Reserved then
+    Reserved = {}
+    Reserved["gateway"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
+    }
+
+    Reserved["help"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
+    }
+
+    Reserved["io"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
+    }
+
+    Reserved["nodes"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
+    }
+
+    Reserved["www"] = {
+        endTimestamp = 1725080400000,
+        target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
+    }
+end
+
 if not Denomination then
     Denomination = 6
 end

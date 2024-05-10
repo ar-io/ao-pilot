@@ -1,4 +1,5 @@
 # IO/AO Contract
+[![codecov](https://codecov.io/github/ar-io/ao-pilot/graph/badge.svg?token=0VUJ3RH9X1)](https://codecov.io/github/ar-io/ao-pilot)
 
 This repository contains the IO contract implementation on AO.
 

@@ -9,34 +9,6 @@ Auctions = Auctions or {}
 Reserved = Reserved or {}
 
 
-if not Reserved then
-	Reserved = {}
-	Reserved["gateway"] = {
-		endTimestamp = 1725080400000,
-		target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
-	}
-
-	Reserved["help"] = {
-		endTimestamp = 1725080400000,
-		target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
-	}
-
-	Reserved["io"] = {
-		endTimestamp = 1725080400000,
-		target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
-	}
-
-	Reserved["nodes"] = {
-		endTimestamp = 1725080400000,
-		target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
-	}
-
-	Reserved["www"] = {
-		endTimestamp = 1725080400000,
-		target = "QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ",
-	}
-end
-
 -- Needs auctions
 -- Needs demand factor
 
@@ -64,7 +36,7 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 	local totalRegistrationFee = utils.calculateRegistrationFee(purchaseType, name, years)
 
 	if not Balances[from] or Balances[from] < totalRegistrationFee then
-		error("Insufficient balance")
+		error("Insufficient funds")
 	end
 
 	if Auctions[name] then
@@ -189,11 +161,36 @@ function arns.getAuction(name)
 	return Auctions[name]
 end
 
+function arns.getAuctions()
+	return Auctions
+end
+
 function arns.getReservedName(name)
 	if Reserved[name] == nil then
 		return nil
 	end
 	return Reserved[name]
+end
+
+function arns.addReservedName(name, details)
+	if Reserved[name] then
+		error("Name is already reserved")
+	end
+
+	if Records[name] then
+		error("Name is already registered")
+	end
+
+	if Auctions[name] then
+		error("Name is in auction")
+	end
+
+	Reserved[name] = details
+	return Reserved[name]
+end
+
+function arns.getReservedNames()
+	return Reserved
 end
 
 return arns

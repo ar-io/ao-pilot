@@ -1,28 +1,15 @@
 -- arns.lua
 local utils = require("utils")
 local constants = require("constants")
-local token = require('token')
-local arns = {}
-
-Balances = Balances or {}
-Records = Records or {}
-Auctions = Auctions or {}
-Reserved = Reserved or {}
-DemandFactor = DemandFactor or {}
-
---- Function to purchase a record.
--- @param name string: The name of the record to buy.
--- @param purchaseType string: The type of purchase (e.g., 'lease', 'own').
--- @param years number: The number of years for the record purchase.
--- @param from string: The origin of the purchase.
--- @param timestamp number: The UNIX timestamp of when the purchase was made.
--- @param processId string: A unique identifier for the processing transaction.
+local token = Token or require("token")
+local arns = {
+	reserved = {},
+	records = {},
+	auctions = {},
+}
 function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, processId)
 	-- don't catch, let the caller handle the error
-	local validRecord = utils.validateBuyRecord(name, years, purchaseType, auction, processId)
-	if validRecord == false then
-		return  error("Failed to validate buy recor")
-	end
+	utils.assertValidBuyRecord(name, years, purchaseType, auction, processId)
 
 	if purchaseType == nil then
 		purchaseType = "lease" -- set to lease by default
@@ -34,20 +21,20 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 
 	local totalRegistrationFee = utils.calculateRegistrationFee(purchaseType, name, years)
 
-	if not Balances[from] or Balances[from] < totalRegistrationFee then
+	if token.getBalance(from) < totalRegistrationFee then
 		error("Insufficient funds")
 	end
 
-	if Auctions[name] then
+	if arns.getAuction(name) then
 		error("Name is in auction")
 	end
 
-	if Records[name] then
+	if arns.getRecord(name) then
 		error("Name is already registered")
 	end
 
-	if Reserved[name] and Reserved[name].target ~= from then
-		error('Name is reserved')
+	if arns.getReservedName(name) and arns.getReservedName(name).target ~= from then
+		error("Name is reserved")
 	end
 
 	-- Transfer tokens to the protocol balance
@@ -66,8 +53,8 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 		newRecord.endTimestamp = timestamp + constants.MS_IN_A_YEAR * years
 	end
 
-	Records[name] = newRecord
-	Reserved[name] = nil -- delete reserved if necessary
+	arns.records[name] = newRecord
+	arns.reserved[name] = nil
 	return newRecord
 end
 
@@ -76,27 +63,24 @@ function arns.submitAuctionBid()
 end
 
 function arns.extendLease(from, name, years, timestamp)
-	local record = Records[name]
-	local validExtend, validExtendErr = utils.validateExtendLease(record, timestamp, years)
-	if validExtend == false then
-		return false, validExtendErr
-	end
+	local record = arns.getRecord(name)
+	-- throw error if invalid
+	utils.assertValidExtendLease(record, timestamp, years)
 
 	local totalExtensionFee = utils.calculateExtensionFee(name, years, record.type)
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalExtensionFee)
 
-	Records[name].endTimestamp = Records[name].endTimestamp + constants.MS_IN_A_YEAR * years
+	arns.records[name].endTimestamp = record.endTimestamp + constants.MS_IN_A_YEAR * years
 	return Records[name]
 end
 
 function arns.increaseUndernameCount(from, name, qty, timestamp)
 	-- validate record can increase undernames
 	local record = arns.getRecord(name)
-	local validIncrease = utils.validateIncreaseUndernames(record, tonumber(qty), timestamp)
-	if validIncrease == false then
-		return false, err
-	end
+
+	-- throws errors on invalid requests
+	utils.assertValidIncreaseUndername(record, qty, timestamp)
 
 	local endTimestamp
 	if utils.isLeaseRecord(record) then
@@ -113,58 +97,52 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, additionalUndernameCost)
-	Records[name].undernameCount = existingUndernames + qty
-	return Records[name]
+	arns.records[name].undernameCount = existingUndernames + qty
+	return arns.records[name]
 end
 
 function arns.getRecord(name)
-	if Records[name] == nil then
-		error("Name does not exist")
-	end
-	return Records[name]
+	return arns.records[name]
 end
 
 function arns.getRecords()
-	return Records
+	return arns.records
 end
 
 function arns.getAuction(name)
-	if Auctions[name] == nil then
-		error("Name does not exist")
-	end
-	return Auctions[name]
+	return arns.auctions[name]
 end
 
 function arns.getAuctions()
-	return Auctions
+	return arns.auctions
 end
 
 function arns.getReservedName(name)
-	if Reserved[name] == nil then
-		error("Resreved name does not exist")
-	end
-	return Reserved[name]
+	return arns.reserved[name]
 end
 
 function arns.addReservedName(name, details)
-	if Reserved[name] then
+	if arns.getReservedName(name) then
 		error("Name is already reserved")
 	end
 
-	if Records[name] then
+	if arns.getRecord(name) then
 		error("Name is already registered")
 	end
 
-	if Auctions[name] then
+	if arns.getAuction(name) then
 		error("Name is in auction")
 	end
-
-	Reserved[name] = details
-	return Reserved[name]
+	arns.reserved[name] = details
+	return arns.reserved[name]
 end
 
 function arns.getReservedNames()
-	return Reserved
+	return arns.reserved
+end
+
+function arns.addRecord(name, record)
+	arns.records[name] = record
 end
 
 return arns

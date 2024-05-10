@@ -1,8 +1,7 @@
 local constants = require("constants")
-local base64    = require("base64")
-local crypto 	= require("crypto.init")
-
-local utils     = {}
+local base64 = require("base64")
+local crypto = require("crypto.init")
+local utils = {}
 
 function utils.hasMatchingTag(tag, value)
 	return Handlers.utils.hasMatchingTag(tag, value)
@@ -22,7 +21,7 @@ end
 -- @param msg The message table containing the Tags field with all necessary data.
 -- @return boolean, string First return value indicates whether the message is valid (true) or not (false),
 -- and the second return value provides an error message in case of validation failure.
-function utils.validateBuyRecord(name, years, purchaseType, auction, processId)
+function utils.assertValidBuyRecord(name, years, purchaseType, auction, processId)
 	-- Validate the presence and type of the 'name' field
 	if type(name) ~= "string" then
 		error("name is required and must be a string.")
@@ -73,9 +72,6 @@ function utils.validateBuyRecord(name, years, purchaseType, auction, processId)
 			error("auction must be a boolean.")
 		end
 	end
-
-	-- If all validations pass, return true with an empty message indicating success
-	return true
 end
 
 -- Then, check for a 43-character base64url pattern.
@@ -92,7 +88,7 @@ end
 function utils.validateFQDN(fqdn)
 	-- Check if the fqdn is not nil and not empty
 	if not fqdn or fqdn == "" then
- 		error("FQDN is empty")
+		error("FQDN is empty")
 	end
 
 	-- Split the fqdn into parts by dot and validate each part
@@ -170,7 +166,10 @@ function utils.validateUpdateGatewaySettings(settings, observerWallet)
 	end
 
 	-- Validate 'delegateRewardShareRatio' field
-	if settings.delegateRewardShareRatio and (settings.delegateRewardShareRatio < 0 or settings.delegateRewardShareRatio > 100) then
+	if
+		settings.delegateRewardShareRatio
+		and (settings.delegateRewardShareRatio < 0 or settings.delegateRewardShareRatio > 100)
+	then
 		error("Invalid delegateRewardShareRatio value")
 	end
 
@@ -213,7 +212,7 @@ function utils.calculatePermabuyFee(name)
 
 	-- calculate the annual fee for the name for default of 10 years
 	local permabuyPrice =
-	--  No demand factor
+		--  No demand factor
 		initialNamePurchaseFee -- total renewal cost pegged to 10 years to purchase name
 		+ utils.calculateAnnualRenewalFee(name, constants.PERMABUY_LEASE_FEE_LENGTH)
 	return permabuyPrice
@@ -295,20 +294,15 @@ function utils.isActiveReservedName(caller, reservedName, currentTimestamp)
 	return false
 end
 
-function utils.isExistingActiveRecord(record, currentTimestamp)
+function utils.assertAllowedNameModification(record, currentTimestamp)
 	if not record then
-		return false
+		error("Name is not registered")
 	end
 
-	if not utils.isLeaseRecord(record) then
-		return true
+	if record.type == "permabuy" then
+		return
 	end
-
-	if utils.isNameInGracePeriod(record, currentTimestamp) then
-		return true
-	end
-
-	return false
+	-- TODO: all the other validations for one to be able to modify a record
 end
 
 function utils.isShortNameRestricted(name, currentTimestamp)
@@ -352,17 +346,12 @@ function utils.assertAvailableRecord(caller, name, currentTimestamp, type, aucti
 	return true
 end
 
-function utils.validateExtendLease(record, currentTimestamp, years)
-	-- This name's lease has expired beyond grace period and cannot be extended
-	if not utils.isExistingActiveRecord(record, currentTimestamp) then
-		-- This name has expired and must renewed before its undername support can be extended.`,
-		error("This name has expired and must renewed before its undername support can be extended.")
-	end
+function utils.assertValidExtendLease(record, currentTimestamp, years)
+	utils.assertAllowedNameModification(record, currentTimestamp)
 
 	if years > utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp) then
 		error("Invalid number of years for record extension")
 	end
-	return true
 end
 
 function utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
@@ -392,18 +381,11 @@ end
 -- @param qty The quantity of undernames to be added
 -- @param currentTimestamp The current timestamp
 -- @return boolean, string The first return value indicates whether the increase is valid (true) or not (false),
-function utils.validateIncreaseUndernames(record, qty, currentTimestamp)
-	if record == nil then
-		error("Record does not exist")
-	end
+function utils.assertValidIncreaseUndername(record, qty, currentTimestamp)
+	utils.assertAllowedNameModification(record, currentTimestamp)
 
 	if qty < 1 or qty > 9990 then
 		error("Qty is invalid")
-	end
-
-	-- This name's lease has expired and cannot have undernames increased
-	if not utils.isExistingActiveRecord(record, currentTimestamp) then
-		error("This name has expired and must renewed before its undername support can be extended.")
 	end
 
 	-- the new total qty
@@ -420,15 +402,15 @@ function utils.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 end
 
 function utils.isGatewayLeaving(gateway, currentTimestamp)
-	return gateway.status == 'leaving' and gateway.endTimestamp <= currentTimestamp
+	return gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp
 end
 
 function utils.isGatewayEligibleToLeave(gateway, timestamp)
 	if gateway == nil then
 		return error("Gateway does not exist")
 	end
-	local isJoined = utils.isGatewayJoined(gateway, timestamp);
-	return isJoined;
+	local isJoined = utils.isGatewayJoined(gateway, timestamp)
+	return isJoined
 end
 
 function utils.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway)
@@ -440,11 +422,7 @@ end
 function utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
 	local eligibleGateways = {}
 	for address, gateway in pairs(Gateways) do
-		if utils.isGatewayEligibleForDistribution(
-				epochStartTimestamp,
-				epochEndTimestamp,
-				gateway
-			) then
+		if utils.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway) then
 			eligibleGateways[address] = gateway
 		end
 	end
@@ -458,19 +436,19 @@ function utils.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 	-- Iterate over gateways to calculate weights
 	for address, gateway in pairs(eligbileGateways) do
 		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
-		local stakeWeightRatio = totalStake /
-			constants
-			.MIN_OPERATOR_STAKE -- this is always greater than 1 as the minOperatorStake is always less than the stake
+		local stakeWeightRatio = totalStake / constants.MIN_OPERATOR_STAKE -- this is always greater than 1 as the minOperatorStake is always less than the stake
 		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
 		local gatewayStartTimestamp = gateway.startTimestamp
-		local totalTimeForGateway = epochStartTimestamp >= gatewayStartTimestamp and
-			(epochStartTimestamp - gatewayStartTimestamp) or -1
+		local totalTimeForGateway = epochStartTimestamp >= gatewayStartTimestamp
+				and (epochStartTimestamp - gatewayStartTimestamp)
+			or -1
 		-- TODO: should we increment by one here or are observers that join at the epoch start not eligible to be selected as an observer
 
-
-
-		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0 or
-			(totalTimeForGateway > 0 and totalTimeForGateway / constants.TENURE_WEIGHT_PERIOD or 1 / constants.TENURE_WEIGHT_PERIOD)
+		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
+			or (
+				totalTimeForGateway > 0 and totalTimeForGateway / constants.TENURE_WEIGHT_PERIOD
+				or 1 / constants.TENURE_WEIGHT_PERIOD
+			)
 		local gatewayTenureWeight = math.min(calculatedTenureWeightForGateway, constants.MAX_TENURE_WEIGHT)
 
 		local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
@@ -481,8 +459,10 @@ function utils.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 		local totalEpochsSubmitted = gateway.stats.submittedEpochCount or 0
 		local observerRewardRatioWeight = (1 + totalEpochsSubmitted) / (1 + totalEpochsPrescribed)
 
-		local compositeWeight = stakeWeightRatio * gatewayTenureWeight * gatewayRewardRatioWeight *
-			observerRewardRatioWeight
+		local compositeWeight = stakeWeightRatio
+			* gatewayTenureWeight
+			* gatewayRewardRatioWeight
+			* observerRewardRatioWeight
 
 		table.insert(weightedObservers, {
 			gatewayAddress = address,
@@ -494,7 +474,7 @@ function utils.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 			gatewayRewardRatioWeight = gatewayRewardRatioWeight,
 			observerRewardRatioWeight = observerRewardRatioWeight,
 			compositeWeight = compositeWeight,
-			normalizedCompositeWeight = nil -- set later once we have the total composite weight
+			normalizedCompositeWeight = nil, -- set later once we have the total composite weight
 		})
 
 		totalCompositeWeight = totalCompositeWeight + compositeWeight
@@ -518,9 +498,7 @@ function utils.getEntropyHashForEpoch(hash)
 end
 
 function utils.isGatewayJoined(gateway, currentTimestamp)
-	return
-		gateway.status == 'joined' and gateway.startTimestamp <= currentTimestamp
+	return gateway.status == "joined" and gateway.startTimestamp <= currentTimestamp
 end
-
 
 return utils

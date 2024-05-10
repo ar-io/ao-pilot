@@ -3,6 +3,7 @@ local process = { _version = "0.0.1" }
 
 require("state")
 local token = require("token")
+local ao = require("ao")
 local arns = require("arns")
 local gar = require("gar")
 local utils = require("utils")
@@ -180,7 +181,7 @@ Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.I
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
-	local result, err = arns.buyRecord(
+	local success, result = pcall(arns.buyRecord, 
 		msg.Tags.Name,
 		msg.Tags.PurchaseType,
 		msg.Tags.Years,
@@ -189,7 +190,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 		msg.Timestamp,
 		msg.Tags.ProcessId
 	)
-	if err then
+	if not success then
 		ao.send({
 			Target = msg.From,
 			Tags = {
@@ -197,28 +198,43 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 				Name = tostring(msg.Tags.Name),
 				ProcessId = tostring(msg.Tags.ProcessId),
 			},
-			Data = tostring(err),
+			Data = tostring(result),
 		})
+		return	
 	else
 		ao.send({
 			Target = msg.From,
 			Tags = { Action = "ArNS-Purchase-Notice", Sender = msg.From },
+			Error = tostring(result),
 			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMap.SubmitAuctionBid), function(msg)
-	arns.submitAuctionBid(msg)
+	local status, result = pcall(arns.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
+	if not status then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-Auction-Bid' },
+			Data = tostring(result)
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Auction-Bid-Submitted' },
+			Data = tostring(json.encode(result))
+		})
+	end
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
-	local result, err = arns.extendLease(msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
-	if err then
+	local success, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
+	if not success then
 		ao.send({
 			Target = msg.From,
 			Tags = { Action = 'Invalid-Extend-Lease' },
-			Data = tostring(err)
+			Data = tostring(result)
 		})
 	else
 		ao.send({
@@ -232,12 +248,12 @@ end)
 Handlers.add(ActionMap.IncreaseUndernameCount,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
-		local result, err = arns.increaseUndernameCount(msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
-		if err then
+		local status, result = pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
+		if not status then
 			ao.send({
 				Target = msg.From,
 				Tags = { Action = 'Invalid-Undername-Increase' },
-				Data = tostring(err)
+				Data = tostring(result)
 			})
 		else
 			ao.send({
@@ -418,7 +434,7 @@ end)
 -- handler showing how we can fetch data from classes in lua
 Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.DemandFactor), function(msg)
 	-- wrap in a protected call, and return the result or error accoringly to sender
-	local status, result = pcall(function() return Demand:getDemandFactor() end)
+	local status, result = pcall(Demand.getDemandFactor)
 	if status then
 		ao.send({ Target = msg.From, Data = tostring(result) })
 	else

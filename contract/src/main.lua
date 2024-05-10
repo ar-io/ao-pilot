@@ -2,6 +2,7 @@
 local process = { _version = "0.0.1" }
 
 require("state")
+local state = require("state")
 local token = require("token")
 local ao = require("ao")
 local arns = require("arns")
@@ -181,7 +182,7 @@ Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.I
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
-	local success, result = pcall(arns.buyRecord, 
+	local success, result = pcall(arns.buyRecord,
 		msg.Tags.Name,
 		msg.Tags.PurchaseType,
 		msg.Tags.Years,
@@ -200,7 +201,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 			},
 			Data = tostring(result),
 		})
-		return	
+		return
 	else
 		ao.send({
 			Target = msg.From,
@@ -248,7 +249,8 @@ end)
 Handlers.add(ActionMap.IncreaseUndernameCount,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
-		local status, result = pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
+		local status, result = pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity,
+			msg.Timestamp)
 		if not status then
 			ao.send({
 				Target = msg.From,
@@ -439,6 +441,34 @@ Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.De
 		ao.send({ Target = msg.From, Data = tostring(result) })
 	else
 		ao.send({ Target = msg.From, Error = json.encode(result) })
+	end
+end)
+
+Handlers.add(ActionMap.LoadState, utils.hasMatchingTag("Action", ActionMap.LoadState), function(msg, env)
+	-- Validate if the message is from the process owner to ensure that only authorized updates are processed.
+	if msg.From ~= env.Process.Id and msg.From ~= Owner then
+		print("Unauthorized data update attempt detected from: " .. msg.From)
+		-- Sending an error notice back to the sender might be a security concern in some contexts, consider this based on your application's requirements.
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "Load-State-Error", Error = "Unauthorized attempt detected" },
+		})
+		return
+	end
+	local result, err = state.loadState(msg.Data, msg.Timestamp)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Invalid-State-Load' },
+			Data = tostring(err)
+		})
+	else
+		-- Notify the process owner about the successful update.
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "Loaded-State" },
+			Data = tostring(result)
+		})
 	end
 end)
 

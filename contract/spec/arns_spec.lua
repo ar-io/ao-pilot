@@ -1,6 +1,7 @@
 local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
 local arns = require("arns")
 local constants = require("constants")
+require("state")
 
 describe("arns", function()
 	local timestamp = os.clock()
@@ -41,7 +42,8 @@ describe("arns", function()
 	end)
 
 	it("should validate a permabuy request and add the record to global state and deduct balance from caller", function()
-		local status, result = pcall(arns.buyRecord, "test-permabuy", "permabuy", 1, "Bob", false, timestamp, testProcessId)
+		local status, result = pcall(arns.buyRecord, "test-permabuy", "permabuy", 1, "Bob", false, timestamp,
+			testProcessId)
 		assert.is_true(status)
 		assert.are.same({
 			purchasePrice = 3000,
@@ -78,7 +80,7 @@ describe("arns", function()
 		}
 		local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
 		assert.is_false(status)
-    	assert.match("Name is already registered", result)
+		assert.match("Name is already registered", result)
 	end)
 
 	it('should throw an error if the user does not have enough funds', function()

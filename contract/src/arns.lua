@@ -3,11 +3,6 @@ local utils = require("utils")
 local constants = require("constants")
 local arns = {}
 
-Balances = Balances or {}
-Records = Records or {}
-Auctions = Auctions or {}
-Reserved = Reserved or {}
-
 
 -- Needs auctions
 -- Needs demand factor

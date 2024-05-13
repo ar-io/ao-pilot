@@ -3,14 +3,14 @@ local crypto = require("crypto.init")
 local utils = require("utils")
 local constants = require("constants")
 local token = Token or require("token")
-local gar = GatewayRegistry
-	or {
-		gateways = {},
-		observations = {},
-		epochs = {},
-		distributions = {},
-		prescribedObservers = {},
-	}
+local base64 = require("base64")
+local gar = {
+	gateways = {},
+	observations = {},
+	epochs = {},
+	distributions = {},
+	prescribedObservers = {},
+}
 
 local initialStats = {
 	prescribedEpochCount = 0,
@@ -64,7 +64,7 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 
 	local gateway = gar.getGateway(from)
 
-	if not utils.isGatewayEligibleToLeave(gateway, currentTimestamp) then
+	if not gar.isGatewayEligibleToLeave(gateway, currentTimestamp) then
 		error("The gateway is not eligible to leave the network.")
 	end
 
@@ -150,7 +150,11 @@ function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
 	local maxWithdraw = gar.getGateway(from).operatorStake - constants.MIN_OPERATOR_STAKE
 
 	if qty > maxWithdraw then
-		return error("Resulting stake is not enough maintain the minimum operator stake of " .. constants.MIN_OPERATOR_STAKE .. " IO")
+		return error(
+			"Resulting stake is not enough maintain the minimum operator stake of "
+				.. constants.MIN_OPERATOR_STAKE
+				.. " IO"
+		)
 	end
 
 	gar.gateways[from].operatorStake = gar.getGateway(from).operatorStake - qty
@@ -245,7 +249,9 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 
 	-- TODO: when allowedDelegates is supported, check if it's in the array of allowed delegates
 	if not gar.gateways[target].settings.allowDelegatedStaking then
-		error("This Gateway does not allow delegated staking. Only allowed delegates can delegate stake to this Gateway.")
+		error(
+			"This Gateway does not allow delegated staking. Only allowed delegates can delegate stake to this Gateway."
+		)
 	end
 
 	local count = 0
@@ -332,7 +338,10 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 
 	-- avoid observations before the previous epoch distribution has occurred, as distributions affect weights of the current epoch
 	if currentTimestamp < epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY then
-		error("Observations for the current epoch cannot be submitted before block height: " .. epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY)
+		error(
+			"Observations for the current epoch cannot be submitted before block height: "
+				.. epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY
+		)
 	end
 
 	local prescribedObservers = gar.prescribedObservers[epochIndexForCurrentTimestamp] or {}
@@ -416,8 +425,8 @@ function gar.getPrescribedObservers(currentTimestamp)
 end
 
 function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimestamp, hashchain)
-	local eligibleGateways = utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
-	local weightedObservers = utils.getObserverWeightsForEpoch(epochStartTimestamp, eligibleGateways)
+	local eligibleGateways = gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+	local weightedObservers = gar.getObserverWeightsForEpoch(epochStartTimestamp, eligibleGateways)
 	-- Filter out any observers that could have a normalized composite weight of 0
 	local filteredObservers = {}
 	for _, observer in ipairs(weightedObservers) do
@@ -476,6 +485,106 @@ function gar.getEpoch(timeStamp, currentTimestamp)
 		constants.epochTimeLength,
 	}
 	return result
+end
+
+function gar.isGatewayLeaving(gateway, currentTimestamp)
+	return gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp
+end
+
+function gar.isGatewayEligibleToLeave(gateway, timestamp)
+	if gateway == nil then
+		return error("Gateway does not exist")
+	end
+	local isJoined = gar.isGatewayJoined(gateway, timestamp)
+	return isJoined
+end
+
+function gar.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway)
+	local didStartBeforeEpoch = gateway.startTimestamp <= epochStartTimestamp
+	local didNotLeaveDuringEpoch = not utils.isGatewayLeaving(gateway, epochEndTimestamp)
+	return didStartBeforeEpoch and didNotLeaveDuringEpoch
+end
+
+function utils.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+	local eligibleGateways = {}
+	for address, gateway in pairs(Gateways) do
+		if utils.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway) then
+			eligibleGateways[address] = gateway
+		end
+	end
+	return eligibleGateways
+end
+
+function gar.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
+	local weightedObservers = {}
+	local totalCompositeWeight = 0
+
+	-- Iterate over gateways to calculate weights
+	for address, gateway in pairs(eligbileGateways) do
+		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
+		local stakeWeightRatio = totalStake / constants.MIN_OPERATOR_STAKE -- this is always greater than 1 as the minOperatorStake is always less than the stake
+		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
+		local gatewayStartTimestamp = gateway.startTimestamp
+		local totalTimeForGateway = epochStartTimestamp >= gatewayStartTimestamp
+				and (epochStartTimestamp - gatewayStartTimestamp)
+			or -1
+		-- TODO: should we increment by one here or are observers that join at the epoch start not eligible to be selected as an observer
+
+		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
+			or (
+				totalTimeForGateway > 0 and totalTimeForGateway / constants.TENURE_WEIGHT_PERIOD
+				or 1 / constants.TENURE_WEIGHT_PERIOD
+			)
+		local gatewayTenureWeight = math.min(calculatedTenureWeightForGateway, constants.MAX_TENURE_WEIGHT)
+
+		local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
+		local totalEpochsParticipatedIn = gateway.stats.totalEpochParticipationCount or 0
+		local gatewayRewardRatioWeight = (1 + totalEpochsGatewayPassed) / (1 + totalEpochsParticipatedIn)
+
+		local totalEpochsPrescribed = gateway.stats.totalEpochsPrescribedCount or 0
+		local totalEpochsSubmitted = gateway.stats.submittedEpochCount or 0
+		local observerRewardRatioWeight = (1 + totalEpochsSubmitted) / (1 + totalEpochsPrescribed)
+
+		local compositeWeight = stakeWeightRatio
+			* gatewayTenureWeight
+			* gatewayRewardRatioWeight
+			* observerRewardRatioWeight
+
+		table.insert(weightedObservers, {
+			gatewayAddress = address,
+			observerAddress = gateway.observerWallet,
+			stake = totalStake,
+			startTimestamp = gateway.startTimestamp,
+			stakeWeight = stakeWeightRatio,
+			tenureWeight = gatewayTenureWeight,
+			gatewayRewardRatioWeight = gatewayRewardRatioWeight,
+			observerRewardRatioWeight = observerRewardRatioWeight,
+			compositeWeight = compositeWeight,
+			normalizedCompositeWeight = nil, -- set later once we have the total composite weight
+		})
+
+		totalCompositeWeight = totalCompositeWeight + compositeWeight
+	end
+
+	-- Calculate the normalized composite weight for each observer
+	for _, weightedObserver in ipairs(weightedObservers) do
+		if totalCompositeWeight > 0 then
+			weightedObserver.normalizedCompositeWeight = weightedObserver.compositeWeight / totalCompositeWeight
+		else
+			weightedObserver.normalizedCompositeWeight = 0
+		end
+	end
+	return weightedObservers
+end
+
+function gar.getEntropyHashForEpoch(hash)
+	local decodedHash = base64.decode(hash)
+	local hashStream = crypto.utils.stream.fromString(decodedHash)
+	return crypto.digest.sha2_256(hashStream).asBytes()
+end
+
+function gar.isGatewayJoined(gateway, currentTimestamp)
+	return gateway.status == "joined" and gateway.startTimestamp <= currentTimestamp
 end
 
 function gar.getObservations()

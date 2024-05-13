@@ -104,7 +104,8 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 	local prescribedObserversAddresses = {}
 	local hash = timestampEntropyHash
 	while #prescribedObserversAddresses < gar.settings.observers.maxObserversPerEpoch do
-		local random = 0 -- TODO: use the hash as a seed to get a random number between 0 and 1
+		local hashString = crypto.utils.array.toString(hash)
+		local random = crypto.random(0, 1, hashString)
 		local cumulativeNormalizedCompositeWeight = 0
 		-- use ipairs as filtered observers is an array
 		for _, observer in ipairs(filteredObservers) do
@@ -124,7 +125,7 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 				end
 			end
 		end
-		-- Compute the next hash for the next iteration
+		-- hash the hash to get a new hash
 		local newHash = crypto.utils.stream.fromArray(hash)
 		hash = crypto.digest.sha2_256(newHash).asBytes()
 	end

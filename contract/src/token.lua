@@ -97,7 +97,7 @@ end
 
 function token.increaseVault(from, qty, vaultId, currentTimestamp)
 	if token.getBalance(from) < qty then
-		error("Insufficient balance!")
+		error("Insufficient balance")
 	end
 
 	if token.getVault(from, vaultId) then

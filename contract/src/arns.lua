@@ -49,7 +49,8 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	end
 
 	if not reservedForCaller and (purchaseType == "permabuy" and #name < 12) then
-		error("Name must be auctioned")
+		-- error("Name must be auctioned")
+		-- TODO: for now - just state the name is not available for purchase
 		error("Name not available for purchase")
 	end
 

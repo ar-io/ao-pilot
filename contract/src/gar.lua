@@ -127,7 +127,7 @@ function gar.increaseOperatorStake(from, qty)
 	end
 
 	if token.getBalance(from) < qty then
-		error("Insufficient balance!")
+		error("Insufficient balance")
 	end
 
 	token.reduceBalance(from, qty)
@@ -240,7 +240,7 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 	end
 
 	if token.getBalance(from) < qty then
-		error("Insufficient balance!")
+		error("Insufficient balance")
 	end
 
 	if gar.gateways[target].status == "leaving" then

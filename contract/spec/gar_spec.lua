@@ -1,4 +1,5 @@
 local gar = require("gar")
+local token = require("token")
 local constants = require("constants")
 local testSettings = {
 	fqdn = "test.com",
@@ -27,14 +28,18 @@ local testGateway = {
 	},
 	settings = testSettings,
 	status = "joined",
-	observerWallet = "observerWallet"
+	observerWallet = "observerWallet",
 }
 
 describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
+	before_each(function()
+		token.balances = {
+			Bob = constants.MIN_OPERATOR_STAKE,
+		}
+	end)
 	it("should join the network", function()
-		Balances['Bob'] = constants.MIN_OPERATOR_STAKE
-		local result, err = gar.joinNetwork("Bob", constants.MIN_OPERATOR_STAKE, testSettings, "observerWallet",
-			startTimestamp)
+		local result, err =
+			gar.joinNetwork("Bob", constants.MIN_OPERATOR_STAKE, testSettings, "observerWallet", startTimestamp)
 		assert.are.same({
 			operatorStake = constants.MIN_OPERATOR_STAKE,
 			totalDelegatedStake = 0,
@@ -57,7 +62,7 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 	end)
 
 	it("should leave the network", function()
-		Gateways["Bob"] = {
+		gar.gateways["Bob"] = {
 			operatorStake = (constants.MIN_OPERATOR_STAKE + 1000),
 			totalDelegatedStake = constants.MIN_DELEGATED_STAKE,
 			vaults = {},
@@ -77,10 +82,10 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 			observerWallet = "observerWallet",
 		}
 
-		Gateways["Bob"].delegates['Alice'] = {
+		gar.gateways["Bob"].delegates["Alice"] = {
 			delegatedStake = constants.MIN_DELEGATED_STAKE,
 			startTimestamp = 0,
-			vaults = {}
+			vaults = {},
 		}
 
 		local result, err = gar.leaveNetwork("Bob", startTimestamp, "msgId")
@@ -107,10 +112,10 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 						msgId = {
 							balance = constants.MIN_DELEGATED_STAKE,
 							startTimestamp = startTimestamp,
-							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
-						}
-					}
-				}
+							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength,
+						},
+					},
+				},
 			},
 			startTimestamp = startTimestamp,
 			endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.gatewayLeaveLength,
@@ -130,8 +135,8 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 	end)
 
 	it("should increase operator stake", function()
-		Balances["Bob"] = 1000
-		Gateways["Bob"] = {
+		token.balances["Bob"] = 1000
+		gar.gateways["Bob"] = {
 			operatorStake = constants.MIN_OPERATOR_STAKE,
 			totalDelegatedStake = 0,
 			vaults = {},
@@ -168,12 +173,12 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 			},
 			settings = testSettings,
 			status = "joined",
-			observerWallet = "observerWallet"
+			observerWallet = "observerWallet",
 		})
 	end)
 
 	it("should decrease operator stake", function()
-		Gateways["Bob"] = {
+		gar.gateways["Bob"] = {
 			operatorStake = constants.MIN_OPERATOR_STAKE + 1000,
 			totalDelegatedStake = 0,
 			vaults = {},
@@ -200,8 +205,8 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 				msgId = {
 					balance = 1000,
 					startTimestamp = startTimestamp,
-					endTimestamp = startTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength
-				}
+					endTimestamp = startTimestamp + constants.GATEWAY_REGISTRY_SETTINGS.operatorStakeWithdrawLength,
+				},
 			},
 			delegates = {},
 			startTimestamp = startTimestamp,
@@ -216,12 +221,12 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 			},
 			settings = testSettings,
 			status = "joined",
-			observerWallet = "observerWallet"
+			observerWallet = "observerWallet",
 		})
 	end)
 
 	it("should update gateway settings", function()
-		Gateways["Bob"] = {
+		gar.gateways["Bob"] = {
 			operatorStake = constants.MIN_OPERATOR_STAKE,
 			totalDelegatedStake = 0,
 			vaults = {},
@@ -251,9 +256,10 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 			autoStake = true,
 			allowDelegatedStaking = false,
 			delegateRewardShareRatio = 15,
-			minDelegatedStake = constants.MIN_DELEGATED_STAKE + 5
+			minDelegatedStake = constants.MIN_DELEGATED_STAKE + 5,
 		}
-		local result, err = gar.updateGatewaySettings("Bob", updatedSettings, newObserverWallet, startTimestamp, "msgId")
+		local result, err =
+			gar.updateGatewaySettings("Bob", updatedSettings, newObserverWallet, startTimestamp, "msgId")
 		updatedSettings.observerWallet = nil -- this is not an actual setting in a gateway
 		assert.are.same(result, {
 			operatorStake = constants.MIN_OPERATOR_STAKE,
@@ -272,31 +278,31 @@ describe("Network Join, Leave, Increase Stake and Decrease Stake", function()
 				passedConsecutiveEpochs = 0,
 			},
 			settings = updatedSettings,
-			status = "joined"
+			status = "joined",
 		})
 	end)
 
 	it("should get single gateway", function()
-		Gateways["Bob"] = testGateway
+		gar.gateways["Bob"] = testGateway
 		local result = gar.getGateway("Bob")
 		assert.are.same(result, testGateway)
 	end)
 
 	it("should get multiple gateways", function()
-		Gateways["Bob"] = testGateway
-		Gateways["Alice"] = testGateway
+		gar.gateways["Bob"] = testGateway
+		gar.gateways["Alice"] = testGateway
 		local result = gar.getGateways()
 		assert.are.same(result, {
 			Bob = testGateway,
-			Alice = testGateway
+			Alice = testGateway,
 		})
 	end)
 end)
 
 describe("Delegate Staking", function()
 	it("should delegate stake to a gateway", function()
-		Balances["Alice"] = constants.MIN_DELEGATED_STAKE
-		Gateways["Bob"] = {
+		token.balances["Alice"] = constants.MIN_DELEGATED_STAKE
+		gar.gateways["Bob"] = {
 			operatorStake = constants.MIN_OPERATOR_STAKE,
 			totalDelegatedStake = 0,
 			vaults = {},
@@ -324,8 +330,8 @@ describe("Delegate Staking", function()
 				Alice = {
 					delegatedStake = constants.MIN_DELEGATED_STAKE,
 					startTimestamp = startTimestamp,
-					vaults = {}
-				}
+					vaults = {},
+				},
 			},
 			startTimestamp = startTimestamp,
 			stats = {
@@ -339,12 +345,12 @@ describe("Delegate Staking", function()
 			},
 			settings = testSettings,
 			status = "joined",
-			observerWallet = "observerWallet"
+			observerWallet = "observerWallet",
 		})
 	end)
 
 	it("should decrease delegated stake", function()
-		Gateways["Bob"] = {
+		gar.gateways["Bob"] = {
 			operatorStake = constants.MIN_OPERATOR_STAKE,
 			totalDelegatedStake = constants.MIN_DELEGATED_STAKE + 1000,
 			vaults = {},
@@ -364,10 +370,10 @@ describe("Delegate Staking", function()
 			observerWallet = "observerWallet",
 		}
 
-		Gateways["Bob"].delegates['Alice'] = {
+		gar.gateways["Bob"].delegates["Alice"] = {
 			delegatedStake = constants.MIN_DELEGATED_STAKE + 1000,
 			startTimestamp = 0,
-			vaults = {}
+			vaults = {},
 		}
 
 		local result, err = gar.decreaseDelegateStake("Alice", "Bob", 1000, startTimestamp, "msgId")
@@ -383,10 +389,10 @@ describe("Delegate Staking", function()
 						msgId = {
 							balance = 1000,
 							startTimestamp = startTimestamp,
-							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength
-						}
-					}
-				}
+							endTimestamp = constants.GATEWAY_REGISTRY_SETTINGS.delegatedStakeWithdrawLength,
+						},
+					},
+				},
 			},
 			startTimestamp = startTimestamp,
 			stats = {

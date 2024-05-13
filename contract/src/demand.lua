@@ -1,6 +1,5 @@
-local constants = require "constants"
-local demand = { 
-	_version = "0.0.1" ,
+local constants = require("constants")
+local demand = {
 	startTimestamp = os.clock(), -- TODO: The timestamp at which the contract was initialized
 	currentPeriod = 1, -- TODO: the # of days since the last demand factor adjustment
 	trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period purchase counts
@@ -10,7 +9,7 @@ local demand = {
 	currentDemandFactor = 1,
 	consecutivePeriodsWithMinDemandFactor = 0,
 	settings = constants.DEMAND_SETTINGS,
-	fees = constants.genesisFees
+	fees = constants.genesisFees,
 }
 
 function demand.tallyNamePurchase(qty)

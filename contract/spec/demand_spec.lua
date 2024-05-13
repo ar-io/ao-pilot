@@ -2,7 +2,6 @@ local constants = require("constants")
 local demand = require("demand")
 
 describe("demand", function()
-
 	it("should tally name purchase", function()
 		demand.tallyNamePurchase(1)
 		assert.are.equal(1, demand.purchasesThisPeriod)
@@ -32,14 +31,14 @@ describe("demand", function()
 	end)
 
 	it("should return true when demand is increasing for purchases based criteria", function()
-		demand.settings.criteria = 'purchases'
+		demand.settings.criteria = "purchases"
 		demand.purchasesThisPeriod = 10
 		demand.trailingPeriodPurchases = { 10, 0, 0, 0, 0, 0, 0 }
 		assert.is_true(demand.isDemandIncreasing())
 	end)
 
 	it("should return false when demand is not increasing for purchases based criteria", function()
-		demand.criteria = 'purchases'
+		demand.criteria = "purchases"
 		demand.purchasesThisPeriod = 0
 		demand.trailingPeriodPurchases = { 0, 10, 10, 10, 10, 10, 10 }
 		assert.is_false(demand.isDemandIncreasing())

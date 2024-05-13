@@ -1,13 +1,18 @@
 -- Adjust package.path to include the current directory
 local process = { _version = "0.0.1" }
 
-require("state")
-local token = require("token")
 local ao = require("ao")
-local arns = require("arns")
-local gar = require("gar")
 local utils = require("utils")
 local json = require("json")
+
+Name = Name or "Test IO"
+Ticker = Ticker or "tIO"
+Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
+Denomination = Denomination or 6
+Demand = Demand or require("demand")
+Token = Token or require("token")
+GatewayRegistry = GatewayRegistry or require("gar")
+NameRegistry = NameRegistry or require("arns")
 
 local ActionMap = {
 	Info = "Info",
@@ -32,7 +37,7 @@ local ActionMap = {
 	SaveObservations = "SaveObservations",
 	DemandFactor = "DemandFactor",
 	DelegateStake = "DelegateStake",
-	DecreaseDelegateStake = "DecreaseDelegateStake"
+	DecreaseDelegateStake = "DecreaseDelegateStake",
 }
 
 -- Handlers for contract functions
@@ -45,7 +50,7 @@ Handlers.add("info", Handlers.utils.hasMatchingTag("Action", "Info"), function(m
 end)
 
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transfer), function(msg)
-	local result, err = token.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
+	local result, err = Token.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
 	if result and not msg.Cast then
 		-- Send Debit-Notice to the Sender
 		ao.send({
@@ -93,7 +98,7 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 end)
 
 Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetBalance), function(msg)
-	local result = token.getBalance(msg.Tags.Target, msg.From)
+	local result = Token.getBalance(msg.Tags.Target, msg.From)
 	ao.send({
 		Target = msg.From,
 		Balance = tostring(result),
@@ -102,86 +107,93 @@ Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetB
 end)
 
 Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag("Action", ActionMap.GetBalances), function(msg)
-	local result = token.getBalances()
+	local result = Token.getBalances()
 	ao.send({ Target = msg.From, Data = json.encode(result) })
 end)
 
 Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.CreateVault), function(msg)
-	local result, err = token.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
+	local result, err = Token.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Invalid-Create-Vault' },
-			Data = tostring(err)
+			Tags = { Action = "Invalid-Create-Vault" },
+			Data = tostring(err),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Vault-Created-Notice' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Vault-Created-Notice" },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap.VaultedTransfer), function(msg)
-	local result, err = token.vaultedTransfer(msg.From, msg.Tags.Recipient, msg.Tags.Quantity, msg.Tags.LockLength,
-		msg.Timestamp, msg.Id)
+	local result, err = Token.vaultedTransfer(
+		msg.From,
+		msg.Tags.Recipient,
+		msg.Tags.Quantity,
+		msg.Tags.LockLength,
+		msg.Timestamp,
+		msg.Id
+	)
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Invalid-Vaulted-Transfer' },
-			Data = tostring(err)
+			Tags = { Action = "Invalid-Vaulted-Transfer" },
+			Data = tostring(err),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Debit-Notice' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Debit-Notice" },
+			Data = tostring(json.encode(result)),
 		})
 		ao.send({
 			Target = msg.Tags.Recipient,
-			Tags = { Action = 'Vaulted-Credit-Notice' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Vaulted-Credit-Notice" },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.ExtendVault), function(msg)
-	local result, err = token.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
+	local result, err = Token.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Invalid-Extend-Vault' },
-			Data = tostring(err)
+			Tags = { Action = "Invalid-Extend-Vault" },
+			Data = tostring(err),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Vault-Extended' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Vault-Extended" },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.IncreaseVault), function(msg)
-	local result, err = token.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
+	local result, err = Token.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Invalid-Increase-Vault' },
-			Data = tostring(err)
+			Tags = { Action = "Invalid-Increase-Vault" },
+			Data = tostring(err),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Vault-Increased' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Vault-Increased" },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
-	local success, result = pcall(arns.buyRecord, 
+	local success, result = pcall(
+		NameRegistry.buyRecord,
 		msg.Tags.Name,
 		msg.Tags.PurchaseType,
 		msg.Tags.Years,
@@ -200,7 +212,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 			},
 			Data = tostring(result),
 		})
-		return	
+		return
 	else
 		ao.send({
 			Target = msg.From,
@@ -212,75 +224,78 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 end)
 
 Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMap.SubmitAuctionBid), function(msg)
-	local status, result = pcall(arns.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
+	local status, result = pcall(NameRegistry.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
 	if not status then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Invalid-Auction-Bid' },
-			Data = tostring(result)
+			Tags = { Action = "Invalid-Auction-Bid" },
+			Data = tostring(result),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Auction-Bid-Submitted' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Auction-Bid-Submitted" },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
-	local success, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
+	local success, result = pcall(NameRegistry.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
 	if not success then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Invalid-Extend-Lease' },
-			Data = tostring(result)
+			Tags = { Action = "Invalid-Extend-Lease" },
+			Data = tostring(result),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Lease-Extended' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "Lease-Extended" },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
-Handlers.add(ActionMap.IncreaseUndernameCount,
+Handlers.add(
+	ActionMap.IncreaseUndernameCount,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
-		local status, result = pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
+		local status, result =
+			pcall(NameRegistry.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
 		if not status then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'Invalid-Undername-Increase' },
-				Data = tostring(result)
+				Tags = { Action = "Invalid-Undername-Increase" },
+				Data = tostring(result),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'Undername-Quantity-Increased' },
-				Data = tostring(json.encode(result))
+				Tags = { Action = "Undername-Quantity-Increased" },
+				Data = tostring(json.encode(result)),
 			})
 		end
-	end)
+	end
+)
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
-	gar.joinNetwork(msg)
+	GatewayRegistryjoinNetwork(msg)
 end)
 
 Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.LeaveNetwork), function(msg)
-	local result, err = gar.leaveNetwork(msg.From, msg.Timestamp, msg.Id)
+	local result, err = GatewayRegistryleaveNetwork(msg.From, msg.Timestamp, msg.Id)
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'GAR-Invalid-Network-Leave' },
-			Data = tostring(err)
+			Tags = { Action = "GAR-Invalid-Network-Leave" },
+			Data = tostring(err),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'GAR-Leaving-Network', EndTimeStamp = tostring(result.endTimestamp) },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "GAR-Leaving-Network", EndTimeStamp = tostring(result.endTimestamp) },
+			Data = tostring(json.encode(result)),
 		})
 	end
 end)
@@ -289,18 +304,18 @@ Handlers.add(
 	ActionMap.IncreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseOperatorStake),
 	function(msg)
-		local result, err = gar.increaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity))
+		local result, err = GatewayRegistryincreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity))
 		if err then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Invalid-Stake-Increase' },
-				Data = tostring(err)
+				Tags = { Action = "GAR-Invalid-Stake-Increase" },
+				Data = tostring(err),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Stake-Increased', OperatorStake = tostring(result.operatorStake) },
-				Data = tostring(json.encode(result))
+				Tags = { Action = "GAR-Stake-Increased", OperatorStake = tostring(result.operatorStake) },
+				Data = tostring(json.encode(result)),
 			})
 		end
 	end
@@ -310,125 +325,125 @@ Handlers.add(
 	ActionMap.DecreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseOperatorStake),
 	function(msg)
-		local result, err = gar.decreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
+		local result, err =
+			GatewayRegistrydecreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
 		if err then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Invalid-Stake-Decrease' },
-				Data = tostring(err)
+				Tags = { Action = "GAR-Invalid-Stake-Decrease" },
+				Data = tostring(err),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Stake-Decreased', OperatorStake = tostring(result.operatorStake) },
-				Data = tostring(json.encode(result))
+				Tags = { Action = "GAR-Stake-Decreased", OperatorStake = tostring(result.operatorStake) },
+				Data = tostring(json.encode(result)),
 			})
 		end
 	end
 )
 
-Handlers.add(
-	ActionMap.DelegateStake,
-	utils.hasMatchingTag("Action", ActionMap.DelegateStake),
-	function(msg)
-		local result, err = gar.delegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
-		if err then
-			ao.send({
-				Target = msg.From,
-				Tags = { Action = 'GAR-Invalid-Delegate-Stake-Increase' },
-				Data = tostring(err)
-			})
-		else
-			ao.send({
-				Target = msg.From,
-				Tags = { Action = 'GAR-Delegate-Stake-Increased', DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake) },
-				Data = tostring(json.encode(result))
-			})
-		end
+Handlers.add(ActionMap.DelegateStake, utils.hasMatchingTag("Action", ActionMap.DelegateStake), function(msg)
+	local result, err =
+		GatewayRegistrydelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+	if err then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "GAR-Invalid-Delegate-Stake-Increase" },
+			Data = tostring(err),
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "GAR-Delegate-Stake-Increased",
+				DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake),
+			},
+			Data = tostring(json.encode(result)),
+		})
 	end
-)
+end)
 
 Handlers.add(
 	ActionMap.DecreaseDelegateStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseDelegateStake),
 	function(msg)
-		local result, err = gar.decreaseDelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity),
-			msg.Timestamp)
+		local result, err =
+			GatewayRegistrydecreaseDelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
 		if err then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Invalid-Delegate-Stake-Decrease' },
-				Data = tostring(err)
+				Tags = { Action = "GAR-Invalid-Delegate-Stake-Decrease" },
+				Data = tostring(err),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Delegate-Stake-Decreased', DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake) },
-				Data = tostring(json.encode(result))
+				Tags = {
+					Action = "GAR-Delegate-Stake-Decreased",
+					DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake),
+				},
+				Data = tostring(json.encode(result)),
 			})
 		end
 	end
 )
-
 
 Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
-		local result, err = gar.updateGatewaySettings(msg.From, msg.Tags.UpdatedSettings, msg.Tags.ObserverWallet,
-			msg.Timestamp, msg.Id)
+		local result, err = GatewayRegistryupdateGatewaySettings(
+			msg.From,
+			msg.Tags.UpdatedSettings,
+			msg.Tags.ObserverWallet,
+			msg.Timestamp,
+			msg.Id
+		)
 		if err then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Invalid-Update-Gateway-Settings' },
-				Data = tostring(err)
+				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
+				Data = tostring(err),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = 'GAR-Gateway-Settings-Updated' },
-				Data = tostring(json.encode(result))
+				Tags = { Action = "GAR-Gateway-Settings-Updated" },
+				Data = tostring(json.encode(result)),
 			})
 		end
 	end
 )
 
-Handlers.add(
-	ActionMap.GetGateway,
-	utils.hasMatchingTag("Action", ActionMap.GetGateway),
-	function(msg)
-		local result, err = gar.getGateway(msg.Tags.Target)
-		if err then
-			ao.send({
-				Target = msg.From,
-				Tags = { Action = 'GAR-Invalid-Gateway-Target' },
-				Data = tostring(err)
-			})
-		else
-			ao.send({
-				Target = msg.From,
-				Tags = { Action = 'GAR-Get-Gateway' },
-				Data = tostring(json.encode(result))
-			})
-		end
-	end
-)
-
-Handlers.add(
-	ActionMap.GetGateways,
-	utils.hasMatchingTag("Action", ActionMap.GetGateways),
-	function(msg)
-		local result = gar.getGateways()
+Handlers.add(ActionMap.GetGateway, utils.hasMatchingTag("Action", ActionMap.GetGateway), function(msg)
+	local result, err = GatewayRegistrygetGateway(msg.Tags.Target)
+	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'GAR-Get-Gateways' },
-			Data = tostring(json.encode(result))
+			Tags = { Action = "GAR-Invalid-Gateway-Target" },
+			Data = tostring(err),
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "GAR-Get-Gateway" },
+			Data = tostring(json.encode(result)),
 		})
 	end
-)
+end)
+
+Handlers.add(ActionMap.GetGateways, utils.hasMatchingTag("Action", ActionMap.GetGateways), function(msg)
+	local result = GatewayRegistrygetGateways()
+	ao.send({
+		Target = msg.From,
+		Tags = { Action = "GAR-Get-Gateways" },
+		Data = tostring(json.encode(result)),
+	})
+end)
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
-	gar.saveObservations(msg)
+	GatewayRegistrysaveObservations(msg)
 end)
 
 -- handler showing how we can fetch data from classes in lua
@@ -442,4 +457,4 @@ Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.De
 	end
 end)
 
-return process;
+return process

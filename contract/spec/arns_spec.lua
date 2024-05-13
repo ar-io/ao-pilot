@@ -10,6 +10,7 @@ describe("arns", function()
 	before_each(function()
 		arns.records = {}
 		arns.reserved = {}
+		arns.fees = constants.genesisFees
 		token.balances = {
 			Bob = 5000000,
 		}
@@ -34,6 +35,33 @@ describe("arns", function()
 				processId = testProcessId,
 				startTimestamp = 0,
 				endTimestamp = timestamp + constants.MS_IN_A_YEAR * 1,
+			},
+		}, arns.records)
+		assert.are.same({
+			["Bob"] = 4998500,
+			[_G.ao.id] = 1500,
+		}, token.balances)
+	end)
+
+	it('defaults to 1 year and lease when not provided', function ()
+		local status, result = pcall(arns.buyRecord, "test-name", nil, nil, "Bob", false, timestamp, testProcessId)
+		assert.is_true(status)
+		assert.are.same({
+			purchasePrice = 1500,
+			type = "lease",
+			undernameCount = 10,
+			processId = testProcessId,
+			startTimestamp = 0,
+			endTimestamp = timestamp + constants.MS_IN_A_YEAR,
+		}, result)
+		assert.are.same({
+			["test-name"] = {
+				purchasePrice = 1500,
+				type = "lease",
+				undernameCount = 10,
+				processId = testProcessId,
+				startTimestamp = 0,
+				endTimestamp = timestamp + constants.MS_IN_A_YEAR,
 			},
 		}, arns.records)
 		assert.are.same({
@@ -170,5 +198,37 @@ describe("arns", function()
 			assert.is_false(status)
 			assert.match("Name is not registered", error)
 		end)
+
+		it('should allow extension for existing lease up to 5 years', function()
+			arns.records["test-name"] = {
+				-- 1 year lease
+				endTimestamp = timestamp + constants.MS_IN_A_YEAR,
+				processId = testProcessId,
+				purchasePrice = 1500,
+				startTimestamp = 0,
+				type = "lease",
+				undernameCount = 10,
+			}
+			local status, result = pcall(arns.extendLease, "Bob", "test-name", 4, timestamp)
+			assert.is_true(status)
+			assert.are.same({
+				endTimestamp = timestamp + constants.MS_IN_A_YEAR * 5,
+				processId = testProcessId,
+				purchasePrice = 1500,
+				startTimestamp = 0,
+				type = "lease",
+				undernameCount = 10,
+			}, result)
+			assert.are.same({
+				["test-name"] = {
+					endTimestamp = timestamp + constants.MS_IN_A_YEAR * 5,
+					processId = testProcessId,
+					purchasePrice = 1500,
+					startTimestamp = 0,
+					type = "lease",
+					undernameCount = 10,
+				},
+			}, arns.records)
+		end)	
 	end)
 end)

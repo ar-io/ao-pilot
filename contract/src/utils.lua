@@ -185,54 +185,32 @@ function utils.walletHasSufficientBalance(wallet, quantity)
 	return Balances[wallet] ~= nil and Balances[wallet] >= quantity
 end
 
-function utils.calculateLeaseFee(name, years)
-	-- Initial cost to register a name
-	-- TODO: Harden the types here to make fees[name.length] an error
-	local initialNamePurchaseFee = constants.genesisFees[string.len(name)]
-
-	-- total cost to purchase name (no demand factor)
-	return (initialNamePurchaseFee + utils.calculateAnnualRenewalFee(name, years))
+function utils.calculateLeaseFee(baseFee, years, demandFactor)
+	local annualRegistrionFee = utils.calculateAnnualRenewalFee(baseFee, years)
+	local totalLeaseCost = baseFee + annualRegistrionFee
+	return demandFactor * totalLeaseCost
 end
 
-function utils.calculateAnnualRenewalFee(name, years)
-	-- Determine annual registration price of name
-	local initialNamePurchaseFee = constants.genesisFees[string.len(name)]
-
-	-- Annual fee is specific % of initial purchase cost
-	local nameAnnualRegistrationFee = initialNamePurchaseFee * constants.ANNUAL_PERCENTAGE_FEE
-
+function utils.calculateAnnualRenewalFee(baseFee, years)
+	local nameAnnualRegistrationFee = baseFee * constants.ANNUAL_PERCENTAGE_FEE
 	local totalAnnualRenewalCost = nameAnnualRegistrationFee * years
-
 	return totalAnnualRenewalCost
 end
 
-function utils.calculatePermabuyFee(name)
-	-- genesis price
-	local initialNamePurchaseFee = constants.genesisFees[string.len(name)]
-
-	-- calculate the annual fee for the name for default of 10 years
-	local permabuyPrice =
-		--  No demand factor
-		initialNamePurchaseFee -- total renewal cost pegged to 10 years to purchase name
-		+ utils.calculateAnnualRenewalFee(name, constants.PERMABUY_LEASE_FEE_LENGTH)
-	return permabuyPrice
+function utils.calculatePermabuyFee(baseFee, demandFactor)
+	local permabuyPrice = baseFee + utils.calculateAnnualRenewalFee(baseFee, constants.PERMABUY_LEASE_FEE_LENGTH)
+	return demandFactor * permabuyPrice
 end
 
-function utils.calculateRegistrationFee(purchaseType, name, years)
+function utils.calculateRegistrationFee(purchaseType, baseFee, years, demandFactor)
 	if purchaseType == "lease" then
-		return utils.calculateLeaseFee(name, years)
+		return utils.calculateLeaseFee(baseFee, years, demandFactor)
 	elseif purchaseType == "permabuy" then
-		return utils.calculatePermabuyFee(name)
+		return utils.calculatePermabuyFee(baseFee, demandFactor)
 	end
 end
 
-function utils.calculateUndernameCost(name, increaseQty, registrationType, years)
-	local initialNameFee = constants.genesisFees[string.len(name)] -- Get the fee based on the length of the name
-	if initialNameFee == nil then
-		-- Handle the case where there is no fee for the given name length
-		return 0
-	end
-
+function utils.calculateUndernameCost(baseFee, increaseQty, registrationType, years, demandFactor)
 	local undernamePercentageFee = 0
 	if registrationType == "lease" then
 		undernamePercentageFee = constants.UNDERNAME_LEASE_FEE_PERCENTAGE
@@ -240,8 +218,13 @@ function utils.calculateUndernameCost(name, increaseQty, registrationType, years
 		undernamePercentageFee = constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE
 	end
 
-	local totalFeeForQtyAndYears = initialNameFee * undernamePercentageFee * increaseQty * years
-	return totalFeeForQtyAndYears
+	local totalFeeForQtyAndYears = baseFee * undernamePercentageFee * increaseQty * years
+	return demandFactor * totalFeeForQtyAndYears
+end
+
+function utils.calculateExtensionFee(baseFee, years, demandFactor)
+	local extensionFee = utils.calculateAnnualRenewalFee(baseFee, years)
+	return demandFactor * extensionFee
 end
 
 function utils.isLeaseRecord(record)
@@ -265,7 +248,7 @@ function utils.isNameInGracePeriod(record, currentTimestamp)
 	if not record or not record.endTimestamp then
 		return false
 	end -- if it has no timestamp, it is a permabuy
-	if (utils.ensureMilliseconds(record.endTimestamp) + constants.MS_IN_GRACE_PERIOD) < currentTimestamp then
+	if (utils.ensureMilliseconds(record.endTimestamp) + constants.gracePeriodMs) < currentTimestamp then
 		return false
 	end
 	return true
@@ -348,8 +331,8 @@ end
 
 function utils.assertValidExtendLease(record, currentTimestamp, years)
 	utils.assertAllowedNameModification(record, currentTimestamp)
-
-	if years > utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp) then
+	local maxAllowedYears = utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
+	if years > maxAllowedYears then
 		error("Invalid number of years for record extension")
 	end
 end
@@ -360,12 +343,12 @@ function utils.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
 	end
 
 	-- if expired return 0 because it cannot be extended and must be re-bought
-	if currentTimestamp > record.endTimestamp + constants.SECONDS_IN_GRACE_PERIOD then
+	if currentTimestamp > (record.endTimestamp + constants.gracePeriodMs) then
 		return 0
 	end
 
 	if utils.isNameInGracePeriod(record, currentTimestamp) then
-		return constants.ARNS_LEASE_LENGTH_MAX_YEARS
+		return constants.maxLeaseLengthYears
 	end
 
 	-- TODO: should we put this as the ceiling? or should we allow people to extend as soon as it is purchased

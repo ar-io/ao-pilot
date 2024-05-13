@@ -2,10 +2,12 @@
 local utils = require("utils")
 local constants = require("constants")
 local token = Token or require("token")
+local demand = Demand or require("demand")
 local arns = {
 	reserved = {},
 	records = {},
 	auctions = {},
+	fees = constants.genesisFees,
 }
 function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, processId)
 	-- don't catch, let the caller handle the error
@@ -19,7 +21,9 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 		years = 1 -- set to 1 year by default
 	end
 
-	local totalRegistrationFee = utils.calculateRegistrationFee(purchaseType, name, years)
+	local baseRegistrionFee = arns.fees[#name]
+
+	local totalRegistrationFee = utils.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
 	if token.getBalance(from) < totalRegistrationFee then
 		error("Insufficient funds")
@@ -66,13 +70,20 @@ function arns.extendLease(from, name, years, timestamp)
 	local record = arns.getRecord(name)
 	-- throw error if invalid
 	utils.assertValidExtendLease(record, timestamp, years)
-
-	local totalExtensionFee = utils.calculateExtensionFee(name, years, record.type)
+	local baseRegistrionFee = arns.fees[#name]
+	local totalExtensionFee = utils.calculateExtensionFee(baseRegistrionFee, years, demand.getDemandFactor())
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalExtensionFee)
 
 	arns.records[name].endTimestamp = record.endTimestamp + constants.MS_IN_A_YEAR * years
-	return Records[name]
+	return arns.records[name]
+end
+
+function arns.calculateExtensionFee(name, years, purchaseType)
+	local record = arns.getRecord(name)
+	local yearsRemaining = utils.calculateYearsBetweenTimestamps(record.endTimestamp, timestamp)
+	local extensionFee = utils.calculateUndernameCost(name, years, purchaseType, yearsRemaining)
+	return extensionFee
 end
 
 function arns.increaseUndernameCount(from, name, qty, timestamp)
@@ -93,7 +104,8 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 	end
 
 	local existingUndernames = record.undernameCount
-	local additionalUndernameCost = utils.calculateUndernameCost(name, qty, record.type, yearsRemaining)
+	local baseRegistrionFee = arns.fees[#name]
+	local additionalUndernameCost = utils.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
 
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, additionalUndernameCost)

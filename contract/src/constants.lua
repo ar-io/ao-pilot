@@ -39,7 +39,8 @@ constants.ARNS_MAX_UNDERNAME_MESSAGE = "Name has reached undername limit of 1000
 constants.MAX_ALLOWED_UNDERNAMES = 10000
 constants.UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
 constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
-constants.MS_IN_GRACE_PERIOD = 3 * 7 * 24 * 60 * 60 * 1000
+constants.gracePeriodMs = 3 * 7 * 24 * 60 * 60 * 1000
+constants.maxLeaseLengthYears = 5
 
 -- DEMAND
 constants.DEMAND_SETTINGS = {

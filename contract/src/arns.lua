@@ -9,9 +9,10 @@ local arns = {
 	auctions = {},
 	fees = constants.genesisFees,
 }
+
 function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, processId)
 	-- don't catch, let the caller handle the error
-	utils.assertValidBuyRecord(name, years, purchaseType, auction, processId)
+	arns.assertValidBuyRecord(name, years, purchaseType, auction, processId)
 	if purchaseType == nil then
 		purchaseType = "lease" -- set to lease by default
 	end
@@ -23,7 +24,7 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 	local baseRegistrionFee = arns.fees[#name]
 
 	local totalRegistrationFee =
-		utils.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
+		arns.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
 	if token.getBalance(from) < totalRegistrationFee then
 		error("Insufficient funds")
@@ -75,7 +76,7 @@ function arns.extendLease(from, name, years, timestamp)
 	-- throw error if invalid
 	utils.assertValidExtendLease(record, timestamp, years)
 	local baseRegistrionFee = arns.fees[#name]
-	local totalExtensionFee = utils.calculateExtensionFee(baseRegistrionFee, years, demand.getDemandFactor())
+	local totalExtensionFee = arns.calculateExtensionFee(baseRegistrionFee, years, demand.getDemandFactor())
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalExtensionFee)
 
@@ -83,11 +84,9 @@ function arns.extendLease(from, name, years, timestamp)
 	return arns.records[name]
 end
 
-function arns.calculateExtensionFee(name, years, purchaseType)
-	local record = arns.getRecord(name)
-	local yearsRemaining = utils.calculateYearsBetweenTimestamps(record.endTimestamp, timestamp)
-	local extensionFee = utils.calculateUndernameCost(name, years, purchaseType, yearsRemaining)
-	return extensionFee
+function arns.calculateExtensionFee(baseFee, years, demandFactor)
+	local extensionFee = arns.calculateAnnualRenewalFee(baseFee, years)
+	return demandFactor * extensionFee
 end
 
 function arns.increaseUndernameCount(from, name, qty, timestamp)
@@ -98,19 +97,19 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 	utils.assertValidIncreaseUndername(record, qty, timestamp)
 
 	local endTimestamp
-	if utils.isLeaseRecord(record) then
+	if record.type == "lease" then
 		endTimestamp = record.endTimestamp
 	end
 
 	local yearsRemaining = constants.PERMABUY_LEASE_FEE_LENGTH
 	if endTimestamp then
-		yearsRemaining = utils.calculateYearsBetweenTimestamps(timestamp, endTimestamp)
+		yearsRemaining = arns.calculateYearsBetweenTimestamps(timestamp, endTimestamp)
 	end
 
 	local existingUndernames = record.undernameCount
 	local baseRegistrionFee = arns.fees[#name]
 	local additionalUndernameCost =
-		utils.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
+		arns.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
 
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, additionalUndernameCost)
@@ -156,6 +155,102 @@ end
 
 function arns.getReservedNames()
 	return arns.reserved
+end
+
+-- internal functions
+function arns.calculateLeaseFee(baseFee, years, demandFactor)
+	local annualRegistrionFee = arns.calculateAnnualRenewalFee(baseFee, years)
+	local totalLeaseCost = baseFee + annualRegistrionFee
+	return demandFactor * totalLeaseCost
+end
+
+function arns.calculateAnnualRenewalFee(baseFee, years)
+	local nameAnnualRegistrationFee = baseFee * constants.ANNUAL_PERCENTAGE_FEE
+	local totalAnnualRenewalCost = nameAnnualRegistrationFee * years
+	return totalAnnualRenewalCost
+end
+
+function arns.calculatePermabuyFee(baseFee, demandFactor)
+	local permabuyPrice = baseFee + arns.calculateAnnualRenewalFee(baseFee, constants.PERMABUY_LEASE_FEE_LENGTH)
+	return demandFactor * permabuyPrice
+end
+
+function arns.calculateRegistrationFee(purchaseType, baseFee, years, demandFactor)
+	if purchaseType == "lease" then
+		return arns.calculateLeaseFee(baseFee, years, demandFactor)
+	elseif purchaseType == "permabuy" then
+		return arns.calculatePermabuyFee(baseFee, demandFactor)
+	end
+end
+
+function arns.calculateUndernameCost(baseFee, increaseQty, registrationType, years, demandFactor)
+	local undernamePercentageFee = 0
+	if registrationType == "lease" then
+		undernamePercentageFee = constants.UNDERNAME_LEASE_FEE_PERCENTAGE
+	elseif registrationType == "permabuy" then
+		undernamePercentageFee = constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE
+	end
+
+	local totalFeeForQtyAndYears = baseFee * undernamePercentageFee * increaseQty * years
+	return demandFactor * totalFeeForQtyAndYears
+end
+
+function arns.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
+	local yearsRemainingFloat = math.floor((endTimestamp - startTimestamp) / constants.oneYearMs)
+	return yearsRemainingFloat
+end
+
+function arns.assertValidBuyRecord(name, years, purchaseType, auction, processId)
+	-- Validate the presence and type of the 'name' field
+	if type(name) ~= "string" then
+		error("name is required and must be a string.")
+	end
+
+	-- Validate the character count 'name' field to ensure names 4 characters or below are excluded
+	if string.len(name) <= 4 then
+		error("1-4 character names are not allowed")
+	end
+
+	local startsWithAlphanumeric = name:match("^%w")
+	local endsWithAlphanumeric = name:match("%w$")
+	local middleValid = name:match("^[%w-]+$")
+	local validLength = #name >= 5 and #name <= 51
+
+	if not (startsWithAlphanumeric and endsWithAlphanumeric and middleValid and validLength) then
+		error("name pattern is invalid.")
+	end
+
+	-- TODO: validate atomic tags
+
+	if not utils.isValidBase64Url(processId) then
+		error("processId pattern is invalid.")
+	end
+
+	-- If 'years' is present, validate it as an integer between 1 and 5
+	if years then
+		if type(years) ~= "number" or years % 1 ~= 0 or years < 1 or years > 5 then
+			return error("years must be an integer between 1 and 5.")
+		end
+	end
+
+	-- Validate 'PurchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
+	if purchaseType then
+		if not (purchaseType == "lease" or purchaseType == "permabuy") then
+			error("type pattern is invalid.")
+		end
+
+		-- Do not allow permabuying names 11 characters or below for this experimentation period
+		if purchaseType == "permabuy" and string.len(name) <= 11 then
+			error("cannot permabuy name 11 characters or below at this time")
+		end
+	end
+
+	-- Validate the 'auction' field if present, ensuring it is a boolean value
+	if auction then
+		if type(auction) ~= "boolean" then
+			error("auction must be a boolean.")
+		end
+	end
 end
 
 return arns

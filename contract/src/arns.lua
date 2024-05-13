@@ -97,7 +97,7 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 	local record = arns.getRecord(name)
 
 	-- throws errors on invalid requests
-	utils.assertValidIncreaseUndername(record, qty, timestamp)
+	arns.assertValidIncreaseUndername(record, qty, timestamp)
 
 	local endTimestamp
 	if record.type == "lease" then
@@ -325,6 +325,40 @@ function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 	end
 
 	return true
+end
+
+function arns.isActiveReservedName(caller, reservedName, currentTimestamp)
+	if not reservedName then
+		return false
+	end
+
+	local target = reservedName.target
+	local endTimestamp = reservedName.endTimestamp
+	local permanentlyReserved = not target and not endTimestamp
+
+	if permanentlyReserved then
+		return true
+	end
+
+	local isCallerTarget = caller ~= nil and target == caller
+	local isActiveReservation = endTimestamp and endTimestamp > currentTimestamp
+
+	-- If the caller is not the target, and it's still active - the name is considered reserved
+	if not isCallerTarget and isActiveReservation then
+		return true
+	end
+	return false
+end
+
+function arns.isShortNameRestricted(name, currentTimestamp)
+	return (
+		#name < constants.MINIMUM_ALLOWED_NAME_LENGTH
+		and currentTimestamp < constants.SHORT_NAME_RESERVATION_UNLOCK_TIMESTAMP
+	)
+end
+
+function arns.isNameRequiredToBeAuction(name, type)
+	return (type == "permabuy" and #name < 12)
 end
 
 return arns

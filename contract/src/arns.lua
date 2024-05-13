@@ -12,7 +12,6 @@ local arns = {
 function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, processId)
 	-- don't catch, let the caller handle the error
 	utils.assertValidBuyRecord(name, years, purchaseType, auction, processId)
-
 	if purchaseType == nil then
 		purchaseType = "lease" -- set to lease by default
 	end
@@ -23,7 +22,8 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 
 	local baseRegistrionFee = arns.fees[#name]
 
-	local totalRegistrationFee = utils.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
+	local totalRegistrationFee =
+		utils.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
 	if token.getBalance(from) < totalRegistrationFee then
 		error("Insufficient funds")
@@ -33,16 +33,13 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 		error("Name is in auction")
 	end
 
-	if arns.getRecord(name) then
+	if arns.getRecord(name) and arns.getRecord(name).endTimestamp + constants.gracePeriodMs > timestamp then
 		error("Name is already registered")
 	end
 
 	if arns.getReservedName(name) and arns.getReservedName(name).target ~= from then
 		error("Name is reserved")
 	end
-
-	-- Transfer tokens to the protocol balance
-	token.transfer(ao.id, from, totalRegistrationFee)
 
 	local newRecord = {
 		processId = processId,
@@ -54,16 +51,23 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 
 	-- Register the leased or permabought name
 	if purchaseType == "lease" then
-		newRecord.endTimestamp = timestamp + constants.MS_IN_A_YEAR * years
+		newRecord.endTimestamp = timestamp + constants.oneYearMs * years
 	end
-
-	arns.records[name] = newRecord
-	arns.reserved[name] = nil
-	return newRecord
+	-- Transfer tokens to the protocol balance
+	token.transfer(ao.id, from, totalRegistrationFee)
+	arns.addRecord(name, newRecord)
+	return arns.getRecord(name)
 end
 
 function arns.submitAuctionBid()
 	utils.reply("submitAuctionBid is not implemented yet")
+end
+
+function arns.addRecord(name, record)
+	arns.records[name] = record
+	if arns.getReservedName(record.name) then
+		arns.reserved[name] = nil
+	end
 end
 
 function arns.extendLease(from, name, years, timestamp)
@@ -75,7 +79,7 @@ function arns.extendLease(from, name, years, timestamp)
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalExtensionFee)
 
-	arns.records[name].endTimestamp = record.endTimestamp + constants.MS_IN_A_YEAR * years
+	arns.records[name].endTimestamp = record.endTimestamp + constants.oneYearMs * years
 	return arns.records[name]
 end
 
@@ -105,7 +109,8 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 
 	local existingUndernames = record.undernameCount
 	local baseRegistrionFee = arns.fees[#name]
-	local additionalUndernameCost = utils.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
+	local additionalUndernameCost =
+		utils.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
 
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, additionalUndernameCost)
@@ -151,10 +156,6 @@ end
 
 function arns.getReservedNames()
 	return arns.reserved
-end
-
-function arns.addRecord(name, record)
-	arns.records[name] = record
 end
 
 return arns

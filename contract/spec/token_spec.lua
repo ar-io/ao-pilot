@@ -37,7 +37,6 @@ describe("vaults", function()
 	it("should create vault", function()
 		local status, result =
 			pcall(token.createVault, "Bob", 100, constants.MIN_TOKEN_LOCK_TIME, startTimestamp, "msgId")
-		print(result)
 		local expectation = {
 			balance = 100,
 			startTimestamp = startTimestamp,

@@ -12,7 +12,7 @@ constants.MAXIMUM_OBSERVERS_PER_EPOCH = 50
 -- GAR
 constants.DEFAULT_UNDERNAME_COUNT = 10
 constants.DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
-constants.MS_IN_A_YEAR = 31536000 * 1000
+constants.oneYearMs = 31536000 * 1000
 constants.MIN_OPERATOR_STAKE = 10000 * 1000000 -- Ten thousand IO
 constants.MIN_DELEGATED_STAKE = 50 * 1000000 -- Fifty IO
 constants.oneYearSeconds = 60 * 60 * 24 * 365
@@ -31,7 +31,6 @@ constants.NETWORK_JOIN_STATUS = "joined"
 -- ARNS
 constants.DEFAULT_UNDERNAME_COUNT = 10
 constants.DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
-constants.MS_IN_A_YEAR = 31536000 * 1000
 constants.PERMABUY_LEASE_FEE_LENGTH = 10
 constants.ANNUAL_PERCENTAGE_FEE = 0.2
 constants.ARNS_NAME_DOES_NOT_EXIST_MESSAGE = "Name does not exist in the ArNS Registry!"
@@ -39,6 +38,7 @@ constants.ARNS_MAX_UNDERNAME_MESSAGE = "Name has reached undername limit of 1000
 constants.MAX_ALLOWED_UNDERNAMES = 10000
 constants.UNDERNAME_LEASE_FEE_PERCENTAGE = 0.001
 constants.UNDERNAME_PERMABUY_FEE_PERCENTAGE = 0.005
+constants.oneYearMs = 31536000 * 1000
 constants.gracePeriodMs = 3 * 7 * 24 * 60 * 60 * 1000
 constants.maxLeaseLengthYears = 5
 

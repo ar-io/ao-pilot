@@ -11,3 +11,4 @@ node_modules
 wallet.json
 .DS_Store
 luacov-html
+.luacov

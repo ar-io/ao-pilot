@@ -105,7 +105,7 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 	local hash = timestampEntropyHash
 	while #prescribedObserversAddresses < gar.settings.observers.maxObserversPerEpoch do
 		local hashString = crypto.utils.array.toString(hash)
-		local random = crypto.random(0, 1, hashString)
+		local random = crypto.random(nil, nil, hashString) / 0xffffffff
 		local cumulativeNormalizedCompositeWeight = 0
 		-- use ipairs as filtered observers is an array
 		for _, observer in ipairs(filteredObservers) do

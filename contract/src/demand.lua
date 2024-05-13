@@ -1,6 +1,6 @@
 local constants = require("constants")
 local demand = {
-	startTimestamp = os.clock(), -- TODO: The timestamp at which the contract was initialized
+	startTimestamp = 0, -- TODO: The timestamp at which the contract was initialized
 	currentPeriod = 1, -- TODO: the # of days since the last demand factor adjustment
 	trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period purchase counts
 	trailingPeriodRevenues = { 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period revenues
@@ -85,6 +85,14 @@ end
 
 function demand.getDemandFactor()
 	return demand.currentDemandFactor
+end
+
+function demand.getCurrentPeriodRevenue()
+	return demand.revenueThisPeriod
+end
+
+function demand.getCurrentPeriodPurchases()
+	return demand.purchasesThisPeriod
 end
 
 return demand

@@ -2,6 +2,7 @@ local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
 local constants = require("constants")
 local arns = require("arns")
 local token = require("token")
+local demand = require("demand")
 
 describe("arns", function()
 	local timestamp = os.clock()
@@ -18,6 +19,8 @@ describe("arns", function()
 
 	describe("buyRecord", function()
 		it("should add a valid lease buyRecord to records objec and transfer balance to the protocol", function()
+			local demandBefore = demand.getCurrentPeriodRevenue()
+			local purchasesBefore = demand.getCurrentPeriodPurchases()
 			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
@@ -42,9 +45,13 @@ describe("arns", function()
 				["Bob"] = 4998500,
 				[_G.ao.id] = 1500,
 			}, token.balances)
+			assert.are.equal(demandBefore + 1500, demand.getCurrentPeriodRevenue())
+			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
 
 		it("should default lease to 1 year and lease when not values are not provided", function()
+			local demandBefore = demand.getCurrentPeriodRevenue()
+			local purchasesBefore = demand.getCurrentPeriodPurchases()
 			local status, result = pcall(arns.buyRecord, "test-name", nil, nil, "Bob", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
@@ -69,6 +76,8 @@ describe("arns", function()
 				["Bob"] = 4998500,
 				[_G.ao.id] = 1500,
 			}, token.balances)
+			assert.are.equal(demandBefore + 1500, demand.getCurrentPeriodRevenue())
+			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
 
 		it("should error when years is greater than max allowed", function()
@@ -88,6 +97,8 @@ describe("arns", function()
 		it(
 			"should validate a permabuy request and add the record to global state and deduct balance from caller",
 			function()
+				local demandBefore = demand.getCurrentPeriodRevenue()
+				local purchasesBefore = demand.getCurrentPeriodPurchases()
 				local status, result =
 					pcall(arns.buyRecord, "test-permabuy-name", "permabuy", 1, "Bob", timestamp, testProcessId)
 				assert.is_true(status)
@@ -113,6 +124,8 @@ describe("arns", function()
 					["Bob"] = 4997000,
 					[_G.ao.id] = 3000,
 				}, token.balances)
+				assert.are.equal(demandBefore + 3000, demand.getCurrentPeriodRevenue())
+				assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 			end
 		)
 
@@ -167,6 +180,8 @@ describe("arns", function()
 		end)
 
 		it("should allow you to buy a reserved name if reserved for caller", function()
+			local demandBefore = demand.getCurrentPeriodRevenue()
+			local purchasesBefore = demand.getCurrentPeriodPurchases()
 			arns.reserved["test-name"] = {
 				target = "Bob",
 				endTimestamp = 1000,
@@ -183,6 +198,12 @@ describe("arns", function()
 			assert.is_true(status)
 			assert.are.same(expectation, result)
 			assert.are.same({ ["test-name"] = expectation }, arns.records)
+			assert.are.same({
+				["Bob"] = 4998500,
+				[_G.ao.id] = 1500,
+			}, token.balances)
+			assert.are.equal(demandBefore + 1500, demand.getCurrentPeriodRevenue())
+			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
 
 		it("should throw an error if the record is in auction", function()
@@ -263,6 +284,8 @@ describe("arns", function()
 				type = "lease",
 				undernameCount = 10,
 			}
+			local demandBefore = demand.getCurrentPeriodRevenue()
+			local purchasesBefore = demand.getCurrentPeriodPurchases()
 			local status, result = pcall(arns.increaseUndernameCount, "Bob", "test-name", 50, timestamp)
 			local expectation = {
 				endTimestamp = timestamp + constants.oneYearMs,
@@ -279,6 +302,8 @@ describe("arns", function()
 				["Bob"] = 4999937.5,
 				[_G.ao.id] = 62.5,
 			}, token.balances)
+			assert.are.equal(demandBefore + 62.5, demand.getCurrentPeriodRevenue())
+			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
 	end)
 
@@ -349,6 +374,8 @@ describe("arns", function()
 				type = "lease",
 				undernameCount = 10,
 			}
+			local demandBefore = demand.getCurrentPeriodRevenue()
+			local purchasesBefore = demand.getCurrentPeriodPurchases()
 			local status, result = pcall(arns.extendLease, "Bob", "test-name", 4, timestamp)
 			assert.is_true(status)
 			assert.are.same({
@@ -369,6 +396,12 @@ describe("arns", function()
 					undernameCount = 10,
 				},
 			}, arns.records)
+			assert.are.same({
+				["Bob"] = 4999000,
+				[_G.ao.id] = 1000,
+			}, token.balances)
+			assert.are.equal(demandBefore + 1000, demand.getCurrentPeriodRevenue())
+			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
 
 		it("should throw an error when trying to extend beyond 5 years", function()

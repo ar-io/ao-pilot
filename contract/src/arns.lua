@@ -69,6 +69,7 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalRegistrationFee)
 	arns.addRecord(name, newRecord)
+	demand.tallyNamePurchase(totalRegistrationFee)
 	return arns.getRecord(name)
 end
 
@@ -96,6 +97,7 @@ function arns.extendLease(from, name, years, currentTimestamp)
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalExtensionFee)
 	arns.records[name].endTimestamp = record.endTimestamp + constants.oneYearMs * years
+	demand.tallyNamePurchase(totalExtensionFee)
 	return arns.records[name]
 end
 
@@ -132,6 +134,7 @@ function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, additionalUndernameCost)
 	arns.records[name].undernameCount = existingUndernames + qty
+	demand.tallyNamePurchase(additionalUndernameCost)
 	return arns.records[name]
 end
 

@@ -12,7 +12,6 @@ constants.MAXIMUM_OBSERVERS_PER_EPOCH = 50
 -- GAR
 constants.DEFAULT_UNDERNAME_COUNT = 10
 constants.DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds
-constants.oneYearMs = 31536000 * 1000
 constants.MIN_OPERATOR_STAKE = 10000 * 1000000 -- Ten thousand IO
 constants.MIN_DELEGATED_STAKE = 50 * 1000000 -- Fifty IO
 constants.oneYearSeconds = 60 * 60 * 24 * 365

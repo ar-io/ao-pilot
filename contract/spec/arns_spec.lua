@@ -239,6 +239,21 @@ describe("arns", function()
 			assert.match(constants.ARNS_MAX_UNDERNAME_MESSAGE, error)
 		end)
 
+		it("should throw an error if the name is in the grace period", function()
+			arns.records["test-name"] = {
+				endTimestamp = timestamp + constants.oneYearMs,
+				processId = testProcessId,
+				purchasePrice = 1500,
+				startTimestamp = 0,
+				type = "lease",
+				undernameCount = 10,
+			}
+			local status, error =
+				pcall(arns.increaseUndernameCount, "Bob", "test-name", 1, timestamp + constants.oneYearMs + 1)
+			assert.is_false(status)
+			assert.match("Name must be extended before additional unernames can be purchase", error)
+		end)
+
 		it("should increase the undername count and properly deduct balance", function()
 			arns.records["test-name"] = {
 				endTimestamp = timestamp + constants.oneYearMs,
@@ -274,16 +289,22 @@ describe("arns", function()
 			assert.match("Name is not registered", error)
 		end)
 
-		it("should throw an error if the lease is expired", function()
+		it("should throw an error if the lease is expired and beyond the grace period", function()
 			arns.records["test-name"] = {
-				endTimestamp = timestamp - 1,
+				endTimestamp = timestamp + constants.oneYearMs,
 				processId = testProcessId,
 				purchasePrice = 1500,
 				startTimestamp = 0,
 				type = "lease",
 				undernameCount = 10,
 			}
-			local status, error = pcall(arns.extendLease, "Bob", "test-name", 1, timestamp)
+			local status, error = pcall(
+				arns.extendLease,
+				"Bob",
+				"test-name",
+				1,
+				timestamp + constants.oneYearMs + constants.gracePeriodMs + 1
+			)
 			assert.is_false(status)
 			assert.match("Name is expired", error)
 		end)

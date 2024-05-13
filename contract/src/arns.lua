@@ -104,27 +104,26 @@ function arns.calculateExtensionFee(baseFee, years, demandFactor)
 	return demandFactor * extensionFee
 end
 
-function arns.increaseUndernameCount(from, name, qty, timestamp)
+function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 	-- validate record can increase undernames
 	local record = arns.getRecord(name)
 
 	-- throws errors on invalid requests
-	arns.assertValidIncreaseUndername(record, qty, timestamp)
-
-	local endTimestamp
-	if record.type == "lease" then
-		endTimestamp = record.endTimestamp
-	end
+	arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 
 	local yearsRemaining = constants.PERMABUY_LEASE_FEE_LENGTH
-	if endTimestamp then
-		yearsRemaining = arns.calculateYearsBetweenTimestamps(timestamp, endTimestamp)
+	if record.type == "lease" then
+		yearsRemaining = arns.calculateYearsBetweenTimestamps(currentTimestamp, record.endTimestamp)
 	end
 
 	local existingUndernames = record.undernameCount
 	local baseRegistrionFee = arns.fees[#name]
 	local additionalUndernameCost =
 		arns.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
+
+	if additionalUndernameCost < 0 then
+		error("Invalid undername cost")
+	end
 
 	if token.getBalance(from) < additionalUndernameCost then
 		error("Insufficient balance")
@@ -264,7 +263,7 @@ function arns.assertValidExtendLease(record, currentTimestamp, years)
 		error("Name is permabought and cannot be extended")
 	end
 
-	if record.endTimestamp and record.endTimestamp < currentTimestamp then
+	if record.endTimestamp and record.endTimestamp + constants.gracePeriodMs < currentTimestamp then
 		error("Name is expired")
 	end
 
@@ -277,11 +276,6 @@ end
 function arns.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
 	if not record.endTimestamp then
 		return 0
-	end
-
-	-- if expired return 0 because it cannot be extended and must be re-bought
-	if currentTimestamp > (record.endTimestamp + constants.gracePeriodMs) then
-		error("Name is expired")
 	end
 
 	if currentTimestamp > record.endTimestamp and currentTimestamp < record.endTimestamp + constants.gracePeriodMs then
@@ -303,12 +297,12 @@ function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 	if
 		record.endTimestamp
 		and record.endTimestamp < currentTimestamp
-		and record.endTimestamp + constants.gracePeriodMs < currentTimestamp
+		and record.endTimestamp + constants.gracePeriodMs > currentTimestamp
 	then
-		error("Name must be extended before additional unernames can be purchase")
+		error("Name must be extended before additional unernames can be purchased")
 	end
 
-	if record.endTimestamp and record.endTimestamp < currentTimestamp then
+	if record.endTimestamp and record.endTimestamp + constants.gracePeriodMs < currentTimestamp then
 		error("Name is expired")
 	end
 

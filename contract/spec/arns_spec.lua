@@ -44,7 +44,7 @@ describe("arns", function()
 			}, token.balances)
 		end)
 
-		it("defaults to 1 year and lease when not provided", function()
+		it("should default lease to 1 year and lease when not values are not provided", function()
 			local status, result = pcall(arns.buyRecord, "test-name", nil, nil, "Bob", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
@@ -71,11 +71,25 @@ describe("arns", function()
 			}, token.balances)
 		end)
 
+		it("should error when years is greater than max allowed", function()
+			local status, result = pcall(
+				arns.buyRecord,
+				"test-name",
+				"lease",
+				constants.maxLeaseLengthYears + 1,
+				"Bob",
+				timestamp,
+				testProcessId
+			)
+			assert.is_false(status)
+			assert.match("Name can only be leased between 1 and 5 years", result)
+		end)
+
 		it(
 			"should validate a permabuy request and add the record to global state and deduct balance from caller",
 			function()
 				local status, result =
-					pcall(arns.buyRecord, "test-permabuy", "permabuy", 1, "Bob", timestamp, testProcessId)
+					pcall(arns.buyRecord, "test-permabuy-name", "permabuy", 1, "Bob", timestamp, testProcessId)
 				assert.is_true(status)
 				assert.are.same({
 					purchasePrice = 3000,
@@ -86,7 +100,7 @@ describe("arns", function()
 					endTimestamp = nil,
 				}, result)
 				assert.are.same({
-					["test-permabuy"] = {
+					["test-permabuy-name"] = {
 						purchasePrice = 3000,
 						type = "permabuy",
 						undernameCount = 10,
@@ -101,6 +115,26 @@ describe("arns", function()
 				}, token.balances)
 			end
 		)
+
+		it(
+			"should throw an error when trying to buy a permabuy a name greater than the minimum and shorter than the allowed permabuy threshold",
+			function()
+				-- give Bob a massive balance
+				token.balances["Bob"] = 15000000
+				local status, result =
+					pcall(arns.buyRecord, "permabuy", "permabuy", nil, "Bob", timestamp, testProcessId)
+				assert.is_false(status)
+				assert.match("Name must be auctioned", result)
+			end
+		)
+
+		it("should throw an error if trying to buy a short name", function()
+			-- give Bob a massive balance
+			token.balances["Bob"] = 15000000
+			local status, result = pcall(arns.buyRecord, "a", "permabuy", 1, "Bob", timestamp, testProcessId)
+			assert.is_false(status)
+			assert.match("Name not available for purchase", result)
+		end)
 
 		it("should throw an error if the record already exists", function()
 			local existingRecord = {
@@ -131,7 +165,7 @@ describe("arns", function()
 			assert.are.same(reservedName, arns.reserved["test-name"])
 		end)
 
-		it("should allow you to buy a reserved name if reserved for you", function()
+		it("should allow you to buy a reserved name if reserved for caller", function()
 			arns.reserved["test-name"] = {
 				target = "Bob",
 				endTimestamp = 1000,
@@ -158,11 +192,11 @@ describe("arns", function()
 			assert.are.same({}, arns.records)
 		end)
 
-		it("should throw an error if the user does not have enough funds", function()
+		it("should throw an error if the user does not have enough balance", function()
 			token.balances["Bob"] = 0
 			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
-			assert.match("Insufficient funds", result)
+			assert.match("Insufficient balance", result)
 			assert.are.same({}, arns.records)
 		end)
 	end)

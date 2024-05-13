@@ -27,7 +27,7 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 		arns.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
 	if token.getBalance(from) < totalRegistrationFee then
-		error("Insufficient funds")
+		error("Insufficient balance")
 	end
 
 	if arns.getAuction(name) then
@@ -39,12 +39,18 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	end
 
 	-- todo, handle reserved name timestamps
+	local reservedForCaller = arns.getReservedName(name) and arns.getReservedName(name).target == from
 	if arns.getReservedName(name) and arns.getReservedName(name).target ~= from then
 		error("Name is reserved")
 	end
 
-	if arns.isNameRequiredToBeAuction(name, purchaseType) then
-		error("Name is required to be auctioned")
+	if not reservedForCaller and #name < 5 then
+		error("Name not available for purchase")
+	end
+
+	if not reservedForCaller and (purchaseType == "permabuy" and #name < 12) then
+		error("Name must be auctioned")
+		error("Name not available for purchase")
 	end
 
 	local newRecord = {
@@ -215,21 +221,16 @@ end
 function arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	-- Validate the presence and type of the 'name' field
 	if type(name) ~= "string" then
-		error("name is required and must be a string.")
-	end
-
-	-- Validate the character count 'name' field to ensure names 4 characters or below are excluded
-	if string.len(name) <= 4 then
-		error("1-4 character names are not allowed")
+		error("Name is required and must be a string.")
 	end
 
 	local startsWithAlphanumeric = name:match("^%w")
 	local endsWithAlphanumeric = name:match("%w$")
 	local middleValid = name:match("^[%w-]+$")
-	local validLength = #name >= 5 and #name <= 51
+	local validLength = #name >= 1 and #name <= 51
 
 	if not (startsWithAlphanumeric and endsWithAlphanumeric and middleValid and validLength) then
-		error("name pattern is invalid.")
+		error("Name pattern is invalid.")
 	end
 
 	-- TODO: validate atomic tags
@@ -241,7 +242,7 @@ function arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	-- If 'years' is present, validate it as an integer between 1 and 5
 	if years then
 		if type(years) ~= "number" or years % 1 ~= 0 or years < 1 or years > 5 then
-			return error("years must be an integer between 1 and 5.")
+			return error("Name can only be leased between 1 and 5 years")
 		end
 	end
 
@@ -249,11 +250,6 @@ function arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	if purchaseType then
 		if not (purchaseType == "lease" or purchaseType == "permabuy") then
 			error("type pattern is invalid.")
-		end
-
-		-- Do not allow permabuying names 11 characters or below for this experimentation period
-		if purchaseType == "permabuy" and string.len(name) <= 11 then
-			error("cannot permabuy name 11 characters or below at this time")
 		end
 	end
 end
@@ -303,6 +299,14 @@ function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 		error("Name is not registered")
 	end
 
+	if
+		record.endTimestamp
+		and record.endTimestamp < currentTimestamp
+		and record.endTimestamp + constants.gracePeriodMs < currentTimestamp
+	then
+		error("Name must be extended before additional unernames can be purchase")
+	end
+
 	if record.endTimestamp and record.endTimestamp < currentTimestamp then
 		error("Name is expired")
 	end
@@ -318,9 +322,4 @@ function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 
 	return true
 end
-
-function arns.isNameRequiredToBeAuction(name, type)
-	return (type == "permabuy" and #name < 12)
-end
-
 return arns

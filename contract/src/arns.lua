@@ -10,9 +10,9 @@ local arns = {
 	fees = constants.genesisFees,
 }
 
-function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, processId)
+function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	-- don't catch, let the caller handle the error
-	arns.assertValidBuyRecord(name, years, purchaseType, auction, processId)
+	arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	if purchaseType == nil then
 		purchaseType = "lease" -- set to lease by default
 	end
@@ -27,7 +27,7 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 		arns.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
 	if token.getBalance(from) < totalRegistrationFee then
-		error("Insufficient funds")
+		error("Insufficient balance")
 	end
 
 	if arns.getAuction(name) then
@@ -38,8 +38,20 @@ function arns.buyRecord(name, purchaseType, years, from, auction, timestamp, pro
 		error("Name is already registered")
 	end
 
+	-- todo, handle reserved name timestamps
+	local reservedForCaller = arns.getReservedName(name) and arns.getReservedName(name).target == from
 	if arns.getReservedName(name) and arns.getReservedName(name).target ~= from then
 		error("Name is reserved")
+	end
+
+	if not reservedForCaller and #name < 5 then
+		error("Name not available for purchase")
+	end
+
+	if not reservedForCaller and (purchaseType == "permabuy" and #name < 12) then
+		-- error("Name must be auctioned")
+		-- TODO: for now - just state the name is not available for purchase
+		error("Name not available for purchase")
 	end
 
 	local newRecord = {
@@ -92,27 +104,26 @@ function arns.calculateExtensionFee(baseFee, years, demandFactor)
 	return demandFactor * extensionFee
 end
 
-function arns.increaseUndernameCount(from, name, qty, timestamp)
+function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 	-- validate record can increase undernames
 	local record = arns.getRecord(name)
 
 	-- throws errors on invalid requests
-	arns.assertValidIncreaseUndername(record, qty, timestamp)
-
-	local endTimestamp
-	if record.type == "lease" then
-		endTimestamp = record.endTimestamp
-	end
+	arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 
 	local yearsRemaining = constants.PERMABUY_LEASE_FEE_LENGTH
-	if endTimestamp then
-		yearsRemaining = arns.calculateYearsBetweenTimestamps(timestamp, endTimestamp)
+	if record.type == "lease" then
+		yearsRemaining = arns.calculateYearsBetweenTimestamps(currentTimestamp, record.endTimestamp)
 	end
 
 	local existingUndernames = record.undernameCount
 	local baseRegistrionFee = arns.fees[#name]
 	local additionalUndernameCost =
 		arns.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
+
+	if additionalUndernameCost < 0 then
+		error("Invalid undername cost")
+	end
 
 	if token.getBalance(from) < additionalUndernameCost then
 		error("Insufficient balance")
@@ -207,24 +218,19 @@ function arns.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 	return yearsRemainingFloat
 end
 
-function arns.assertValidBuyRecord(name, years, purchaseType, auction, processId)
+function arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	-- Validate the presence and type of the 'name' field
 	if type(name) ~= "string" then
-		error("name is required and must be a string.")
-	end
-
-	-- Validate the character count 'name' field to ensure names 4 characters or below are excluded
-	if string.len(name) <= 4 then
-		error("1-4 character names are not allowed")
+		error("Name is required and must be a string.")
 	end
 
 	local startsWithAlphanumeric = name:match("^%w")
 	local endsWithAlphanumeric = name:match("%w$")
 	local middleValid = name:match("^[%w-]+$")
-	local validLength = #name >= 5 and #name <= 51
+	local validLength = #name >= 1 and #name <= 51
 
 	if not (startsWithAlphanumeric and endsWithAlphanumeric and middleValid and validLength) then
-		error("name pattern is invalid.")
+		error("Name pattern is invalid.")
 	end
 
 	-- TODO: validate atomic tags
@@ -236,7 +242,7 @@ function arns.assertValidBuyRecord(name, years, purchaseType, auction, processId
 	-- If 'years' is present, validate it as an integer between 1 and 5
 	if years then
 		if type(years) ~= "number" or years % 1 ~= 0 or years < 1 or years > 5 then
-			return error("years must be an integer between 1 and 5.")
+			return error("Name can only be leased between 1 and 5 years")
 		end
 	end
 
@@ -244,18 +250,6 @@ function arns.assertValidBuyRecord(name, years, purchaseType, auction, processId
 	if purchaseType then
 		if not (purchaseType == "lease" or purchaseType == "permabuy") then
 			error("type pattern is invalid.")
-		end
-
-		-- Do not allow permabuying names 11 characters or below for this experimentation period
-		if purchaseType == "permabuy" and string.len(name) <= 11 then
-			error("cannot permabuy name 11 characters or below at this time")
-		end
-	end
-
-	-- Validate the 'auction' field if present, ensuring it is a boolean value
-	if auction then
-		if type(auction) ~= "boolean" then
-			error("auction must be a boolean.")
 		end
 	end
 end
@@ -269,7 +263,7 @@ function arns.assertValidExtendLease(record, currentTimestamp, years)
 		error("Name is permabought and cannot be extended")
 	end
 
-	if record.endTimestamp and record.endTimestamp < currentTimestamp then
+	if record.endTimestamp and record.endTimestamp + constants.gracePeriodMs < currentTimestamp then
 		error("Name is expired")
 	end
 
@@ -284,11 +278,6 @@ function arns.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
 		return 0
 	end
 
-	-- if expired return 0 because it cannot be extended and must be re-bought
-	if currentTimestamp > (record.endTimestamp + constants.gracePeriodMs) then
-		error("Name is expired")
-	end
-
 	if currentTimestamp > record.endTimestamp and currentTimestamp < record.endTimestamp + constants.gracePeriodMs then
 		return constants.maxLeaseLengthYears
 	end
@@ -300,18 +289,20 @@ function arns.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
 	return constants.maxLeaseLengthYears - yearsRemainingOnLease
 end
 
--- This function is used to validate the increase of undernames for a record
--- It checks if the qty is within the allowed range and if the record exists
--- @param record The record to be validated
--- @param qty The quantity of undernames to be added
--- @param currentTimestamp The current timestamp
--- @return boolean, string The first return value indicates whether the increase is valid (true) or not (false),
 function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 	if not record then
 		error("Name is not registered")
 	end
 
-	if record.endTimestamp and record.endTimestamp < currentTimestamp then
+	if
+		record.endTimestamp
+		and record.endTimestamp < currentTimestamp
+		and record.endTimestamp + constants.gracePeriodMs > currentTimestamp
+	then
+		error("Name must be extended before additional unernames can be purchased")
+	end
+
+	if record.endTimestamp and record.endTimestamp + constants.gracePeriodMs < currentTimestamp then
 		error("Name is expired")
 	end
 
@@ -326,39 +317,4 @@ function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 
 	return true
 end
-
-function arns.isActiveReservedName(caller, reservedName, currentTimestamp)
-	if not reservedName then
-		return false
-	end
-
-	local target = reservedName.target
-	local endTimestamp = reservedName.endTimestamp
-	local permanentlyReserved = not target and not endTimestamp
-
-	if permanentlyReserved then
-		return true
-	end
-
-	local isCallerTarget = caller ~= nil and target == caller
-	local isActiveReservation = endTimestamp and endTimestamp > currentTimestamp
-
-	-- If the caller is not the target, and it's still active - the name is considered reserved
-	if not isCallerTarget and isActiveReservation then
-		return true
-	end
-	return false
-end
-
-function arns.isShortNameRestricted(name, currentTimestamp)
-	return (
-		#name < constants.MINIMUM_ALLOWED_NAME_LENGTH
-		and currentTimestamp < constants.SHORT_NAME_RESERVATION_UNLOCK_TIMESTAMP
-	)
-end
-
-function arns.isNameRequiredToBeAuction(name, type)
-	return (type == "permabuy" and #name < 12)
-end
-
 return arns

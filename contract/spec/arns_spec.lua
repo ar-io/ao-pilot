@@ -18,8 +18,7 @@ describe("arns", function()
 
 	describe("buyRecord", function()
 		it("should add a valid lease buyRecord to records objec and transfer balance to the protocol", function()
-			local status, result =
-				pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
 				purchasePrice = 1500,
@@ -46,7 +45,7 @@ describe("arns", function()
 		end)
 
 		it("defaults to 1 year and lease when not provided", function()
-			local status, result = pcall(arns.buyRecord, "test-name", nil, nil, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", nil, nil, "Bob", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
 				purchasePrice = 1500,
@@ -76,7 +75,7 @@ describe("arns", function()
 			"should validate a permabuy request and add the record to global state and deduct balance from caller",
 			function()
 				local status, result =
-					pcall(arns.buyRecord, "test-permabuy", "permabuy", 1, "Bob", false, timestamp, testProcessId)
+					pcall(arns.buyRecord, "test-permabuy", "permabuy", 1, "Bob", timestamp, testProcessId)
 				assert.is_true(status)
 				assert.are.same({
 					purchasePrice = 3000,
@@ -113,8 +112,7 @@ describe("arns", function()
 				undernameCount = 10,
 			}
 			arns.records["test-name"] = existingRecord
-			local status, result =
-				pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name is already registered", result)
 			assert.are.same(existingRecord, arns.records["test-name"])
@@ -126,8 +124,7 @@ describe("arns", function()
 				endTimestamp = 1000,
 			}
 			arns.reserved["test-name"] = reservedName
-			local status, result =
-				pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name is reserved", result)
 			assert.are.same({}, arns.records)
@@ -139,8 +136,7 @@ describe("arns", function()
 				target = "Bob",
 				endTimestamp = 1000,
 			}
-			local status, result =
-				pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			local expectation = {
 				endTimestamp = timestamp + constants.oneYearMs,
 				processId = testProcessId,
@@ -156,8 +152,7 @@ describe("arns", function()
 
 		it("should throw an error if the record is in auction", function()
 			arns.auctions["test-name"] = {}
-			local status, result =
-				pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name is in auction", result)
 			assert.are.same({}, arns.records)
@@ -165,8 +160,7 @@ describe("arns", function()
 
 		it("should throw an error if the user does not have enough funds", function()
 			token.balances["Bob"] = 0
-			local status, result =
-				pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", false, timestamp, testProcessId)
+			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Insufficient funds", result)
 			assert.are.same({}, arns.records)

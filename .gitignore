@@ -10,3 +10,4 @@ node_modules
 /.luarocks
 wallet.json
 .DS_Store
+luacov-html

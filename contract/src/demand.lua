@@ -1,6 +1,6 @@
 local constants = require("constants")
 local demand = {
-	startTimestamp = os.clock(), -- TODO: The timestamp at which the contract was initialized
+	startTimestamp = 0, -- TODO: The timestamp at which the contract was initialized
 	currentPeriod = 1, -- TODO: the # of days since the last demand factor adjustment
 	trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period purchase counts
 	trailingPeriodRevenues = { 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period revenues
@@ -8,7 +8,7 @@ local demand = {
 	revenueThisPeriod = 0,
 	currentDemandFactor = 1,
 	consecutivePeriodsWithMinDemandFactor = 0,
-	settings = constants.DEMAND_SETTINGS,
+	settings = constants.demandSettings,
 	fees = constants.genesisFees,
 }
 
@@ -47,8 +47,8 @@ function demand.isDemandIncreasing()
 end
 
 -- update at the end of the demand if the current timestamp results in a period greater than our current state
-function demand.shouldUpdateDemandFactor(timestamp)
-	local calculatedPeriod = math.floor((timestamp - demand.startTimestamp) / demand.settings.periodLengthMs) + 1
+function demand.shouldUpdateDemandFactor(currentTimestamp)
+	local calculatedPeriod = math.floor((currentTimestamp - demand.startTimestamp) / demand.settings.periodLengthMs) + 1
 	return calculatedPeriod > demand.currentPeriod
 end
 
@@ -58,18 +58,18 @@ function demand.updateDemandFactor(timestamp)
 	end
 
 	if demand.isDemandIncreasing() then
-		demand.demandFactor = demand.demandFactor * (1 + demand.demand.settings.demandFactorUpAdjustment)
+		demand.currentDemandFactor = demand.currentDemandFactor * (1 + demand.settings.demandFactorUpAdjustment)
 	else
-		if demand.demandFactor > demand.settings.demandFactorMin then
-			demand.demandFactor = demand.currentDemandFactor * (1 - demand.settings.demandFactorDownAdjustment)
+		if demand.currentDemandFactor > demand.settings.demandFactorMin then
+			demand.currentDemandFactor = demand.currentDemandFactor * (1 - demand.settings.demandFactorDownAdjustment)
 		end
 	end
 
-	if demand.demandFactor == demand.settings.demandFactorMin then
+	if demand.currentDemandFactor == demand.settings.demandFactorMin then
 		if demand.consecutivePeriodsWithMinDemandFactor >= demand.settings.stepDownThreshold then
 			demand.consecutivePeriodsWithMinDemandFactor = 0
-			demand.demandFactor = demand.settings.demandFactorBaseValue
-			demand.fees.updateFees(demand.settings.demandFactorMin)
+			demand.currentDemandFactor = demand.settings.demandFactorBaseValue
+			demand.updateFees()
 		end
 	else
 		demand.consecutivePeriodsWithMinDemandFactor = 0
@@ -83,8 +83,24 @@ function demand.updateDemandFactor(timestamp)
 	return
 end
 
+function demand.updateFees()
+	-- update all fees multiply them by the demand factor minimim
+	for nameLength, fee in pairs(demand.fees) do
+		local updatedFee = fee * demand.settings.demandFactorMin
+		demand.fees[nameLength] = updatedFee
+	end
+end
+
 function demand.getDemandFactor()
 	return demand.currentDemandFactor
+end
+
+function demand.getCurrentPeriodRevenue()
+	return demand.revenueThisPeriod
+end
+
+function demand.getCurrentPeriodPurchases()
+	return demand.purchasesThisPeriod
 end
 
 return demand

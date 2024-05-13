@@ -42,7 +42,7 @@ constants.gracePeriodMs = 3 * 7 * 24 * 60 * 60 * 1000
 constants.maxLeaseLengthYears = 5
 
 -- DEMAND
-constants.DEMAND_SETTINGS = {
+constants.demandSettings = {
 	movingAvgPeriodCount = 7,
 	periodLengthMs = 60 * 1000 * 24, -- one day
 	demandFactorBaseValue = 1,

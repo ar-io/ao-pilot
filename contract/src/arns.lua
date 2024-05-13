@@ -71,15 +71,18 @@ function arns.addRecord(name, record)
 	end
 end
 
-function arns.extendLease(from, name, years, timestamp)
+function arns.extendLease(from, name, years, currentTimestamp)
 	local record = arns.getRecord(name)
 	-- throw error if invalid
-	utils.assertValidExtendLease(record, timestamp, years)
+	arns.assertValidExtendLease(record, currentTimestamp, years)
 	local baseRegistrionFee = arns.fees[#name]
 	local totalExtensionFee = arns.calculateExtensionFee(baseRegistrionFee, years, demand.getDemandFactor())
+
+	if token.getBalance(from) < totalExtensionFee then
+		error("Insufficient balance")
+	end
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, totalExtensionFee)
-
 	arns.records[name].endTimestamp = record.endTimestamp + constants.oneYearMs * years
 	return arns.records[name]
 end
@@ -110,6 +113,10 @@ function arns.increaseUndernameCount(from, name, qty, timestamp)
 	local baseRegistrionFee = arns.fees[#name]
 	local additionalUndernameCost =
 		arns.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
+
+	if token.getBalance(from) < additionalUndernameCost then
+		error("Insufficient balance")
+	end
 
 	-- Transfer tokens to the protocol balance
 	token.transfer(ao.id, from, additionalUndernameCost)
@@ -251,6 +258,73 @@ function arns.assertValidBuyRecord(name, years, purchaseType, auction, processId
 			error("auction must be a boolean.")
 		end
 	end
+end
+
+function arns.assertValidExtendLease(record, currentTimestamp, years)
+	if not record then
+		error("Name is not registered")
+	end
+
+	if record.type == "permabuy" then
+		error("Name is permabought and cannot be extended")
+	end
+
+	if record.endTimestamp and record.endTimestamp < currentTimestamp then
+		error("Name is expired")
+	end
+
+	local maxAllowedYears = arns.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
+	if years > maxAllowedYears then
+		error("Cannot extend lease beyond 5 years")
+	end
+end
+
+function arns.getMaxAllowedYearsExtensionForRecord(record, currentTimestamp)
+	if not record.endTimestamp then
+		return 0
+	end
+
+	-- if expired return 0 because it cannot be extended and must be re-bought
+	if currentTimestamp > (record.endTimestamp + constants.gracePeriodMs) then
+		error("Name is expired")
+	end
+
+	if currentTimestamp > record.endTimestamp and currentTimestamp < record.endTimestamp + constants.gracePeriodMs then
+		return constants.maxLeaseLengthYears
+	end
+
+	-- TODO: should we put this as the ceiling? or should we allow people to extend as soon as it is purchased
+	local yearsRemainingOnLease = math.ceil((record.endTimestamp - currentTimestamp) / constants.oneYearMs)
+
+	-- a number between 0 and 5 (MAX_YEARS)
+	return constants.maxLeaseLengthYears - yearsRemainingOnLease
+end
+
+-- This function is used to validate the increase of undernames for a record
+-- It checks if the qty is within the allowed range and if the record exists
+-- @param record The record to be validated
+-- @param qty The quantity of undernames to be added
+-- @param currentTimestamp The current timestamp
+-- @return boolean, string The first return value indicates whether the increase is valid (true) or not (false),
+function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
+	if not record then
+		error("Name is not registered")
+	end
+
+	if record.endTimestamp and record.endTimestamp < currentTimestamp then
+		error("Name is expired")
+	end
+
+	if qty < 1 or qty > 9990 then
+		error("Qty is invalid")
+	end
+
+	-- the new total qty
+	if record.undernameCount + qty > constants.MAX_ALLOWED_UNDERNAMES then
+		error(constants.ARNS_MAX_UNDERNAME_MESSAGE)
+	end
+
+	return true
 end
 
 return arns

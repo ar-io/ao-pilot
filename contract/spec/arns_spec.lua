@@ -124,7 +124,8 @@ describe("arns", function()
 				local status, result =
 					pcall(arns.buyRecord, "permabuy", "permabuy", nil, "Bob", timestamp, testProcessId)
 				assert.is_false(status)
-				assert.match("Name must be auctioned", result)
+				-- TODO: this will change to `Name must be auctioned` when auctions are impelmented
+				assert.match("Name not available for purchase", result)
 			end
 		)
 

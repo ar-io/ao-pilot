@@ -4,39 +4,40 @@ local utils = require("utils")
 local constants = require("constants")
 local token = Token or require("token")
 local base64 = require("base64")
-local gar = {
-	gateways = {},
-	observations = {},
-	epoch = {
-		startTimestamp = 0,
-		endTimestamp = 0,
-		epochZeroStartTimestamp = 0,
-		epochDistributionTimestamp = 0,
-		epochPeriod = 0,
-	},
-	distributions = {},
-	prescribedObservers = {},
-	settings = {
-		observers = {
-			maxObserversPerEpoch = 50,
-			epochTimeLength = 24 * 60 * 60 * 1000, -- One day of miliseconds
+local gar = GatewayRegistry
+	or {
+		gateways = {},
+		observations = {},
+		epoch = {
+			startTimestamp = 0,
+			endTimestamp = 0,
 			epochZeroStartTimestamp = 0,
-			epochDistributionDelay = 30 * 60 * 1000, -- 30 minutes of miliseconds
-			tenureWeightDays = 180,
-			tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
-			maxTenureWeight = 4,
+			epochDistributionTimestamp = 0,
+			epochPeriod = 0,
 		},
-		-- TODO: move this to a nested object for gateways
-		minDelegatedStake = 50 * 1000000, -- 50 IO
-		minOperatorStake = 10000 * 1000000, -- 10,000 IO
-		gatewayLeaveLength = 90 * 24 * 60 * 60 * 1000, -- 90 days
-		maxLockLength = 3 * 365 * 24 * 60 * 60 * 1000, -- 3 years
-		minLockLength = 24 * 60 * 60 * 1000, -- 1 day
-		operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
-		delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
-		maxDelegates = 10000,
-	},
-}
+		distributions = {},
+		prescribedObservers = {},
+		settings = {
+			observers = {
+				maxObserversPerEpoch = 50,
+				epochTimeLength = 24 * 60 * 60 * 1000, -- One day of miliseconds
+				epochZeroStartTimestamp = 0,
+				epochDistributionDelay = 30 * 60 * 1000, -- 30 minutes of miliseconds
+				tenureWeightDays = 180,
+				tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
+				maxTenureWeight = 4,
+			},
+			-- TODO: move this to a nested object for gateways
+			minDelegatedStake = 50 * 1000000, -- 50 IO
+			minOperatorStake = 10000 * 1000000, -- 10,000 IO
+			gatewayLeaveLength = 90 * 24 * 60 * 60 * 1000, -- 90 days
+			maxLockLength = 3 * 365 * 24 * 60 * 60 * 1000, -- 3 years
+			minLockLength = 24 * 60 * 60 * 1000, -- 1 day
+			operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
+			delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
+			maxDelegates = 10000,
+		},
+	}
 
 local initialStats = {
 	prescribedEpochCount = 0,

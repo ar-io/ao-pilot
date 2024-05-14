@@ -5,14 +5,14 @@ local ao = require("ao")
 local utils = require("utils")
 local json = require("json")
 
-Name = Name or "Test IO"
-Ticker = Ticker or "tIO"
-Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
-Denomination = Denomination or 6
-Demand = Demand or require("demand")
-Token = Token or require("token")
-GatewayRegistry = GatewayRegistry or require("gar")
-NameRegistry = NameRegistry or require("arns")
+Name = "Test IO"
+Ticker = "tIO"
+Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
+Denomination = 6
+Demand = require("demand")
+Token = require("token")
+GatewayRegistry = require("gar")
+NameRegistry = require("arns")
 
 local ActionMap = {
 	Info = "Info",

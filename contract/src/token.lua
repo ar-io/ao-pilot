@@ -1,9 +1,14 @@
 -- token.lua
 local constants = require("constants")
-local token = {
+local token = Token or {
 	balances = {},
 	vaults = {},
 }
+
+-- TODO: if we need to append state at all we would do it here on token
+function token.init()
+	return
+end
 
 function token.transfer(recipient, from, qty)
 	assert(type(recipient) == "string", "Recipient is required!")

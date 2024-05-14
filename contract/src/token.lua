@@ -1,9 +1,15 @@
 -- token.lua
 local constants = require("constants")
-local token = {
+local ao = require("ao")
+print(ao.id)
+local token = Token or {
 	balances = {},
 	vaults = {},
 }
+-- TODO: we need to give protocol balance when we deploy the contract - ref: https://github.com/permaweb/aos/blob/654aa2399f1d555bb117370a1abcf9faf34a08f4/process/process.lua#L155
+-- Token.balances[ao.id] = Token.balances[ao.id] or (1000000000 * 1e6)
+
+-- TODO: if we need to append state at all we would do it here on token
 
 function token.transfer(recipient, from, qty)
 	assert(type(recipient) == "string", "Recipient is required!")

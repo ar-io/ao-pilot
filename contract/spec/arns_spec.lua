@@ -91,7 +91,7 @@ describe("arns", function()
 				testProcessId
 			)
 			assert.is_false(status)
-			assert.match("Name can only be leased between 1 and 5 years", result)
+			assert.match("Years is invalid. Must be an integer between 1 and 5", result)
 		end)
 
 		it(

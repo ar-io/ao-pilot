@@ -58,64 +58,13 @@ function utils.validateFQDN(fqdn)
 	return fqdn
 end
 
-function utils.validateUpdateGatewaySettings(settings, observerWallet)
-	-- Validate 'fqdn' field
-	if settings.fqdn and not utils.validateFQDN(settings.fqdn) then
-		error("Invalid fqdn format")
+function utils.findInArray(array, predicate)
+	for i = 1, #array do
+		if predicate(array[i]) then
+			return i -- Return the index of the found element
+		end
 	end
-
-	-- Validate 'port' field
-	if settings.port and (settings.port < 0 or settings.port > 65535) then
-		error("Invalid port number")
-	end
-
-	-- Validate 'protocol' field
-	if settings.protocol and not (settings.protocol == "https" or settings.protocol == "http") then
-		error("Invalid protocol")
-	end
-
-	-- Validate 'properties' field
-	if settings.properties and not utils.isValidBase64Url(settings.properties) then
-		error("Invalid properties format")
-	end
-
-	-- Validate 'note' field
-	if settings.note and #settings.note > 256 then
-		error("Invalid note length")
-	end
-
-	-- Validate 'label' field
-	if settings.label and #settings.label > 64 then
-		error("Invalid label length")
-	end
-
-	-- Validate 'observerWallet' field
-	if observerWallet and not utils.isValidBase64Url(observerWallet) then
-		error("Invalid observerWallet format")
-	end
-
-	-- Validate 'autoStake' and 'allowDelegatedStaking' booleans
-	if settings.autoStake ~= nil and type(settings.autoStake) ~= "boolean" then
-		error("Invalid autoStake value")
-	end
-	if settings.allowDelegatedStaking ~= nil and type(settings.allowDelegatedStaking) ~= "boolean" then
-		error("Invalid allowDelegatedStaking value")
-	end
-
-	-- Validate 'delegateRewardShareRatio' field
-	if
-		settings.delegateRewardShareRatio
-		and (settings.delegateRewardShareRatio < 0 or settings.delegateRewardShareRatio > 100)
-	then
-		error("Invalid delegateRewardShareRatio value")
-	end
-
-	-- Validate 'minDelegatedStake' field
-	if settings.minDelegatedStake and settings.minDelegatedStake < 100 then
-		error("Invalid minDelegatedStake value")
-	end
-
-	return true
+	return nil -- Return nil if the element is not found
 end
 
 function utils.walletHasSufficientBalance(wallet, quantity)

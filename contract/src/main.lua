@@ -1,18 +1,21 @@
 -- Adjust package.path to include the current directory
 local process = { _version = "0.0.1" }
 
-local ao = require("ao")
+-- local ao = require("ao")
 local utils = require("utils")
 local json = require("json")
+local ao = ao or require("ao")
 
-Name = Name or "Test IO"
-Ticker = Ticker or "tIO"
-Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
-Denomination = Denomination or 6
-Demand = Demand or require("demand")
-Token = Token or require("token")
-GatewayRegistry = GatewayRegistry or require("gar")
-NameRegistry = NameRegistry or require("arns")
+Name = "Test IO"
+Ticker = "tIO"
+Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
+Denomination = 6
+Demand = require("demand")
+Token = require("token")
+GatewayRegistry = require("gar")
+NameRegistry = require("arns")
+
+print(ao.id)
 
 local ActionMap = {
 	Info = "Info",
@@ -192,17 +195,16 @@ Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.I
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
-	local success, result = pcall(
+	local status, result = pcall(
 		NameRegistry.buyRecord,
 		msg.Tags.Name,
 		msg.Tags.PurchaseType,
 		msg.Tags.Years,
 		msg.From,
-		msg.Tags.Auction,
 		msg.Timestamp,
 		msg.Tags.ProcessId
 	)
-	if not success then
+	if not status then
 		ao.send({
 			Target = msg.From,
 			Tags = {

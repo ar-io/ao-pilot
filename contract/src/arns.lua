@@ -3,7 +3,7 @@ local utils = require("utils")
 local constants = require("constants")
 local token = Token or require("token")
 local demand = Demand or require("demand")
-local arns = {
+local arns = NameRegistry or {
 	reserved = {},
 	records = {},
 	auctions = {},
@@ -221,39 +221,23 @@ function arns.calculateYearsBetweenTimestamps(startTimestamp, endTimestamp)
 end
 
 function arns.assertValidBuyRecord(name, years, purchaseType, processId)
-	-- Validate the presence and type of the 'name' field
-	if type(name) ~= "string" then
-		error("Name is required and must be a string.")
-	end
-
-	local startsWithAlphanumeric = name:match("^%w")
-	local endsWithAlphanumeric = name:match("%w$")
-	local middleValid = name:match("^[%w-]+$")
-	local validLength = #name >= 1 and #name <= 51
-
-	if not (startsWithAlphanumeric and endsWithAlphanumeric and middleValid and validLength) then
-		error("Name pattern is invalid.")
-	end
-
-	-- TODO: validate atomic tags
-
-	if not utils.isValidBase64Url(processId) then
-		error("processId pattern is invalid.")
-	end
+	-- assert name is valid pattern
+	assert(type(name) == "string", "Name is required and must be a string.")
+	assert(#name >= 1 and #name <= 51, "Name pattern is invalid.")
+	assert(name:match("^%w") and name:match("%w$") and name:match("^[%w-]+$"), "Name pattern is invalid.")
 
 	-- If 'years' is present, validate it as an integer between 1 and 5
-	if years then
-		if type(years) ~= "number" or years % 1 ~= 0 or years < 1 or years > 5 then
-			return error("Name can only be leased between 1 and 5 years")
-		end
-	end
+	assert(
+		years == nil or (type(years) == "number" and years % 1 == 0 and years >= 1 and years <= 5),
+		"Years is invalid. Must be an integer between 1 and 5"
+	)
 
-	-- Validate 'PurchaseType' field if present, ensuring it is either 'lease' or 'permabuy'
-	if purchaseType then
-		if not (purchaseType == "lease" or purchaseType == "permabuy") then
-			error("type pattern is invalid.")
-		end
-	end
+	-- assert purchase type if present is lease or permabuy
+	assert(purchaseType == nil or (purchaseType == "lease" or purchaseType == "permabuy"), "PurchaseType is invalid.")
+
+	-- assert processId is valid pattern
+	assert(type(processId) == "string", "ProcessId is required and must be a string.")
+	assert(utils.isValidBase64Url(processId), "ProcessId pattern is invalid.")
 end
 
 function arns.assertValidExtendLease(record, currentTimestamp, years)

@@ -1,14 +1,5 @@
 local constants = {}
 
--- OIP
-constants.epochTimeLength = 24 * 60 * 60 * 1000 -- One day of miliseconds
-constants.epochZeroStartTimestamp = 0
-constants.EPOCH_DISTRIBUTION_DELAY = 30 * 60 * 1000 -- 30 minutes of miliseconds
-constants.TENURE_WEIGHT_DAYS = 180
-constants.TENURE_WEIGHT_PERIOD = constants.TENURE_WEIGHT_DAYS * 24 * 60 * 60 * 1000
-constants.MAX_TENURE_WEIGHT = 4
-constants.MAXIMUM_OBSERVERS_PER_EPOCH = 50
-
 -- GAR
 constants.DEFAULT_UNDERNAME_COUNT = 10
 constants.DEADLINE_DURATION_MS = 60 * 60 * 1000 -- One hour of miliseconds

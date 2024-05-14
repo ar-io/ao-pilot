@@ -1,9 +1,8 @@
 -- gar.lua
 local crypto = require("crypto.init")
 local utils = require("utils")
-local constants = require("constants")
-local token = Token or require("token")
 local base64 = require("base64")
+local token = Token or require("token")
 local gar = GatewayRegistry
 	or {
 		gateways = {},
@@ -11,7 +10,6 @@ local gar = GatewayRegistry
 		epoch = {
 			startTimestamp = 0,
 			endTimestamp = 0,
-			epochZeroStartTimestamp = 0,
 			epochDistributionTimestamp = 0,
 			epochPeriod = 0,
 		},
@@ -20,12 +18,14 @@ local gar = GatewayRegistry
 		settings = {
 			observers = {
 				maxObserversPerEpoch = 50,
-				epochTimeLength = 24 * 60 * 60 * 1000, -- One day of miliseconds
-				epochZeroStartTimestamp = 0,
-				epochDistributionDelay = 30 * 60 * 1000, -- 30 minutes of miliseconds
 				tenureWeightDays = 180,
 				tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
 				maxTenureWeight = 4,
+			},
+			epochs = {
+				durationMs = 24 * 60 * 60 * 1000, -- One day of miliseconds
+				epochZeroStartTimestamp = 0,
+				distributionDelayMs = 30 * 60 * 1000, -- 30 minutes of miliseconds
 			},
 			-- TODO: move this to a nested object for gateways
 			minDelegatedStake = 50 * 1000000, -- 50 IO
@@ -48,6 +48,9 @@ local initialStats = {
 	failedConsecutiveEpochs = 0,
 	passedConsecutiveEpochs = 0,
 }
+
+-- TODO: any necessary state modifcations as we iterate go here
+-- e.g. gar.settings.gateways =
 
 function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 	gar.assertValidGatewayParameters(from, stake, settings, observerWallet, timeStamp)
@@ -429,10 +432,10 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 		gar.getEpochDataForTimestamp(currentTimestamp)
 
 	-- avoid observations before the previous epoch distribution has occurred, as distributions affect weights of the current epoch
-	if currentTimestamp < epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY then
+	if currentTimestamp < epochStartTimestamp + gar.settings.epochs.distributionDelayMs then
 		error(
 			"Observations for the current epoch cannot be submitted before block height: "
-				.. epochStartTimestamp + constants.EPOCH_DISTRIBUTION_DELAY
+				.. epochStartTimestamp + gar.settings.epochs.distributionDelayMs
 		)
 	end
 
@@ -467,10 +470,7 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 		local failedGateway = gar.gateways[address]
 
 		-- Validate the gateway is in the gar or is leaving
-		if
-			failedGateway and failedGateway.start > epochStartTimestamp
-			or failedGateway.status == constants.NETWORK_JOIN_STATUS
-		then
+		if failedGateway and failedGateway.start > epochStartTimestamp or failedGateway.status == "joined" then
 			-- Get the existing set of failed gateways for this observer
 			local existingObservers = gar.observations[epochIndexForCurrentTimestamp].failureSummaries[address] or {}
 
@@ -498,13 +498,14 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 end
 
 function gar.getEpochDataForTimestamp(currentTimestamp)
-	local epochIndexForCurrentTimestamp =
-		math.floor(math.max(0, (currentTimestamp - constants.epochZeroStartTimestamp) / constants.epochTimeLength))
+	local epochIndexForCurrentTimestamp = math.floor(
+		math.max(0, (currentTimestamp - gar.settings.epoch.epochZeroStartTimestamp) / gar.setting.epoch.epochLengthMs)
+	)
 
-	local epochStartTimestamp = constants.epochZeroStartTimestamp
-		+ constants.epochTimeLength * epochIndexForCurrentTimestamp
-	local epochEndTimestamp = epochStartTimestamp + constants.epochTimeLength
-	local epochDistributionTimestamp = epochEndTimestamp + constants.EPOCH_DISTRIBUTION_DELAY
+	local epochStartTimestamp = gar.epoch.epochZeroStartTimestamp
+		+ gar.epoch.epochTimeLength * epochIndexForCurrentTimestamp
+	local epochEndTimestamp = epochStartTimestamp + gar.epoch.epochTimeLength
+	local epochDistributionTimestamp = epochEndTimestamp + gar.epoch.distributionDelay
 	return epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp
 end
 
@@ -527,10 +528,10 @@ function gar.getEpoch(timeStamp, currentTimestamp)
 	local result = {
 		epochStartTimestamp,
 		epochEndTimestamp,
-		Distributions.epochZeroStartTimestamp,
+		gar.settings.epochs.epochZeroStartTimestamp,
 		epochDistributionTimestamp,
 		epochIndexForCurrentTimestamp,
-		constants.epochTimeLength,
+		gar.settings.epochs.durationMs,
 	}
 	return result
 end
@@ -580,10 +581,10 @@ function gar.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 
 		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
 			or (
-				totalTimeForGateway > 0 and totalTimeForGateway / constants.TENURE_WEIGHT_PERIOD
-				or 1 / constants.TENURE_WEIGHT_PERIOD
+				totalTimeForGateway > 0 and totalTimeForGateway / gar.settings.observers.tenureWeightPeriod
+				or 1 / gar.settings.observers.tenureWeightPeriod
 			)
-		local gatewayTenureWeight = math.min(calculatedTenureWeightForGateway, constants.MAX_TENURE_WEIGHT)
+		local gatewayTenureWeight = math.min(calculatedTenureWeightForGateway, gar.settings.observers.maxTenureWeight)
 
 		local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
 		local totalEpochsParticipatedIn = gateway.stats.totalEpochParticipationCount or 0

@@ -63,7 +63,7 @@ Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 
     ao.send({
         Target = msg.From,
-        Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Data = json.encode(tonumber(bal)) }
+        Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Account = msg.Tags.Recipient or msg.From, Data = json.encode(tonumber(bal)) }
     })
 end)
 

@@ -53,18 +53,18 @@ LastBalanceLoadTimestamp = LastBalanceLoadTimestamp or 0
 -- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
     local info = {
-        name = Name,
-        ticker = Ticker,
-        logo = Logo,
-        owner = Owner,
-        denomination = tostring(Denomination),
-        controllers = json.encode(Controllers),
-        records = Records
+        Name = Name,
+        Ticker = Ticker,
+        Logo = Logo,
+        Owner = Owner,
+        Denomination = tostring(Denomination),
+        Controllers = json.encode(Controllers),
+        Records = Records
     }
     ao.send(
         {
             Target = msg.From,
-            Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
+            Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination), Owner = Owner, Controllers = json.encode(Controllers) },
             Data = json.encode(info)
         })
 end)
@@ -256,6 +256,22 @@ Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balan
             Tags = { Action = 'Load-Balances-Failure', Error = "'balances' field missing or invalid" }
         })
     end
+end)
+
+Handlers.add('totalSupply', Handlers.utils.hasMatchingTag('Action', 'Total-Supply'), function(msg)
+    assert(msg.From ~= ao.id, 'Cannot call Total-Supply from the same process!')
+
+    local totalSupply = bint(0)
+    for _, balance in pairs(Balances) do
+        totalSupply = utils.add(totalSupply, balance)
+    end
+
+    ao.send({
+        Target = msg.From,
+        Action = 'Total-Supply',
+        Data = tostring(totalSupply),
+        Ticker = Ticker
+    })
 end)
 
 -- ANT Functionality

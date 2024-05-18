@@ -104,37 +104,22 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
                     msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
                     .reset
             })
-            if msg.Tags.Function and msg.Tags.Parameters then
-                -- Send Credit-Notice to the Recipient and include the function and parameters tags
-                ao.send({
-                    Target = msg.Tags.Recipient,
-                    Action = 'Credit-Notice',
-                    Sender = msg.From,
-                    Quantity = tostring(qty),
-                    Function = tostring(msg.Tags.Function),
-                    Parameters = msg.Tags.Parameters,
-                    Data = Colors.gray ..
-                        "You received " ..
-                        Colors.blue ..
-                        msg.Tags.Quantity ..
-                        Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset ..
-                        " with the instructions for function " .. Colors.green .. msg.Tags.Function .. Colors.reset ..
-                        " with the parameters " .. Colors.green .. msg.Tags.Parameters
-                })
-            else
-                -- Send Debit-Notice to the Sender
-                ao.send({
-                    Target = msg.From,
-                    Action = 'Debit-Notice',
-                    Recipient = msg.Tags.Recipient,
-                    Quantity = tostring(qty),
-                    Data = Colors.gray ..
-                        "You transferred " ..
-                        Colors.blue ..
-                        msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
-                        .reset
-                })
-            end
+            -- Send Credit-Notice to the Recipient
+            ao.send({
+                Target = msg.Tags.Recipient,
+                Action = "Credit-Notice",
+                Sender = msg.From,
+                Quantity = tostring(qty),
+                Data = Colors.gray
+                    .. "You received "
+                    .. Colors.blue
+                    .. msg.Tags.Quantity
+                    .. Colors.gray
+                    .. " from "
+                    .. Colors.green
+                    .. msg.Tags.Recipient
+                    .. Colors.reset,
+            })
         end
     else
         ao.send({

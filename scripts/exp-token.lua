@@ -1,4 +1,22 @@
 local json = require('json')
+local bint = require('.bint')(256)
+local ao = require('ao')
+
+local utils = {
+    add = function(a, b)
+        return tostring(bint(a) + bint(b))
+    end,
+    subtract = function(a, b)
+        return tostring(bint(a) - bint(b))
+    end,
+    toBalanceValue = function(a)
+        return tostring(bint(a))
+    end,
+    toNumber = function(a)
+        return tonumber(a)
+    end
+}
+
 
 if not Balances then
     Balances = {}
@@ -54,16 +72,21 @@ end)
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
     local bal = '0'
 
-    -- If not Target is provided, then return the Senders balance
-    if (msg.Tags.Target and Balances[msg.Tags.Target]) then
-        bal = tostring(Balances[msg.Tags.Target])
+    -- If not Recipient is provided, then return the Senders balance
+    if (msg.Tags.Recipient and Balances[msg.Tags.Recipient]) then
+        bal = Balances[msg.Tags.Recipient]
+    elseif msg.Tags.Target and Balances[msg.Tags.Target] then
+        bal = Balances[msg.Tags.Target]
     elseif Balances[msg.From] then
-        bal = tostring(Balances[msg.From])
+        bal = Balances[msg.From]
     end
 
     ao.send({
         Target = msg.From,
-        Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Data = json.encode(tonumber(bal)) }
+        Balance = bal,
+        Ticker = Ticker,
+        Account = msg.Tags.Recipient or msg.From,
+        Data = bal
     })
 end)
 
@@ -71,75 +94,64 @@ Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
     function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
 
 Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
-    assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
-    assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
+    assert(type(msg.Recipient) == 'string', 'Recipient is required!')
+    assert(type(msg.Quantity) == 'string', 'Quantity is required!')
+    assert(bint.__lt(0, bint(msg.Quantity)), 'Quantity must be greater than 0')
 
-    if not Balances[msg.From] then Balances[msg.From] = 0 end
+    if not Balances[msg.From] then Balances[msg.From] = "0" end
+    if not Balances[msg.Recipient] then Balances[msg.Recipient] = "0" end
 
-    if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
-
-    local qty = tonumber(msg.Tags.Quantity)
-    assert(type(qty) == 'number', 'qty must be number')
-    assert(qty > 0, 'Quantity must be greater than 0')
-
-    if Balances[msg.From] >= qty then
-        Balances[msg.From] = Balances[msg.From] - qty
-        Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
+    if bint(msg.Quantity) <= bint(Balances[msg.From]) then
+        Balances[msg.From] = utils.subtract(Balances[msg.From], msg.Quantity)
+        Balances[msg.Recipient] = utils.add(Balances[msg.Recipient], msg.Quantity)
 
         --[[
-        Only Send the notifications to the Sender and Recipient
-        if the Cast tag is not set on the Transfer message
-        ]]
+               Only send the notifications to the Sender and Recipient
+               if the Cast tag is not set on the Transfer message
+             ]]
         --
         if not msg.Cast then
-            -- Send Debit-Notice to the Sender
-            ao.send({
+            -- Debit-Notice message template, that is sent to the Sender of the transfer
+            local debitNotice = {
                 Target = msg.From,
                 Action = 'Debit-Notice',
-                Recipient = msg.Tags.Recipient,
-                Quantity = tostring(qty),
+                Recipient = msg.Recipient,
+                Quantity = msg.Quantity,
                 Data = Colors.gray ..
                     "You transferred " ..
-                    Colors.blue ..
-                    msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
+                    Colors.blue .. msg.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Recipient .. Colors
                     .reset
-            })
-            if msg.Tags.Function and msg.Tags.Parameters then
-                -- Send Credit-Notice to the Recipient and include the function and parameters tags
-                ao.send({
-                    Target = msg.Tags.Recipient,
-                    Action = 'Credit-Notice',
-                    Sender = msg.From,
-                    Quantity = tostring(qty),
-                    Function = tostring(msg.Tags.Function),
-                    Parameters = msg.Tags.Parameters,
-                    Data = Colors.gray ..
-                        "You received " ..
-                        Colors.blue ..
-                        msg.Tags.Quantity ..
-                        Colors.gray .. " from " .. Colors.green .. msg.Tags.Recipient .. Colors.reset ..
-                        " with the instructions for function " .. Colors.green .. msg.Tags.Function .. Colors.reset ..
-                        " with the parameters " .. Colors.green .. msg.Tags.Parameters
-                })
-            else
-                -- Send Debit-Notice to the Sender
-                ao.send({
-                    Target = msg.From,
-                    Action = 'Debit-Notice',
-                    Recipient = msg.Tags.Recipient,
-                    Quantity = tostring(qty),
-                    Data = Colors.gray ..
-                        "You transferred " ..
-                        Colors.blue ..
-                        msg.Tags.Quantity .. Colors.gray .. " to " .. Colors.green .. msg.Tags.Recipient .. Colors
-                        .reset
-                })
+            }
+            -- Credit-Notice message template, that is sent to the Recipient of the transfer
+            local creditNotice = {
+                Target = msg.Recipient,
+                Action = 'Credit-Notice',
+                Sender = msg.From,
+                Quantity = msg.Quantity,
+                Data = Colors.gray ..
+                    "You received " ..
+                    Colors.blue .. msg.Quantity .. Colors.gray .. " from " .. Colors.green .. msg.From .. Colors.reset
+            }
+
+            -- Add forwarded tags to the credit and debit notice messages
+            for tagName, tagValue in pairs(msg) do
+                -- Tags beginning with "X-" are forwarded
+                if string.sub(tagName, 1, 2) == "X-" then
+                    debitNotice[tagName] = tagValue
+                    creditNotice[tagName] = tagValue
+                end
             end
+
+            -- Send Debit-Notice and Credit-Notice
+            ao.send(debitNotice)
+            ao.send(creditNotice)
         end
     else
         ao.send({
             Target = msg.From,
-            Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Balance!' }
+            Action = 'Transfer-Error',
+            ['Message-Id'] = msg.Id,
+            Error = 'Insufficient Balance!'
         })
     end
 end)

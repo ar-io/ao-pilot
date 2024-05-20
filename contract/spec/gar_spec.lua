@@ -36,6 +36,7 @@ describe("gar", function()
 			Bob = gar.settings.minOperatorStake,
 		}
 		gar.gateways = {}
+		gar.settings.observers.maxObserversPerEpoch = 2
 	end)
 
 	describe("joinNetwork", function()
@@ -524,10 +525,12 @@ describe("gar", function()
 		end)
 
 		it("should return the maximum number of gateways if more are enrolled in network", function()
+			local hashchain = "c29tZSBzYW1wbGUgaGFzaA==" -- base64 of "some sample hash"
+
 			local gateways = {}
 			for i = 1, gar.settings.observers.maxObserversPerEpoch + 1 do
 				local gateway = {
-					operatorStake = gar.settings.minOperatorStake + 1,
+					operatorStake = gar.settings.minOperatorStake,
 					totalDelegatedStake = 0,
 					vaults = {},
 					delegates = {},
@@ -545,14 +548,14 @@ describe("gar", function()
 					status = "joined",
 					observerWallet = "observerWallet",
 				}
-				gateways["Bob" .. i] = gateway
+				-- note - ordering of keys is not guaranteed when insert into maps
+				gateways["observer" .. i] = gateway
 			end
 			gar.gateways = gateways
 
-			local expectation = {}
-			for i = 1, gar.settings.observers.maxObserversPerEpoch do
-				table.insert(expectation, {
-					gatewayAddress = "Bob" .. i,
+			local expectation = {
+				{
+					gatewayAddress = "observer2",
 					observerAddress = "observerWallet",
 					stake = gar.settings.minOperatorStake,
 					startTimestamp = startTimestamp,
@@ -561,23 +564,26 @@ describe("gar", function()
 					gatewayRewardRatioWeight = 1,
 					observerRewardRatioWeight = 1,
 					compositeWeight = 1 / gar.settings.observers.tenureWeightPeriod,
-					normalizedCompositeWeight = 1,
-				})
-			end
-			-- sort our expectations table
-			table.sort(expectation, function(a, b)
-				return a.normalizedCompositeWeight > b.normalizedCompositeWeight
-			end)
-			local status, result = pcall(
-				gar.getPrescribedObserversForEpoch,
-				gar.epoch.startTimestamp,
-				gar.epoch.endTimestamp,
-				"stubbedhashchain"
-			)
+					normalizedCompositeWeight = 1 / (gar.settings.observers.maxObserversPerEpoch + 1),
+				},
+				{
+					gatewayAddress = "observer1",
+					observerAddress = "observerWallet",
+					stake = gar.settings.minOperatorStake,
+					startTimestamp = startTimestamp,
+					stakeWeight = 1,
+					tenureWeight = 1 / gar.settings.observers.tenureWeightPeriod,
+					gatewayRewardRatioWeight = 1,
+					observerRewardRatioWeight = 1,
+					compositeWeight = 1 / gar.settings.observers.tenureWeightPeriod,
+					normalizedCompositeWeight = 1 / (gar.settings.observers.maxObserversPerEpoch + 1),
+				},
+			}
+			local status, result =
+				pcall(gar.getPrescribedObserversForEpoch, gar.epoch.startTimestamp, gar.epoch.endTimestamp, hashchain)
 			assert.is_true(status)
 			assert.are.equal(gar.settings.observers.maxObserversPerEpoch, #result)
-			-- TODO: assert.are.same(expectation, result)
-			-- assert.are.same(expectation, result)
+			assert.are.same(expectation, result)
 		end)
 	end)
 end)

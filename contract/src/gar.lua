@@ -90,7 +90,7 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 end
 
 function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimestamp, hashchain)
-	local eligibleGateways = gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+	local eligibleGateways = gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp, gar.gateways)
 	local weightedObservers = gar.getObserverWeightsForEpoch(epochStartTimestamp, eligibleGateways)
 	-- Filter out any observers that could have a normalized composite weight of 0
 	local filteredObservers = {}
@@ -104,15 +104,28 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 		return filteredObservers
 	end
 
-	local timestampEntropyHash = gar.getEntropyHashForEpoch(hashchain)
+	-- the hash we will use to create entropy for prescribed observers
+	local epochHash = gar.getHashFromBase64(hashchain)
+
+	-- sort the observers using entropy from the hash chain, this will ensure that the same observers are selected for the same epoch
+	table.sort(filteredObservers, function(observerA, observerB)
+		local addressAHash = gar.getHashFromBase64(observerA.gatewayAddress .. hashchain)
+		local addressBHash = gar.getHashFromBase64(observerB.gatewayAddress .. hashchain)
+		local addressAString = crypto.utils.array.toString(addressAHash)
+		local addressBString = crypto.utils.array.toString(addressBHash)
+		return addressAString < addressBString
+	end)
+
+	-- get our prescribed observers, using the hashchain as entropy
+	local hash = epochHash
 	local prescribedObserversAddresses = {}
-	local hash = timestampEntropyHash
 	while #prescribedObserversAddresses < gar.settings.observers.maxObserversPerEpoch do
 		local hashString = crypto.utils.array.toString(hash)
 		local random = crypto.random(nil, nil, hashString) / 0xffffffff
 		local cumulativeNormalizedCompositeWeight = 0
 		-- use ipairs as filtered observers is an array
-		for _, observer in ipairs(filteredObservers) do
+		for i = 1, #filteredObservers do
+			local observer = filteredObservers[i]
 			local alreadyPrescribed = utils.findInArray(prescribedObserversAddresses, function(address)
 				return address == observer.gatewayAddress
 			end)
@@ -554,9 +567,9 @@ function gar.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimes
 	return didStartBeforeEpoch and didNotLeaveDuringEpoch
 end
 
-function gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+function gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp, gateways)
 	local eligibleGateways = {}
-	for address, gateway in pairs(gar.gateways) do
+	for address, gateway in pairs(gateways) do
 		if gar.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway) then
 			eligibleGateways[address] = gar.getGateway(address)
 		end
@@ -626,8 +639,8 @@ function gar.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 	return weightedObservers
 end
 
-function gar.getEntropyHashForEpoch(hash)
-	local decodedHash = base64.decode(hash)
+function gar.getHashFromBase64(str)
+	local decodedHash = base64.decode(str)
 	local hashStream = crypto.utils.stream.fromString(decodedHash)
 	return crypto.digest.sha2_256(hashStream).asBytes()
 end

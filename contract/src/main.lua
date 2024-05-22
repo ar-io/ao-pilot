@@ -6,6 +6,8 @@ local utils = require("utils")
 local json = require("json")
 local ao = ao or require("ao")
 local arns = require("arns")
+local gar = require("gar")
+local demand = require("demand")
 
 Name = "Test IO"
 Ticker = "tIO"
@@ -14,7 +16,7 @@ Denomination = 6
 DemandFactor = DemandFactor or {}
 Balances = Balances or {}
 Vaults = Vaults or {}
-GatewayRegistry = require("gar")
+GatewayRegistry = GatewayRegistry or {}
 NameRegistry = NameRegistry or {}
 
 local balances = require("balances")
@@ -284,11 +286,11 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
-	GatewayRegistryjoinNetwork(msg)
+	gar.joinNetwork(msg)
 end)
 
 Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.LeaveNetwork), function(msg)
-	local result, err = GatewayRegistryleaveNetwork(msg.From, msg.Timestamp, msg.Id)
+	local result, err = gar.leaveNetwork(msg.From, msg.Timestamp, msg.Id)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -308,7 +310,7 @@ Handlers.add(
 	ActionMap.IncreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseOperatorStake),
 	function(msg)
-		local result, err = GatewayRegistryincreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity))
+		local result, err = gar.increaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity))
 		if err then
 			ao.send({
 				Target = msg.From,
@@ -329,8 +331,7 @@ Handlers.add(
 	ActionMap.DecreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseOperatorStake),
 	function(msg)
-		local result, err =
-			GatewayRegistrydecreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
+		local result, err = gar.decreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
 		if err then
 			ao.send({
 				Target = msg.From,
@@ -348,8 +349,7 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.DelegateStake, utils.hasMatchingTag("Action", ActionMap.DelegateStake), function(msg)
-	local result, err =
-		GatewayRegistrydelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+	local result, err = gar.delegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -373,7 +373,7 @@ Handlers.add(
 	utils.hasMatchingTag("Action", ActionMap.DecreaseDelegateStake),
 	function(msg)
 		local result, err =
-			GatewayRegistrydecreaseDelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+			gar.decreaseDelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
 		if err then
 			ao.send({
 				Target = msg.From,
@@ -397,7 +397,7 @@ Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
-		local result, err = GatewayRegistryupdateGatewaySettings(
+		local result, err = gar.updateGatewaySettings(
 			msg.From,
 			msg.Tags.UpdatedSettings,
 			msg.Tags.ObserverWallet,
@@ -421,7 +421,7 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.GetGateway, utils.hasMatchingTag("Action", ActionMap.GetGateway), function(msg)
-	local result, err = GatewayRegistrygetGateway(msg.Tags.Target)
+	local result, err = gar.getGateway(msg.Tags.Target)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -438,7 +438,7 @@ Handlers.add(ActionMap.GetGateway, utils.hasMatchingTag("Action", ActionMap.GetG
 end)
 
 Handlers.add(ActionMap.GetGateways, utils.hasMatchingTag("Action", ActionMap.GetGateways), function(msg)
-	local result = GatewayRegistrygetGateways()
+	local result = gar.getGateways()
 	ao.send({
 		Target = msg.From,
 		Tags = { Action = "GAR-Get-Gateways" },
@@ -447,13 +447,13 @@ Handlers.add(ActionMap.GetGateways, utils.hasMatchingTag("Action", ActionMap.Get
 end)
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
-	GatewayRegistrysaveObservations(msg)
+	gar.saveObservations(msg)
 end)
 
 -- handler showing how we can fetch data from classes in lua
 Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.DemandFactor), function(msg)
 	-- wrap in a protected call, and return the result or error accoringly to sender
-	local status, result = pcall(Demand.getDemandFactor)
+	local status, result = pcall(demand.getDemandFactor)
 	if status then
 		ao.send({ Target = msg.From, Data = tostring(result) })
 	else

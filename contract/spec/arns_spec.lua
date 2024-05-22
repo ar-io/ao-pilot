@@ -22,7 +22,6 @@ describe("arns", function()
 			local demandBefore = demand.getCurrentPeriodRevenue()
 			local purchasesBefore = demand.getCurrentPeriodPurchases()
 			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
-			print(result)
 			assert.is_true(status)
 			assert.are.same({
 				purchasePrice = 1500,

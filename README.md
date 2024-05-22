@@ -20,14 +20,34 @@ This repository contains the IO contract implementation on AO.
 
 1. Clone the repository and navigate to the project directory.
 1. Install `lua`
-    - `brew install lua`
+    - `brew install lua@5.3`
+1. Add the following to your `.zshrc` or `.bashrc` file:
+
+    ```bash
+    echo 'export LDFLAGS="-L/usr/local/opt/lua@5.3/lib"' >> ~/.zshrc
+    echo 'export CPPFLAGS="-I/usr/local/opt/lua@5.3/include"' >> ~/.zshrc
+    echo 'export PKG_CONFIG_PATH="/usr/local/opt/lua@5.3/lib/pkgconfig"' >> ~/.zshrc
+    echo 'export PATH="/usr/local/opt/lua@5.3/bin:$PATH"' >> ~/.zshrc
+    ```
+
+1. Run `source ~/.zshrc` or `source ~/.bashrc` to apply the changes.
+1. Run `lua -v` to verify the installation.
+
+### Luarocks Setup
+
 1. Install `luarocks`
-    - `brew install luarocks`
-1. Set the local luarocks path
-    - `luarocks config local_by_default true`
-    - `luarocks path --tree .luarocks`
-1. Install the dependencies by running:
-    - `luarocks install ar-io-ao-0.1-1.rockspec`
+
+    ```bash
+    curl -R -O http://luarocks.github.io/luarocks/releases/luarocks-3.9.1.tar.gz
+    tar zxpf luarocks-3.9.1.tar.gz
+    cd luarocks-3.9.1
+    ./configure --with-lua=/usr/local/opt/lua@5.3 --with-lua-include=/usr/local/opt/lua@5.3/include
+    make build
+    sudo make install
+    ```
+
+1. Check the installation by running `luarocks --version`.
+1. Check the luarocks configuration by running `luarocks config | grep LUA`
 
 If you ever need to refresh .luarocks, run the following command:
 

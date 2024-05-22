@@ -23,17 +23,13 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 		years = 1 -- set to 1 year by default
 	end
 
-	local baseRegistrionFee = demand.fees[#name]
+	local baseRegistrionFee = demand.getFees()[#name]
 
 	local totalRegistrationFee =
 		arns.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
 	if balances.getBalance(from) < totalRegistrationFee then
 		error("Insufficient balance")
-	end
-
-	if arns.getAuction(name) then
-		error("Name is in auction")
 	end
 
 	if arns.getRecord(name) and arns.getRecord(name).endTimestamp + constants.gracePeriodMs > timestamp then
@@ -88,7 +84,7 @@ function arns.extendLease(from, name, years, currentTimestamp)
 	local record = arns.getRecord(name)
 	-- throw error if invalid
 	arns.assertValidExtendLease(record, currentTimestamp, years)
-	local baseRegistrionFee = demand.fees[#name]
+	local baseRegistrionFee = demand.getFees()[#name]
 	local totalExtensionFee = arns.calculateExtensionFee(baseRegistrionFee, years, demand.getDemandFactor())
 
 	if balances.getBalance(from) < totalExtensionFee then
@@ -121,7 +117,7 @@ function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 		yearsRemaining = arns.calculateYearsBetweenTimestamps(currentTimestamp, record.endTimestamp)
 	end
 
-	local baseRegistrionFee = demand.fees[#name]
+	local baseRegistrionFee = demand.getFees()[#name]
 	local additionalUndernameCost =
 		arns.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
 
@@ -191,9 +187,6 @@ function arns.addReservedName(name, details)
 		error("Name is already registered")
 	end
 
-	if arns.getAuction(name) then
-		error("Name is in auction")
-	end
 	NameRegistry.reserved[name] = details
 	return arns.getReservedName(name)
 end

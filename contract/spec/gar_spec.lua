@@ -32,7 +32,7 @@ local testGateway = {
 
 describe("gar", function()
 	before_each(function()
-		Balances = {
+		_G.Balances = {
 			Bob = gar.settings.minOperatorStake,
 		}
 		gar.gateways = {}

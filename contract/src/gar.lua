@@ -1,8 +1,9 @@
 -- gar.lua
+-- TODO: REFACTOR THIS
 local crypto = require("crypto.init")
 local utils = require("utils")
 local base64 = require("base64")
-local token = Token or require("token")
+local balances = require("balances")
 local gar = GatewayRegistry
 	or {
 		gateways = {},
@@ -59,7 +60,7 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 		error("Gateway already exists")
 	end
 
-	if token.getBalance(from) < stake then
+	if balances.getBalance(from) < stake then
 		error("Insufficient balance")
 	end
 
@@ -233,11 +234,11 @@ function gar.increaseOperatorStake(from, qty)
 		error("Gateway is leaving the network and cannot accept additional stake.")
 	end
 
-	if token.getBalance(from) < qty then
+	if balances.getBalance(from) < qty then
 		error("Insufficient balance")
 	end
 
-	token.reduceBalance(from, qty)
+	balances.reduceBalance(from, qty)
 	gar.gateways[from].operatorStake = gar.getGateway(from).operatorStake + qty
 	return gar.getGateway(from)
 end
@@ -345,7 +346,7 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		error("Gateway does not exist")
 	end
 
-	if token.getBalance(from) < qty then
+	if balances.getBalance(from) < qty then
 		error("Insufficient balance")
 	end
 
@@ -384,7 +385,7 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 	end
 
 	-- Decrement the user's balance
-	token.reduceBalance(from, qty)
+	balances.reduceBalance(from, qty)
 	gar.gateways[target].totalDelegatedStake = gar.gateways[target].totalDelegatedStake + qty
 	-- If this delegate has staked before, update its amount, if not, create a new delegated staker
 	if existingDelegate == nil then

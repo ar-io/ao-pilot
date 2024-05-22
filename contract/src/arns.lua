@@ -1,7 +1,7 @@
 -- arns.lua
 local utils = require("utils")
 local constants = require("constants")
-local token = Token or require("token")
+local balances = require("balances")
 local demand = Demand or require("demand")
 local arns = NameRegistry or {
 	reserved = {},
@@ -25,7 +25,7 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	local totalRegistrationFee =
 		arns.calculateRegistrationFee(purchaseType, baseRegistrionFee, years, demand.getDemandFactor())
 
-	if token.getBalance(from) < totalRegistrationFee then
+	if balances.getBalance(from) < totalRegistrationFee then
 		error("Insufficient balance")
 	end
 
@@ -66,7 +66,7 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 		newRecord.endTimestamp = timestamp + constants.oneYearMs * years
 	end
 	-- Transfer tokens to the protocol balance
-	token.transfer(ao.id, from, totalRegistrationFee)
+	balances.transfer(ao.id, from, totalRegistrationFee)
 	arns.addRecord(name, newRecord)
 	demand.tallyNamePurchase(totalRegistrationFee)
 	return arns.getRecord(name)
@@ -90,11 +90,11 @@ function arns.extendLease(from, name, years, currentTimestamp)
 	local baseRegistrionFee = demand.fees[#name]
 	local totalExtensionFee = arns.calculateExtensionFee(baseRegistrionFee, years, demand.getDemandFactor())
 
-	if token.getBalance(from) < totalExtensionFee then
+	if balances.getBalance(from) < totalExtensionFee then
 		error("Insufficient balance")
 	end
 	-- Transfer tokens to the protocol balance
-	token.transfer(ao.id, from, totalExtensionFee)
+	balances.transfer(ao.id, from, totalExtensionFee)
 	arns.records[name].endTimestamp = record.endTimestamp + constants.oneYearMs * years
 	demand.tallyNamePurchase(totalExtensionFee)
 	return arns.records[name]
@@ -126,12 +126,12 @@ function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 		error("Invalid undername cost")
 	end
 
-	if token.getBalance(from) < additionalUndernameCost then
+	if balances.getBalance(from) < additionalUndernameCost then
 		error("Insufficient balance")
 	end
 
 	-- Transfer tokens to the protocol balance
-	token.transfer(ao.id, from, additionalUndernameCost)
+	balances.transfer(ao.id, from, additionalUndernameCost)
 	arns.records[name].undernameCount = existingUndernames + qty
 	demand.tallyNamePurchase(additionalUndernameCost)
 	return arns.records[name]

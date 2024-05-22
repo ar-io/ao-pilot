@@ -10,12 +10,13 @@ Name = "Test IO"
 Ticker = "tIO"
 Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
 Denomination = 6
-Demand = require("demand")
-Token = require("token")
+DemandFactor = DemandFactor or {}
+Balances = Balances or {}
+Vaults = Vaults or {}
 GatewayRegistry = require("gar")
 NameRegistry = require("arns")
 
-print(ao.id)
+local balances = require("balances")
 
 local ActionMap = {
 	Info = "Info",
@@ -53,7 +54,7 @@ Handlers.add("info", Handlers.utils.hasMatchingTag("Action", "Info"), function(m
 end)
 
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transfer), function(msg)
-	local result, err = Token.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
+	local result, err = balances.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
 	if result and not msg.Cast then
 		-- Send Debit-Notice to the Sender
 		ao.send({
@@ -101,7 +102,7 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 end)
 
 Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetBalance), function(msg)
-	local result = Token.getBalance(msg.Tags.Target, msg.From)
+	local result = balances.getBalance(msg.Tags.Target, msg.From)
 	ao.send({
 		Target = msg.From,
 		Balance = tostring(result),
@@ -110,12 +111,12 @@ Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetB
 end)
 
 Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag("Action", ActionMap.GetBalances), function(msg)
-	local result = Token.getBalances()
+	local result = balances.getBalances()
 	ao.send({ Target = msg.From, Data = json.encode(result) })
 end)
 
 Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.CreateVault), function(msg)
-	local result, err = Token.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
+	local result, err = balances.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -132,7 +133,7 @@ Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.Cre
 end)
 
 Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap.VaultedTransfer), function(msg)
-	local result, err = Token.vaultedTransfer(
+	local result, err = balances.vaultedTransfer(
 		msg.From,
 		msg.Tags.Recipient,
 		msg.Tags.Quantity,
@@ -161,7 +162,7 @@ Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap
 end)
 
 Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.ExtendVault), function(msg)
-	local result, err = Token.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
+	local result, err = balances.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -178,7 +179,7 @@ Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.Ext
 end)
 
 Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.IncreaseVault), function(msg)
-	local result, err = Token.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
+	local result, err = balances.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
 	if err then
 		ao.send({
 			Target = msg.From,

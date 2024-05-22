@@ -1,7 +1,7 @@
 local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
 local constants = require("constants")
 local arns = require("arns")
-local token = require("token")
+local balances = require("balances")
 local demand = require("demand")
 
 describe("arns", function()
@@ -12,7 +12,7 @@ describe("arns", function()
 		arns.records = {}
 		arns.reserved = {}
 		arns.fees = constants.genesisFees
-		token.balances = {
+		Balances = {
 			Bob = 5000000,
 		}
 	end)
@@ -41,10 +41,8 @@ describe("arns", function()
 					endTimestamp = timestamp + constants.oneYearMs * 1,
 				},
 			}, arns.records)
-			assert.are.same({
-				["Bob"] = 4998500,
-				[_G.ao.id] = 1500,
-			}, token.balances)
+			assert.are.equal(balances.getBalance("Bob"), 4998500)
+			assert.are.equal(balances.getBalance(_G.ao.id), 1500)
 			assert.are.equal(demandBefore + 1500, demand.getCurrentPeriodRevenue())
 			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
@@ -75,7 +73,7 @@ describe("arns", function()
 			assert.are.same({
 				["Bob"] = 4998500,
 				[_G.ao.id] = 1500,
-			}, token.balances)
+			}, Balances)
 			assert.are.equal(demandBefore + 1500, demand.getCurrentPeriodRevenue())
 			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
@@ -123,7 +121,7 @@ describe("arns", function()
 				assert.are.same({
 					["Bob"] = 4997000,
 					[_G.ao.id] = 3000,
-				}, token.balances)
+				}, Balances)
 				assert.are.equal(demandBefore + 3000, demand.getCurrentPeriodRevenue())
 				assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 			end
@@ -133,7 +131,7 @@ describe("arns", function()
 			"should throw an error when trying to buy a permabuy a name greater than the minimum and shorter than the allowed permabuy threshold",
 			function()
 				-- give Bob a massive balance
-				token.balances["Bob"] = 15000000
+				Balances["Bob"] = 15000000
 				local status, result =
 					pcall(arns.buyRecord, "permabuy", "permabuy", nil, "Bob", timestamp, testProcessId)
 				assert.is_false(status)
@@ -144,7 +142,7 @@ describe("arns", function()
 
 		it("should throw an error if trying to buy a short name", function()
 			-- give Bob a massive balance
-			token.balances["Bob"] = 15000000
+			Balances["Bob"] = 15000000
 			local status, result = pcall(arns.buyRecord, "a", "permabuy", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name not available for purchase", result)
@@ -201,7 +199,7 @@ describe("arns", function()
 			assert.are.same({
 				["Bob"] = 4998500,
 				[_G.ao.id] = 1500,
-			}, token.balances)
+			}, Balances)
 			assert.are.equal(demandBefore + 1500, demand.getCurrentPeriodRevenue())
 			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
@@ -215,7 +213,7 @@ describe("arns", function()
 		end)
 
 		it("should throw an error if the user does not have enough balance", function()
-			token.balances["Bob"] = 0
+			Balances["Bob"] = 0
 			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "Bob", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Insufficient balance", result)
@@ -240,7 +238,7 @@ describe("arns", function()
 				type = "lease",
 				undernameCount = 10,
 			}
-			token.balances["Bob"] = 0
+			Balances["Bob"] = 0
 			local status, error = pcall(arns.increaseUndernameCount, "Bob", "test-name", 50, timestamp)
 			assert.is_false(status)
 			assert.match("Insufficient balance", error)
@@ -301,7 +299,7 @@ describe("arns", function()
 			assert.are.same({
 				["Bob"] = 4999937.5,
 				[_G.ao.id] = 62.5,
-			}, token.balances)
+			}, Balances)
 			assert.are.equal(demandBefore + 62.5, demand.getCurrentPeriodRevenue())
 			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)
@@ -358,7 +356,7 @@ describe("arns", function()
 				type = "lease",
 				undernameCount = 10,
 			}
-			token.balances["Bob"] = 0
+			Balances["Bob"] = 0
 			local status, error = pcall(arns.extendLease, "Bob", "test-name", 1, timestamp)
 			assert.is_false(status)
 			assert.match("Insufficient balance", error)
@@ -399,7 +397,7 @@ describe("arns", function()
 			assert.are.same({
 				["Bob"] = 4999000,
 				[_G.ao.id] = 1000,
-			}, token.balances)
+			}, Balances)
 			assert.are.equal(demandBefore + 1000, demand.getCurrentPeriodRevenue())
 			assert.are.equal(purchasesBefore + 1, demand.getCurrentPeriodPurchases())
 		end)

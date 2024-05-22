@@ -1,8 +1,10 @@
 local constants = require("constants")
-local demand = Demand
+local demand = {}
+
+DemandFactor = DemandFactor
 	or {
 		startTimestamp = 0, -- TODO: The timestamp at which the contract was initialized
-		currentPeriod = 1, -- TODO: the # of days since the last demand factor adjustment
+		currentPeriod = 0, -- TODO: the # of days since the last demand factor adjustment
 		trailingPeriodPurchases = { 0, 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period purchase counts
 		trailingPeriodRevenues = { 0, 0, 0, 0, 0, 0 }, -- Acts as a ring buffer of trailing period revenues
 		purchasesThisPeriod = 0,
@@ -14,33 +16,37 @@ local demand = Demand
 	}
 
 function demand.tallyNamePurchase(qty)
-	demand.purchasesThisPeriod = demand.purchasesThisPeriod + 1
-	demand.revenueThisPeriod = demand.revenueThisPeriod + qty
+	demand.incrementPurchasesThisPeriodRevenue(1)
+	demand.incrementRevenueThisPeriod(qty)
 end
 
 function demand.mvgAvgTrailingPurchaseCounts()
 	local sum = 0
-	for i = 1, #demand.trailingPeriodPurchases do
-		sum = sum + demand.trailingPeriodPurchases[i]
+	local trailingPeriodPurchases = demand.getTrailingPeriodPurchases()
+	for i = 1, #trailingPeriodPurchases do
+		sum = sum + trailingPeriodPurchases[i]
 	end
-	return sum / #demand.trailingPeriodPurchases
+	return sum / #trailingPeriodPurchases
 end
 
 function demand.mvgAvgTrailingRevenues()
 	local sum = 0
-	for i = 1, #demand.trailingPeriodRevenues do
-		sum = sum + demand.trailingPeriodRevenues[i]
+	local trailingPeriodRevenues = demand.getTrailingPeriodRevenues()
+	for i = 1, #trailingPeriodRevenues do
+		sum = sum + trailingPeriodRevenues[i]
 	end
-	return sum / #demand.trailingPeriodRevenues
+	return sum / #trailingPeriodRevenues
 end
 
 function demand.isDemandIncreasing()
-	local purchasesLastPeriod = demand.trailingPeriodPurchases[demand.currentPeriod]
-	local revenueInLastPeriod = demand.trailingPeriodRevenues[demand.currentPeriod]
+	local currentPeriod = demand.getCurrentPeriod()
+	local settings = demand.getSettings()
+	local purchasesLastPeriod = demand.getTrailingPeriodPurchases()[currentPeriod]
+	local revenueInLastPeriod = demand.getTrailingPeriodRevenues()[currentPeriod]
 	local mvgAvgOfTrailingNamePurchases = demand.mvgAvgTrailingPurchaseCounts()
 	local mvgAvgOfTrailingRevenue = demand.mvgAvgTrailingRevenues()
 
-	if demand.settings.criteria == "revenue" then
+	if settings.criteria == "revenue" then
 		return revenueInLastPeriod > 0 and revenueInLastPeriod > mvgAvgOfTrailingRevenue
 	else
 		return purchasesLastPeriod > 0 and purchasesLastPeriod > mvgAvgOfTrailingNamePurchases
@@ -49,8 +55,9 @@ end
 
 -- update at the end of the demand if the current timestamp results in a period greater than our current state
 function demand.shouldUpdateDemandFactor(currentTimestamp)
-	local calculatedPeriod = math.floor((currentTimestamp - demand.startTimestamp) / demand.settings.periodLengthMs) + 1
-	return calculatedPeriod > demand.currentPeriod
+	local settings = demand.getSettings()
+	local calculatedPeriod = math.floor((currentTimestamp - DemandFactor.startTimestamp) / settings.periodLengthMs) + 1
+	return calculatedPeriod > demand.getCurrentPeriod()
 end
 
 function demand.updateDemandFactor(timestamp)
@@ -58,50 +65,139 @@ function demand.updateDemandFactor(timestamp)
 		return
 	end
 
+	local settings = demand.getSettings()
+
 	if demand.isDemandIncreasing() then
-		demand.currentDemandFactor = demand.currentDemandFactor * (1 + demand.settings.demandFactorUpAdjustment)
+		local upAdjustment = settings.demandFactorUpAdjustment
+		demand.setDemandFactor(demand.getDemandFactor() * (1 + upAdjustment))
 	else
-		if demand.currentDemandFactor > demand.settings.demandFactorMin then
-			demand.currentDemandFactor = demand.currentDemandFactor * (1 - demand.settings.demandFactorDownAdjustment)
+		if demand.getDemandFactor() > settings.demandFactorMin then
+			local downAdjustment = settings.demandFactorDownAdjustment
+			local updatedDemandFactor = demand.getDemandFactor() * (1 - downAdjustment)
+			demand.setDemandFactor(updatedDemandFactor)
 		end
 	end
 
-	if demand.currentDemandFactor == demand.settings.demandFactorMin then
-		if demand.consecutivePeriodsWithMinDemandFactor >= demand.settings.stepDownThreshold then
-			demand.consecutivePeriodsWithMinDemandFactor = 0
-			demand.currentDemandFactor = demand.settings.demandFactorBaseValue
-			demand.updateFees()
+	if demand.getDemandFactor() == settings.demandFactorMin then
+		if demand.getConsecutivePeriodsWithMinDemandFactor() >= settings.stepDownThreshold then
+			demand.resetConsecutivePeriodsWithMinimumDemandFactor()
+			demand.updateFees(settings.demandFactorMin)
+			demand.setDemandFactor(settings.demandFactorBaseValue)
+		else
+			demand.incrementConsecutivePeriodsWithMinDemandFactor(1)
 		end
-	else
-		demand.consecutivePeriodsWithMinDemandFactor = 0
 	end
 
-	demand.trailingPeriodPurchases[demand.currentPeriod] = demand.purchasesThisPeriod
-	demand.trailingPeriodRevenues[demand.currentPeriod] = demand.revenueThisPeriod
-	demand.currentPeriod = demand.currentPeriod + 1
-	demand.purchasesThisPeriod = 0
-	demand.revenueThisPeriod = 0
-	return
+	demand.incrementPeriodAndResetValues()
 end
 
-function demand.updateFees()
+function demand.updateFees(multiplier)
+	local currentFees = demand.getFees()
 	-- update all fees multiply them by the demand factor minimim
-	for nameLength, fee in pairs(demand.fees) do
-		local updatedFee = fee * demand.settings.demandFactorMin
-		demand.fees[nameLength] = updatedFee
+	for nameLength, fee in pairs(currentFees) do
+		local updatedFee = fee * multiplier
+		DemandFactor.fees[nameLength] = updatedFee
 	end
 end
 
 function demand.getDemandFactor()
-	return demand.currentDemandFactor
+	return DemandFactor.currentDemandFactor
 end
 
 function demand.getCurrentPeriodRevenue()
-	return demand.revenueThisPeriod
+	return DemandFactor.revenueThisPeriod
 end
 
 function demand.getCurrentPeriodPurchases()
-	return demand.purchasesThisPeriod
+	return DemandFactor.purchasesThisPeriod
+end
+
+function demand.getTrailingPeriodPurchases()
+	return DemandFactor.trailingPeriodPurchases
+end
+
+function demand.getTrailingPeriodRevenues()
+	return DemandFactor.trailingPeriodRevenues
+end
+
+function demand.getFees()
+	return DemandFactor.fees
+end
+
+function demand.getSettings()
+	return DemandFactor.settings
+end
+
+function demand.getConsecutivePeriodsWithMinDemandFactor()
+	return DemandFactor.consecutivePeriodsWithMinDemandFactor
+end
+
+function demand.getCurrentPeriod()
+	return DemandFactor.currentPeriod
+end
+
+function demand.updateSettings(settings)
+	DemandFactor.settings = settings
+end
+
+function demand.updateStartTimestamp(timestamp)
+	DemandFactor.startTimestamp = timestamp
+end
+
+function demand.updateCurrentPeriod(period)
+	DemandFactor.currentPeriod = period
+end
+
+function demand.setDemandFactor(demandFactor)
+	DemandFactor.currentDemandFactor = demandFactor
+end
+function demand.updateTrailingPeriodPurchases()
+	local currentPeriod = demand.getCurrentPeriod()
+	DemandFactor.trailingPeriodPurchases[currentPeriod] = demand.getCurrentPeriodPurchases()
+end
+
+function demand.updateTrailingPeriodRevenues()
+	local currentPeriod = demand.getCurrentPeriod()
+	DemandFactor.trailingPeriodRevenues[currentPeriod] = demand.getCurrentPeriodRevenue()
+end
+
+function demand.resetPurchasesThisPeriod()
+	DemandFactor.purchasesThisPeriod = 0
+end
+
+function demand.resetRevenueThisPeriod()
+	DemandFactor.revenueThisPeriod = 0
+end
+
+function demand.incrementPurchasesThisPeriodRevenue(count)
+	DemandFactor.purchasesThisPeriod = DemandFactor.purchasesThisPeriod + count
+end
+
+function demand.incrementRevenueThisPeriod(revenue)
+	DemandFactor.revenueThisPeriod = DemandFactor.revenueThisPeriod + revenue
+end
+
+function demand.updateRevenueThisPeriod(revenue)
+	DemandFactor.revenueThisPeriod = revenue
+end
+
+function demand.incrementCurrentPeriod(count)
+	DemandFactor.currentPeriod = DemandFactor.currentPeriod + count
+end
+
+function demand.resetConsecutivePeriodsWithMinimumDemandFactor()
+	DemandFactor.consecutivePeriodsWithMinDemandFactor = 0
+end
+
+function demand.incrementConsecutivePeriodsWithMinDemandFactor(count)
+	DemandFactor.consecutivePeriodsWithMinDemandFactor = DemandFactor.consecutivePeriodsWithMinDemandFactor + count
+end
+
+function demand.incrementPeriodAndResetValues()
+	demand.resetConsecutivePeriodsWithMinimumDemandFactor()
+	demand.resetPurchasesThisPeriod()
+	demand.resetRevenueThisPeriod()
+	demand.incrementCurrentPeriod(1)
 end
 
 return demand

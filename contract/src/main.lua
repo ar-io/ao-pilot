@@ -5,17 +5,19 @@ local process = { _version = "0.0.1" }
 local utils = require("utils")
 local json = require("json")
 local ao = ao or require("ao")
+local arns = require("arns")
 
 Name = "Test IO"
 Ticker = "tIO"
 Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
 Denomination = 6
-Demand = require("demand")
-Token = require("token")
+DemandFactor = DemandFactor or {}
+Balances = Balances or {}
+Vaults = Vaults or {}
 GatewayRegistry = require("gar")
-NameRegistry = require("arns")
+NameRegistry = NameRegistry or {}
 
-print(ao.id)
+local balances = require("balances")
 
 local ActionMap = {
 	Info = "Info",
@@ -53,7 +55,7 @@ Handlers.add("info", Handlers.utils.hasMatchingTag("Action", "Info"), function(m
 end)
 
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transfer), function(msg)
-	local result, err = Token.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
+	local result, err = balances.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
 	if result and not msg.Cast then
 		-- Send Debit-Notice to the Sender
 		ao.send({
@@ -101,7 +103,7 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 end)
 
 Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetBalance), function(msg)
-	local result = Token.getBalance(msg.Tags.Target, msg.From)
+	local result = balances.getBalance(msg.Tags.Target, msg.From)
 	ao.send({
 		Target = msg.From,
 		Balance = tostring(result),
@@ -110,12 +112,12 @@ Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetB
 end)
 
 Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag("Action", ActionMap.GetBalances), function(msg)
-	local result = Token.getBalances()
+	local result = balances.getBalances()
 	ao.send({ Target = msg.From, Data = json.encode(result) })
 end)
 
 Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.CreateVault), function(msg)
-	local result, err = Token.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
+	local result, err = balances.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -132,7 +134,7 @@ Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.Cre
 end)
 
 Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap.VaultedTransfer), function(msg)
-	local result, err = Token.vaultedTransfer(
+	local result, err = balances.vaultedTransfer(
 		msg.From,
 		msg.Tags.Recipient,
 		msg.Tags.Quantity,
@@ -161,7 +163,7 @@ Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap
 end)
 
 Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.ExtendVault), function(msg)
-	local result, err = Token.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
+	local result, err = balances.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -178,7 +180,7 @@ Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.Ext
 end)
 
 Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.IncreaseVault), function(msg)
-	local result, err = Token.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
+	local result, err = balances.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
 	if err then
 		ao.send({
 			Target = msg.From,
@@ -196,7 +198,7 @@ end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
 	local status, result = pcall(
-		NameRegistry.buyRecord,
+		arns.buyRecord,
 		msg.Tags.Name,
 		msg.Tags.PurchaseType,
 		msg.Tags.Years,
@@ -226,7 +228,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 end)
 
 Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMap.SubmitAuctionBid), function(msg)
-	local status, result = pcall(NameRegistry.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
+	local status, result = pcall(arns.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
 	if not status then
 		ao.send({
 			Target = msg.From,
@@ -243,7 +245,7 @@ Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMa
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
-	local success, result = pcall(NameRegistry.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
+	local success, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
 	if not success then
 		ao.send({
 			Target = msg.From,
@@ -264,7 +266,7 @@ Handlers.add(
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
 		local status, result =
-			pcall(NameRegistry.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
+			pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
 		if not status then
 			ao.send({
 				Target = msg.From,

@@ -12,3 +12,4 @@ wallet.json
 .DS_Store
 luacov-html
 .luacov
+*.gz

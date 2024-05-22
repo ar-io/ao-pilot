@@ -1,5 +1,5 @@
 local gar = require("gar")
-local token = require("token")
+local balances = require("balances")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",
@@ -32,7 +32,7 @@ local testGateway = {
 
 describe("gar", function()
 	before_each(function()
-		token.balances = {
+		_G.Balances = {
 			Bob = gar.settings.minOperatorStake,
 		}
 		gar.gateways = {}
@@ -192,7 +192,7 @@ describe("gar", function()
 
 	describe("increaseOperatorStake", function()
 		it("should increase operator stake", function()
-			token.balances["Bob"] = 1000
+			Balances["Bob"] = 1000
 			gar.gateways["Bob"] = {
 				operatorStake = gar.settings.minOperatorStake,
 				totalDelegatedStake = 0,
@@ -365,7 +365,7 @@ describe("gar", function()
 
 	describe("delegateStake", function()
 		it("should delegate stake to a gateway", function()
-			token.balances["Alice"] = gar.settings.minDelegatedStake
+			Balances["Alice"] = gar.settings.minDelegatedStake
 			gar.gateways["Bob"] = {
 				operatorStake = gar.settings.minOperatorStake,
 				totalDelegatedStake = 0,

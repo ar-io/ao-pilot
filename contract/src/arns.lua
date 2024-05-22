@@ -2,12 +2,15 @@
 local utils = require("utils")
 local constants = require("constants")
 local balances = require("balances")
-local demand = Demand or require("demand")
-local arns = NameRegistry or {
+local demand = require("demand")
+
+NameRegistry = NameRegistry or {
 	reserved = {},
 	records = {},
-	auctions = {},
+	-- TODO: auctions
 }
+
+local arns = {}
 
 function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	-- don't catch, let the caller handle the error
@@ -72,14 +75,12 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	return arns.getRecord(name)
 end
 
-function arns.submitAuctionBid()
-	utils.reply("submitAuctionBid is not implemented yet")
-end
-
 function arns.addRecord(name, record)
-	arns.records[name] = record
+	NameRegistry.records[name] = record
+
+	-- remove reserved name if it exists in reserved
 	if arns.getReservedName(record.name) then
-		arns.reserved[name] = nil
+		NameRegistry.reserved[name] = nil
 	end
 end
 
@@ -93,11 +94,14 @@ function arns.extendLease(from, name, years, currentTimestamp)
 	if balances.getBalance(from) < totalExtensionFee then
 		error("Insufficient balance")
 	end
+
+	-- modify the record with the new end timestamp
+	arns.modifyRecordEndTimestamp(name, record.endTimestamp + constants.oneYearMs * years)
+
 	-- Transfer tokens to the protocol balance
 	balances.transfer(ao.id, from, totalExtensionFee)
-	arns.records[name].endTimestamp = record.endTimestamp + constants.oneYearMs * years
 	demand.tallyNamePurchase(totalExtensionFee)
-	return arns.records[name]
+	return arns.getRecord(name)
 end
 
 function arns.calculateExtensionFee(baseFee, years, demandFactor)
@@ -117,7 +121,6 @@ function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 		yearsRemaining = arns.calculateYearsBetweenTimestamps(currentTimestamp, record.endTimestamp)
 	end
 
-	local existingUndernames = record.undernameCount
 	local baseRegistrionFee = demand.fees[#name]
 	local additionalUndernameCost =
 		arns.calculateUndernameCost(baseRegistrionFee, qty, record.type, yearsRemaining, demand.getDemandFactor())
@@ -130,31 +133,53 @@ function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 		error("Insufficient balance")
 	end
 
+	-- update the record with the new undername count
+	arns.modifyRecordUndernameCount(name, qty)
+
 	-- Transfer tokens to the protocol balance
 	balances.transfer(ao.id, from, additionalUndernameCost)
-	arns.records[name].undernameCount = existingUndernames + qty
 	demand.tallyNamePurchase(additionalUndernameCost)
-	return arns.records[name]
+	return arns.getRecord(name)
 end
 
 function arns.getRecord(name)
-	return arns.records[name]
+	return NameRegistry.records[name]
 end
 
 function arns.getRecords()
-	return arns.records
-end
-
-function arns.getAuction(name)
-	return arns.auctions[name]
-end
-
-function arns.getAuctions()
-	return arns.auctions
+	return NameRegistry.records
 end
 
 function arns.getReservedName(name)
-	return arns.reserved[name]
+	return NameRegistry.reserved[name]
+end
+
+function arns.modifyRecordUndernameCount(name, qty)
+	if not NameRegistry.records[name] then
+		error("Name is not registered")
+	end
+	-- if qty brings it over the limit, throw error
+	if NameRegistry.records[name].undernameCount + qty > constants.MAX_ALLOWED_UNDERNAMES then
+		error(constants.ARNS_MAX_UNDERNAME_MESSAGE)
+	end
+
+	NameRegistry.records[name].undernameCount = NameRegistry.records[name].undernameCount + qty
+end
+
+function arns.modifyRecordEndTimestamp(name, newEndTimestamp)
+	if not NameRegistry.records[name] then
+		error("Name is not registered")
+	end
+
+	-- if new end timestamp + existing timetamp is > 5 years throw error
+	if
+		newEndTimestamp
+		> NameRegistry.records[name].startTimestamp + constants.maxLeaseLengthYears * constants.oneYearMs
+	then
+		error("Cannot extend lease beyond 5 years")
+	end
+
+	NameRegistry.records[name].endTimestamp = newEndTimestamp
 end
 
 function arns.addReservedName(name, details)
@@ -169,12 +194,12 @@ function arns.addReservedName(name, details)
 	if arns.getAuction(name) then
 		error("Name is in auction")
 	end
-	arns.reserved[name] = details
-	return arns.reserved[name]
+	NameRegistry.reserved[name] = details
+	return arns.getReservedName(name)
 end
 
 function arns.getReservedNames()
-	return arns.reserved
+	return NameRegistry.reserved
 end
 
 -- internal functions

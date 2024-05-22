@@ -5,6 +5,7 @@ local process = { _version = "0.0.1" }
 local utils = require("utils")
 local json = require("json")
 local ao = ao or require("ao")
+local arns = require("arns")
 
 Name = "Test IO"
 Ticker = "tIO"
@@ -14,7 +15,7 @@ DemandFactor = DemandFactor or {}
 Balances = Balances or {}
 Vaults = Vaults or {}
 GatewayRegistry = require("gar")
-NameRegistry = require("arns")
+NameRegistry = NameRegistry or {}
 
 local balances = require("balances")
 
@@ -197,7 +198,7 @@ end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
 	local status, result = pcall(
-		NameRegistry.buyRecord,
+		arns.buyRecord,
 		msg.Tags.Name,
 		msg.Tags.PurchaseType,
 		msg.Tags.Years,
@@ -227,7 +228,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 end)
 
 Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMap.SubmitAuctionBid), function(msg)
-	local status, result = pcall(NameRegistry.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
+	local status, result = pcall(arns.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
 	if not status then
 		ao.send({
 			Target = msg.From,
@@ -244,7 +245,7 @@ Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMa
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
-	local success, result = pcall(NameRegistry.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
+	local success, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
 	if not success then
 		ao.send({
 			Target = msg.From,
@@ -265,7 +266,7 @@ Handlers.add(
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
 		local status, result =
-			pcall(NameRegistry.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
+			pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
 		if not status then
 			ao.send({
 				Target = msg.From,

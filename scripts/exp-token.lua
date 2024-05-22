@@ -4,10 +4,11 @@ if not Balances then
     Balances = {}
 
     -- ao.id is the protocol balance
-    Balances[ao.id] = 20000
+    Balances[ao.id] = 2000
 
     -- Assignments for complex keys
     Balances["iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA"] = 1000
+    Balances["QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"] = 500
 end
 
 -- Setup the default record pointing to the ArNS landing page
@@ -28,7 +29,7 @@ end
 
 Name = Name or 'Test AR.IO EXP'
 Ticker = Ticker or 'tEXP'
-Denomination = Denomination or 0
+Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 LastBalanceLoadTimestamp = LastBalanceLoadTimestamp or 0
 
@@ -63,12 +64,12 @@ Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 
     ao.send({
         Target = msg.From,
-        Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Account = msg.Tags.Recipient or msg.From, Data = json.encode(tonumber(bal)) }
+        Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Denomination = tostring(Denomination), Account = msg.Tags.Recipient or msg.From, Data = json.encode(tonumber(bal)) }
     })
 end)
 
 Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
-    function(msg) ao.send({ Target = msg.From, Data = json.encode(Balances) }) end)
+    function(msg) ao.send({ Target = msg.From, Denomination = tostring(Denomination), Data = json.encode(Balances) }) end)
 
 Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
     assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')

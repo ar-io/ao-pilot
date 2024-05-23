@@ -4,7 +4,9 @@ local crypto = require("crypto.init")
 local utils = require("utils")
 local base64 = require("base64")
 local balances = require("balances")
-local gar = GatewayRegistry
+local gar = {}
+
+GatewayRegistry = GatewayRegistry
 	or {
 		gateways = {},
 		observations = {},
@@ -51,7 +53,7 @@ local initialStats = {
 }
 
 -- TODO: any necessary state modifcations as we iterate go here
--- e.g. gar.settings.gateways =
+-- e.g. gar.getSettings().gateways =
 
 function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 	gar.assertValidGatewayParameters(from, stake, settings, observerWallet, timeStamp)
@@ -86,12 +88,13 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 		observerWallet = observerWallet or from,
 	}
 
-	gar.gateways[from] = newGateway
+	gar.addGateway(from, newGateway)
+	balances.reduceBalance(from, stake)
 	return gar.getGateway(from)
 end
 
 function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimestamp, hashchain)
-	local eligibleGateways = gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp, gar.gateways)
+	local eligibleGateways = gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
 	local weightedObservers = gar.getObserverWeightsForEpoch(epochStartTimestamp, eligibleGateways)
 	-- Filter out any observers that could have a normalized composite weight of 0
 	local filteredObservers = {}
@@ -101,7 +104,7 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 			table.insert(filteredObservers, observer)
 		end
 	end
-	if #filteredObservers <= gar.settings.observers.maxObserversPerEpoch then
+	if #filteredObservers <= gar.getSettings().observers.maxObserversPerEpoch then
 		return filteredObservers
 	end
 
@@ -120,7 +123,7 @@ function gar.getPrescribedObserversForEpoch(epochStartTimestamp, epochEndTimesta
 	-- get our prescribed observers, using the hashchain as entropy
 	local hash = epochHash
 	local prescribedObserversAddresses = {}
-	while #prescribedObserversAddresses < gar.settings.observers.maxObserversPerEpoch do
+	while #prescribedObserversAddresses < gar.getSettings().observers.maxObserversPerEpoch do
 		local hashString = crypto.utils.array.toString(hash)
 		local random = crypto.random(nil, nil, hashString) / 0xffffffff
 		local cumulativeNormalizedCompositeWeight = 0
@@ -177,18 +180,18 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 		error("The gateway is not eligible to leave the network.")
 	end
 
-	local gatewayEndHeight = currentTimestamp + gar.settings.gatewayLeaveLength
-	local gatewayStakeWithdrawHeight = currentTimestamp + gar.settings.operatorStakeWithdrawLength
-	local delegateEndHeight = currentTimestamp + gar.settings.delegatedStakeWithdrawLength
+	local gatewayEndHeight = currentTimestamp + gar.getSettings().gatewayLeaveLength
+	local gatewayStakeWithdrawHeight = currentTimestamp + gar.getSettings().operatorStakeWithdrawLength
+	local delegateEndHeight = currentTimestamp + gar.getSettings().delegatedStakeWithdrawLength
 
 	-- Add minimum staked tokens to a vault that unlocks after the gateway completely leaves the network
 	gateway.vaults[from] = {
-		balance = gar.settings.minOperatorStake,
+		balance = gar.getSettings().minOperatorStake,
 		startTimestamp = currentTimestamp,
 		endTimestamp = gatewayEndHeight,
 	}
 
-	gateway.operatorStake = gateway.operatorStake - gar.settings.minOperatorStake
+	gateway.operatorStake = gateway.operatorStake - gar.getSettings().minOperatorStake
 
 	-- Add remainder to another vault
 	if gateway.operatorStake > 0 then
@@ -218,7 +221,7 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 	end
 
 	-- update global state
-	gar.gateways[from] = gateway
+	GatewayRegistry.gateways[from] = gateway
 	return gateway
 end
 
@@ -239,7 +242,7 @@ function gar.increaseOperatorStake(from, qty)
 	end
 
 	balances.reduceBalance(from, qty)
-	gar.gateways[from].operatorStake = gar.getGateway(from).operatorStake + qty
+	GatewayRegistry.gateways[from].operatorStake = gar.getGateway(from).operatorStake + qty
 	return gar.getGateway(from)
 end
 
@@ -247,29 +250,31 @@ function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
 
-	if gar.getGateway(from) == nil then
+	local gateway = gar.getGateway(from)
+
+	if gateway == nil then
 		error("Gateway does not exist")
 	end
 
-	if gar.getGateway(from).status == "leaving" then
+	if gateway.status == "leaving" then
 		error("Gateway is leaving the network and withdraw more stake.")
 	end
 
-	local maxWithdraw = gar.getGateway(from).operatorStake - gar.settings.minOperatorStake
+	local maxWithdraw = gateway.operatorStake - gar.getSettings().minOperatorStake
 
 	if qty > maxWithdraw then
 		return error(
 			"Resulting stake is not enough maintain the minimum operator stake of "
-				.. gar.settings.minOperatorStake
+				.. gar.getSettings().minOperatorStake
 				.. " IO"
 		)
 	end
 
-	gar.gateways[from].operatorStake = gar.getGateway(from).operatorStake - qty
-	gar.gateways[from].vaults[msgId] = {
+	gateway.operatorStake = gar.getGateway(from).operatorStake - qty
+	gateway.vaults[msgId] = {
 		balance = qty,
 		startTimestamp = currentTimestamp,
-		endTimestamp = currentTimestamp + gar.settings.operatorStakeWithdrawLength,
+		endTimestamp = currentTimestamp + gar.getSettings().operatorStakeWithdrawLength,
 	}
 	return gar.getGateway(from)
 end
@@ -283,11 +288,14 @@ function gar.updateGatewaySettings(from, updatedSettings, observerWallet, curren
 
 	gar.assertValidGatewayParameters(from, gateway.operatorStake, updatedSettings, observerWallet, currentTimestamp)
 
-	if updatedSettings.minDelegatedStake and updatedSettings.minDelegatedStake < gar.settings.minDelegatedStake then
-		error("The minimum delegated stake must be at least " .. gar.settings.minDelegatedStake .. " IO")
+	if
+		updatedSettings.minDelegatedStake
+		and updatedSettings.minDelegatedStake < gar.getSettings().minDelegatedStake
+	then
+		error("The minimum delegated stake must be at least " .. gar.getSettings().minDelegatedStake .. " IO")
 	end
 
-	for gatewayAddress, gateway in pairs(gar.gateways) do
+	for gatewayAddress, gateway in pairs(gar.getGateways()) do
 		if gateway.observerWallet == observerWallet and gatewayAddress ~= from then
 			error("Invalid observer wallet. The provided observer wallet is correlated with another gateway.")
 		end
@@ -296,7 +304,7 @@ function gar.updateGatewaySettings(from, updatedSettings, observerWallet, curren
 	-- vault all delegated stakes if it is disabled, we'll return stake at the proper end heights of the vault
 	if not updatedSettings.allowDelegatedStaking and next(gateway.delegates) ~= nil then
 		-- Add tokens from each delegate to a vault that unlocks after the delegate withdrawal period ends
-		local delegateEndHeight = currentTimestamp + gar.settings.delegatedStakeWithdrawLength
+		local delegateEndHeight = currentTimestamp + gar.getSettings().delegatedStakeWithdrawLength
 
 		for address, delegate in pairs(gateway.delegates) do
 			if not gateway.delegates[address].vaults then
@@ -332,17 +340,19 @@ function gar.updateGatewaySettings(from, updatedSettings, observerWallet, curren
 end
 
 function gar.getGateway(target)
-	return gar.gateways[target]
+	return GatewayRegistry.gateways[target]
 end
 
 function gar.getGateways()
-	return gar.gateways
+	return GatewayRegistry.gateways
 end
 
 function gar.delegateStake(from, target, qty, currentTimestamp)
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
-	if gar.gateways[target] == nil then
+
+	local gateway = gar.getGateway(target)
+	if gateway == nil then
 		error("Gateway does not exist")
 	end
 
@@ -350,35 +360,35 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		error("Insufficient balance")
 	end
 
-	if gar.gateways[target].status == "leaving" then
+	if gateway.status == "leaving" then
 		error("This Gateway is in the process of leaving the network and cannot have more stake delegated to it.")
 	end
 
 	-- TODO: when allowedDelegates is supported, check if it's in the array of allowed delegates
-	if not gar.gateways[target].settings.allowDelegatedStaking then
+	if not gateway.settings.allowDelegatedStaking then
 		error(
 			"This Gateway does not allow delegated staking. Only allowed delegates can delegate stake to this Gateway."
 		)
 	end
 
 	local count = 0
-	for _ in pairs(gar.gateways[target].delegates) do
+	for _ in pairs(gateway.delegates) do
 		count = count + 1
 	end
 
-	if count > gar.settings.maxDelegates then
+	if count > gar.getSettings().maxDelegates then
 		error("This Gateway has reached its maximum amount of delegated stakers.")
 	end
 
 	-- Assuming `gateway` is a table and `fromAddress` is defined
-	local existingDelegate = gar.gateways[target].delegates[from]
+	local existingDelegate = gateway.delegates[from]
 	local minimumStakeForGatewayAndDelegate
 	if existingDelegate and existingDelegate.delegatedStake ~= 0 then
 		-- It already has a stake that is not zero
 		minimumStakeForGatewayAndDelegate = 1 -- Delegate must provide at least one additional IO
 	else
 		-- Consider if the operator increases the minimum amount after you've already staked
-		minimumStakeForGatewayAndDelegate = gar.gateways[target].settings.minDelegatedStake
+		minimumStakeForGatewayAndDelegate = gateway.settings.minDelegatedStake
 	end
 	if qty < minimumStakeForGatewayAndDelegate then
 		error("Quantity must be greater than the minimum delegated stake amount.")
@@ -386,20 +396,24 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 
 	-- Decrement the user's balance
 	balances.reduceBalance(from, qty)
-	gar.gateways[target].totalDelegatedStake = gar.gateways[target].totalDelegatedStake + qty
+	gateway.totalDelegatedStake = gateway.totalDelegatedStake + qty
 	-- If this delegate has staked before, update its amount, if not, create a new delegated staker
 	if existingDelegate == nil then
 		-- create the new delegate stake
-		gar.gateways[target].delegates[from] = {
+		gateway.delegates[from] = {
 			delegatedStake = qty,
 			startTimestamp = currentTimestamp,
 			vaults = {},
 		}
 	else
 		-- increment the existing delegate's stake
-		gar.gateways[target].delegates[from].delegatedStake = gar.gateways[target].delegates[from].delegatedStake + qty
+		gateway.delegates[from].delegatedStake = gar.gateways[target].delegates[from].delegatedStake + qty
 	end
-	return gar.gateways[target]
+	return gateway
+end
+
+function gar.getSettings()
+	return GatewayRegistry.settings
 end
 
 function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimestamp, messageId)
@@ -430,14 +444,13 @@ function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimest
 	local newDelegateVault = {
 		balance = qty,
 		startTimestamp = currentTimestamp,
-		endTimestamp = currentTimestamp + gar.settings.delegatedStakeWithdrawLength,
+		endTimestamp = currentTimestamp + gar.getSettings().delegatedStakeWithdrawLength,
 	}
 
 	-- Lock the qty in a vault to be unlocked after withdrawal period and decrease the gateway's total delegated stake
-	gar.gateways[gatewayAddress].delegates[delegator].vaults[messageId] = newDelegateVault
-	gar.gateways[gatewayAddress].delegates[delegator].delegatedStake = gar.gateways[gatewayAddress].delegates[delegator].delegatedStake
-		- qty
-	gar.gateways[gatewayAddress].totalDelegatedStake = gar.gateways[gatewayAddress].totalDelegatedStake - qty
+	gateway.delegates[delegator].vaults[messageId] = newDelegateVault
+	gateway.delegates[delegator].delegatedStake = gateway.delegates[delegator].delegatedStake - qty
+	gateway.totalDelegatedStake = gateway.totalDelegatedStake - qty
 	return gar.getGateway(gatewayAddress)
 end
 
@@ -446,14 +459,14 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 		gar.getEpochDataForTimestamp(currentTimestamp)
 
 	-- avoid observations before the previous epoch distribution has occurred, as distributions affect weights of the current epoch
-	if currentTimestamp < epochStartTimestamp + gar.settings.epochs.distributionDelayMs then
+	if currentTimestamp < epochStartTimestamp + gar.getSettings().epochs.distributionDelayMs then
 		error(
 			"Observations for the current epoch cannot be submitted before block height: "
-				.. epochStartTimestamp + gar.settings.epochs.distributionDelayMs
+				.. epochStartTimestamp + gar.getSettings().epochs.distributionDelayMs
 		)
 	end
 
-	local prescribedObservers = gar.prescribedObservers[epochIndexForCurrentTimestamp] or {}
+	local prescribedObservers = gar.prescribedObservers(epochIndexForCurrentTimestamp) or {}
 	local observer -- This will hold the matching observer or remain nil if no match is found
 	for _, prescribedObserver in pairs(prescribedObservers) do
 		if prescribedObserver.observerAddress == from then
@@ -466,7 +479,7 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 		error("Invalid caller. Caller is not eligible to submit observation reports for this epoch.")
 	end
 
-	local observingGateway = gar.gateways[observer.gatewayAddress]
+	local observingGateway = gar.getGateways()[observer.gatewayAddress]
 
 	if observingGateway == nil then
 		error("The associated gateway does not exist in the registry.")
@@ -481,7 +494,7 @@ function gar.saveObservations(from, observerReportTxId, failedGateways, currentT
 	end
 
 	for _, address in pairs(failedGateways) do
-		local failedGateway = gar.gateways[address]
+		local failedGateway = gar.getGateway(address)
 
 		-- Validate the gateway is in the gar or is leaving
 		if failedGateway and failedGateway.start > epochStartTimestamp or failedGateway.status == "joined" then
@@ -513,14 +526,21 @@ end
 
 function gar.getEpochDataForTimestamp(currentTimestamp)
 	local epochIndexForCurrentTimestamp = math.floor(
-		math.max(0, (currentTimestamp - gar.settings.epoch.epochZeroStartTimestamp) / gar.setting.epoch.epochLengthMs)
+		math.max(
+			0,
+			(currentTimestamp - gar.getSettings().epoch.epochZeroStartTimestamp) / gar.setting.epoch.epochLengthMs
+		)
 	)
 
-	local epochStartTimestamp = gar.epoch.epochZeroStartTimestamp
-		+ gar.epoch.epochTimeLength * epochIndexForCurrentTimestamp
-	local epochEndTimestamp = epochStartTimestamp + gar.epoch.epochTimeLength
-	local epochDistributionTimestamp = epochEndTimestamp + gar.epoch.distributionDelay
+	local epochStartTimestamp = gar.getCurrentEpoch().epochZeroStartTimestamp
+		+ gar.getCurrentEpoch().epochTimeLength * epochIndexForCurrentTimestamp
+	local epochEndTimestamp = epochStartTimestamp + gar.getCurrentEpoch().epochTimeLength
+	local epochDistributionTimestamp = epochEndTimestamp + gar.getCurrentEpoch().distributionDelay
 	return epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp
+end
+
+function gar.getCurrentEpoch()
+	return GatewayRegistry.epoch
 end
 
 function gar.getPrescribedObservers(currentTimestamp)
@@ -542,10 +562,10 @@ function gar.getEpoch(timeStamp, currentTimestamp)
 	local result = {
 		epochStartTimestamp,
 		epochEndTimestamp,
-		gar.settings.epochs.epochZeroStartTimestamp,
+		gar.getSettings().epochs.epochZeroStartTimestamp,
 		epochDistributionTimestamp,
 		epochIndexForCurrentTimestamp,
-		gar.settings.epochs.durationMs,
+		gar.getSettings().epochs.durationMs,
 	}
 	return result
 end
@@ -568,7 +588,8 @@ function gar.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimes
 	return didStartBeforeEpoch and didNotLeaveDuringEpoch
 end
 
-function gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp, gateways)
+function gar.getEligibleGatewaysForEpoch(epochStartTimestamp, epochEndTimestamp)
+	local gateways = gar.getGateways()
 	local eligibleGateways = {}
 	for address, gateway in pairs(gateways) do
 		if gar.isGatewayEligibleForDistribution(epochStartTimestamp, epochEndTimestamp, gateway) then
@@ -585,7 +606,7 @@ function gar.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 	-- Iterate over gateways to calculate weights
 	for address, gateway in pairs(eligbileGateways) do
 		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
-		local stakeWeightRatio = totalStake / gar.settings.minOperatorStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
+		local stakeWeightRatio = totalStake / gar.getSettings().minOperatorStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
 		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
 		local gatewayStartTimestamp = gateway.startTimestamp
 		local totalTimeForGateway = epochStartTimestamp >= gatewayStartTimestamp
@@ -595,10 +616,11 @@ function gar.getObserverWeightsForEpoch(epochStartTimestamp, eligbileGateways)
 
 		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
 			or (
-				totalTimeForGateway > 0 and totalTimeForGateway / gar.settings.observers.tenureWeightPeriod
-				or 1 / gar.settings.observers.tenureWeightPeriod
+				totalTimeForGateway > 0 and totalTimeForGateway / gar.getSettings().observers.tenureWeightPeriod
+				or 1 / gar.getSettings().observers.tenureWeightPeriod
 			)
-		local gatewayTenureWeight = math.min(calculatedTenureWeightForGateway, gar.settings.observers.maxTenureWeight)
+		local gatewayTenureWeight =
+			math.min(calculatedTenureWeightForGateway, gar.getSettings().observers.maxTenureWeight)
 
 		local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
 		local totalEpochsParticipatedIn = gateway.stats.totalEpochParticipationCount or 0
@@ -682,6 +704,10 @@ function gar.assertValidGatewayParameters(from, stake, settings, observerWallet,
 	if settings.minDelegatedStake ~= nil then
 		assert(type(settings.minDelegatedStake) == "number", "minDelegatedStake must be a number")
 	end
+end
+
+function gar.addGateway(address, gateway)
+	GatewayRegistry.gateways[address] = gateway
 end
 
 return gar

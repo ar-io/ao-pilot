@@ -4,11 +4,11 @@ local aes = require(".crypto.cipher.aes")
 local norx = require(".crypto.cipher.norx")
 
 local cipher = {
-    _version = "0.0.1",
-    issac = issac,
-    morus = morus,
-    aes = aes,
-    norx = norx
-};
+	_version = "0.0.1",
+	issac = issac,
+	morus = morus,
+	aes = aes,
+	norx = norx,
+}
 
 return cipher

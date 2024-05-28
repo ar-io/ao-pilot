@@ -1,5 +1,4 @@
 local gar = require("gar")
-local balances = require("balances")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",
@@ -35,7 +34,16 @@ describe("gar", function()
 		_G.Balances = {
 			Bob = GatewayRegistry.settings.minOperatorStake,
 		}
+		_G.Epochs = {
+			[0] = {
+				startTimestamp = 0,
+				endTimestamp = 100,
+				prescribedObservers = {},
+				observations = {},
+			},
+		}
 		_G.GatewayRegistry = {
+			epochs = {},
 			gateways = {},
 			settings = {
 				observers = {
@@ -373,23 +381,6 @@ describe("gar", function()
 		end)
 	end)
 
-	-- TODO: other tests for error conditions when joining/leaving network
-	it("should get single gateway", function()
-		GatewayRegistry.gateways["Bob"] = testGateway
-		local result = gar.getGateway("Bob")
-		assert.are.same(result, testGateway)
-	end)
-
-	it("should get multiple gateways", function()
-		GatewayRegistry.gateways["Bob"] = testGateway
-		GatewayRegistry.gateways["Alice"] = testGateway
-		local result = gar.getGateways()
-		assert.are.same(result, {
-			Bob = testGateway,
-			Alice = testGateway,
-		})
-	end)
-
 	describe("delegateStake", function()
 		it("should delegate stake to a gateway", function()
 			Balances["Alice"] = GatewayRegistry.settings.minDelegatedStake
@@ -506,7 +497,7 @@ describe("gar", function()
 		end)
 	end)
 
-	describe("getPrescribedObserversForEpoch", function()
+	describe("computePrescribedObserversForEpoch", function()
 		it("should return all eligible gateways if fewer than the maximum in network", function()
 			GatewayRegistry.gateways["Bob"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
@@ -541,12 +532,7 @@ describe("gar", function()
 					normalizedCompositeWeight = 1,
 				},
 			}
-			local status, result = pcall(
-				gar.getPrescribedObserversForEpoch,
-				gar.getCurrentEpoch().startTimestamp,
-				gar.getCurrentEpoch().endTimestamp,
-				"stubbed-hash-chain"
-			)
+			local status, result = pcall(gar.computePrescribedObserversForEpoch, 0, "stubbed-hash-chain")
 			assert.is_true(status)
 			assert.are.equal(1, #result)
 			assert.are.same(expectation, result)
@@ -607,15 +593,115 @@ describe("gar", function()
 					normalizedCompositeWeight = 1 / (GatewayRegistry.settings.observers.maxObserversPerEpoch + 1),
 				},
 			}
-			local status, result = pcall(
-				gar.getPrescribedObserversForEpoch,
-				gar.getCurrentEpoch().startTimestamp,
-				gar.getCurrentEpoch().endTimestamp,
-				hashchain
-			)
+			local status, result = pcall(gar.computePrescribedObserversForEpoch, 0, hashchain)
 			assert.is_true(status)
 			assert.are.equal(GatewayRegistry.settings.observers.maxObserversPerEpoch, #result)
 			assert.are.same(expectation, result)
+		end)
+	end)
+
+	describe("getters", function()
+		-- TODO: other tests for error conditions when joining/leaving network
+		it("should get single gateway", function()
+			GatewayRegistry.gateways["Bob"] = testGateway
+			local result = gar.getGateway("Bob")
+			assert.are.same(result, testGateway)
+		end)
+
+		it("should get multiple gateways", function()
+			GatewayRegistry.gateways["Bob"] = testGateway
+			GatewayRegistry.gateways["Alice"] = testGateway
+			local result = gar.getGateways()
+			assert.are.same(result, {
+				Bob = testGateway,
+				Alice = testGateway,
+			})
+		end)
+	end)
+
+	describe("saveObservations", function()
+		it('should throw an error when saving observation too early in the epoch', function()
+			local observer = "Alice"
+			local reportTxId = "reportTxId"
+			local timestamp = 1
+			local failedGateways = {
+				"Bob",
+			}
+			local status, error = pcall(gar.saveObservations, observer, reportTxId, failedGateways, timestamp)
+			assert.is_false(status)
+			assert.match("Observations for the current epoch cannot be submitted before", error)
+		end)
+		it("should save observation when the timestamp is after the distribution delay", function()
+			local observer = "Alice"
+			local reportTxId = "reportTxId"
+			local timestamp = gar.getSettings().epochs.distributionDelayMs + 1
+			GatewayRegistry.gateways = {
+				Bob = {
+					operatorStake = GatewayRegistry.settings.minOperatorStake,
+					totalDelegatedStake = 0,
+					vaults = {},
+					delegates = {},
+					startTimestamp = startTimestamp,
+					stats = {
+						prescribedEpochCount = 0,
+						observeredEpochCount = 0,
+						totalEpochParticipationCount = 0,
+						passedEpochCount = 0,
+						failedEpochCount = 0,
+						failedConsecutiveEpochs = 0,
+						passedConsecutiveEpochs = 0,
+					},
+					settings = testSettings,
+					status = "joined",
+					observerWallet = "Bob",
+				},
+				["Alice"] = {
+					operatorStake = GatewayRegistry.settings.minOperatorStake,
+					totalDelegatedStake = 0,
+					vaults = {},
+					delegates = {},
+					startTimestamp = startTimestamp,
+					stats = {
+						prescribedEpochCount = 0,
+						observeredEpochCount = 0,
+						totalEpochParticipationCount = 0,
+						passedEpochCount = 0,
+						failedEpochCount = 0,
+						failedConsecutiveEpochs = 0,
+						passedConsecutiveEpochs = 0,
+					},
+					settings = testSettings,
+					status = "joined",
+					observerWallet = "Alice",
+				},
+			}
+			Epochs[0].prescribedObservers = {
+				{
+					gatewayAddress = "Alice",
+					observerAddress = "Alice",
+					stake = GatewayRegistry.settings.minOperatorStake,
+					startTimestamp = startTimestamp,
+					stakeWeight = 1,
+					tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					gatewayRewardRatioWeight = 1,
+					observerRewardRatioWeight = 1,
+					compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					normalizedCompositeWeight = 1,
+				},
+			}
+			local failedGateways = {
+				"Bob",
+			}
+			local status, result = pcall(gar.saveObservations, observer, reportTxId, failedGateways, timestamp)
+			assert.is_true(status)
+			assert.are.same(result, {
+				reports = {
+					[observer] = reportTxId,
+				},
+				failureSummaries = {
+					["Bob"] = { observer },
+				},
+			})
 		end)
 	end)
 end)

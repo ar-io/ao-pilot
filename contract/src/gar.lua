@@ -584,10 +584,6 @@ function gar.getEligibleGatewaysForEpoch(epochIndex)
 	return eligibleGateways
 end
 
-function gar.setPrescribedObserversForEpoch(epochIndex, prescribedObservers)
-	Epochs[epochIndex].prescribedObservers = prescribedObservers
-end
-
 function gar.getObserverWeightsForEpoch(epochIndex, eligbileGateways)
 	local epochStartTimestamp = gar.getEpochTimestampsForIndex(epochIndex)
 	local weightedObservers = {}
@@ -698,6 +694,36 @@ end
 
 function gar.addGateway(address, gateway)
 	GatewayRegistry.gateways[address] = gateway
+end
+
+function gar.createEpochForTimestamp(timestamp)
+	local epochIndex = gar.getEpochIndexForTimestamp(timestamp)
+	if Epochs[epochIndex] then
+		error("Epoch already exists")
+	end
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex = gar.getEpochTimestampsForIndex(epochIndex)
+	local epoch = {
+		startTimestamp = epochStartTimestamp,
+		endTimestamp = epochEndTimestamp,
+		distributionTimestamp = epochDistributionTimestamp,
+		observations = {
+			failureSummaries = {},
+			reports = {},
+		},
+		prescribedObservers = {},
+		distributions = {},
+	}
+	Epochs[epochIndex] = epoch
+	GatewayRegistry.epoch = epochIndex
+end
+
+function gar.setPrescribedObserversForEpoch(epochIndex, prescribedObservers)
+	local epoch = Epochs[epochIndex]
+	if epoch == nil then
+		error("Epoch does not exist, it must be created before observers can be prescribed")
+	end
+	epoch.prescribedObservers = prescribedObservers
+	return epoch
 end
 
 return gar

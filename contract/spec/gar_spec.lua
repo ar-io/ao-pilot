@@ -32,7 +32,7 @@ local testGateway = {
 describe("gar", function()
 	before_each(function()
 		_G.Balances = {
-			Bob = GatewayRegistry.settings.minOperatorStake,
+			["test-wallet-address-1"]= GatewayRegistry.settings.minOperatorStake,
 		}
 		_G.Epochs = {
 			[0] = {
@@ -76,7 +76,7 @@ describe("gar", function()
 
 	describe("joinNetwork", function()
 		it("should fail if the gateway is already in the network", function()
-			GatewayRegistry.gateways["Bob"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -97,7 +97,7 @@ describe("gar", function()
 			}
 			local status, error = pcall(
 				gar.joinNetwork,
-				"Bob",
+				"test-wallet-address-1",
 				GatewayRegistry.settings.minOperatorStake,
 				testSettings,
 				"observerWallet",
@@ -138,7 +138,7 @@ describe("gar", function()
 			}
 			local status, result = pcall(
 				gar.joinNetwork,
-				"Bob",
+				"test-wallet-address-1",
 				GatewayRegistry.settings.minOperatorStake,
 				testSettings,
 				"observerWallet",
@@ -146,13 +146,13 @@ describe("gar", function()
 			)
 			assert.is_true(status)
 			assert.are.same(expectation, result)
-			assert.are.same(expectation, gar.getGateway("Bob"))
+			assert.are.same(expectation, gar.getGateway("test-wallet-address-1"))
 		end)
 	end)
 
 	describe("leaveNetwork", function()
 		it("should leave the network", function()
-			GatewayRegistry.gateways["Bob"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = (GatewayRegistry.settings.minOperatorStake + 1000),
 				totalDelegatedStake = GatewayRegistry.settings.minDelegatedStake,
 				vaults = {},
@@ -172,18 +172,18 @@ describe("gar", function()
 				observerWallet = "observerWallet",
 			}
 
-			GatewayRegistry.gateways["Bob"].delegates["Alice"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"].delegates["test-wallet-address-2"] = {
 				delegatedStake = GatewayRegistry.settings.minDelegatedStake,
 				startTimestamp = 0,
 				vaults = {},
 			}
 
-			local result, err = gar.leaveNetwork("Bob", startTimestamp, "msgId")
+			local result, err = gar.leaveNetwork("test-wallet-address-1", startTimestamp, "msgId")
 			assert.are.same(result, {
 				operatorStake = 0,
 				totalDelegatedStake = 0,
 				vaults = {
-					Bob = {
+					["test-wallet-address-1"]= {
 						balance = GatewayRegistry.settings.minOperatorStake,
 						startTimestamp = startTimestamp,
 						endTimestamp = GatewayRegistry.settings.gatewayLeaveLength,
@@ -195,7 +195,7 @@ describe("gar", function()
 					},
 				},
 				delegates = {
-					Alice = {
+					["test-wallet-address-2"] = {
 						delegatedStake = 0,
 						startTimestamp = 0,
 						vaults = {
@@ -227,8 +227,8 @@ describe("gar", function()
 
 	describe("increaseOperatorStake", function()
 		it("should increase operator stake", function()
-			Balances["Bob"] = 1000
-			GatewayRegistry.gateways["Bob"] = {
+			Balances["test-wallet-address-1"] = 1000
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -247,7 +247,7 @@ describe("gar", function()
 				status = "joined",
 				observerWallet = "observerWallet",
 			}
-			local result, err = gar.increaseOperatorStake("Bob", 1000)
+			local result, err = gar.increaseOperatorStake("test-wallet-address-1", 1000)
 			assert.are.same(result, {
 				operatorStake = GatewayRegistry.settings.minOperatorStake + 1000,
 				totalDelegatedStake = 0,
@@ -272,7 +272,7 @@ describe("gar", function()
 
 	describe("decreaseOperatorStake", function()
 		it("should decrease operator stake", function()
-			GatewayRegistry.gateways["Bob"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake + 1000,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -291,7 +291,7 @@ describe("gar", function()
 				status = "joined",
 				observerWallet = "observerWallet",
 			}
-			local result, err = gar.decreaseOperatorStake("Bob", 1000, startTimestamp, "msgId")
+			local result, err = gar.decreaseOperatorStake("test-wallet-address-1", 1000, startTimestamp, "msgId")
 			assert.are.same(result, {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = 0,
@@ -322,7 +322,7 @@ describe("gar", function()
 
 	describe("updateGatewaySettings", function()
 		it("should update gateway settings", function()
-			GatewayRegistry.gateways["Bob"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -374,17 +374,17 @@ describe("gar", function()
 				status = "joined",
 			}
 			local status, result =
-				pcall(gar.updateGatewaySettings, "Bob", updatedSettings, newObserverWallet, startTimestamp, "msgId")
+				pcall(gar.updateGatewaySettings, "test-wallet-address-1", updatedSettings, newObserverWallet, startTimestamp, "msgId")
 			assert.is_true(status)
 			assert.are.same(expectation, result)
-			assert.are.same(expectation, gar.getGateway("Bob"))
+			assert.are.same(expectation, gar.getGateway("test-wallet-address-1"))
 		end)
 	end)
 
 	describe("delegateStake", function()
 		it("should delegate stake to a gateway", function()
-			Balances["Alice"] = GatewayRegistry.settings.minDelegatedStake
-			GatewayRegistry.gateways["Bob"] = {
+			Balances["test-wallet-address-2"] = GatewayRegistry.settings.minDelegatedStake
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -404,13 +404,13 @@ describe("gar", function()
 				observerWallet = "observerWallet",
 			}
 			local result, err =
-				gar.delegateStake("Alice", "Bob", GatewayRegistry.settings.minDelegatedStake, startTimestamp)
+				gar.delegateStake("test-wallet-address-2", "test-wallet-address-1", GatewayRegistry.settings.minDelegatedStake, startTimestamp)
 			assert.are.same(result, {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = GatewayRegistry.settings.minDelegatedStake,
 				vaults = {},
 				delegates = {
-					Alice = {
+					["test-wallet-address-2"] = {
 						delegatedStake = GatewayRegistry.settings.minDelegatedStake,
 						startTimestamp = startTimestamp,
 						vaults = {},
@@ -433,7 +433,7 @@ describe("gar", function()
 		end)
 
 		it("should decrease delegated stake", function()
-			GatewayRegistry.gateways["Bob"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = GatewayRegistry.settings.minDelegatedStake + 1000,
 				vaults = {},
@@ -451,7 +451,7 @@ describe("gar", function()
 				status = "joined",
 				observerWallet = "observerWallet",
 				delegates = {
-					Alice = {
+					["test-wallet-address-2"] = {
 						delegatedStake = GatewayRegistry.settings.minDelegatedStake + 1000,
 						startTimestamp = 0,
 						vaults = {},
@@ -464,7 +464,7 @@ describe("gar", function()
 				totalDelegatedStake = GatewayRegistry.settings.minDelegatedStake,
 				vaults = {},
 				delegates = {
-					Alice = {
+					["test-wallet-address-2"] = {
 						delegatedStake = GatewayRegistry.settings.minDelegatedStake,
 						startTimestamp = 0,
 						vaults = {
@@ -490,16 +490,16 @@ describe("gar", function()
 				status = "joined",
 				observerWallet = "observerWallet",
 			}
-			local status, result = pcall(gar.decreaseDelegateStake, "Bob", "Alice", 1000, startTimestamp, "msgId")
+			local status, result = pcall(gar.decreaseDelegateStake, "test-wallet-address-1", "test-wallet-address-2", 1000, startTimestamp, "msgId")
 			assert.is_true(status)
 			assert.are.same(expectation, result)
-			assert.are.same(expectation, gar.getGateway("Bob"))
+			assert.are.same(expectation, gar.getGateway("test-wallet-address-1"))
 		end)
 	end)
 
 	describe("computePrescribedObserversForEpoch", function()
 		it("should return all eligible gateways if fewer than the maximum in network", function()
-			GatewayRegistry.gateways["Bob"] = {
+			GatewayRegistry.gateways["test-wallet-address-1"] = {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -520,7 +520,7 @@ describe("gar", function()
 			}
 			local expectation = {
 				{
-					gatewayAddress = "Bob",
+					gatewayAddress = "test-wallet-address-1",
 					observerAddress = "observerWallet",
 					stake = GatewayRegistry.settings.minOperatorStake,
 					startTimestamp = startTimestamp,
@@ -603,40 +603,40 @@ describe("gar", function()
 	describe("getters", function()
 		-- TODO: other tests for error conditions when joining/leaving network
 		it("should get single gateway", function()
-			GatewayRegistry.gateways["Bob"] = testGateway
-			local result = gar.getGateway("Bob")
+			GatewayRegistry.gateways["test-wallet-address-1"] = testGateway
+			local result = gar.getGateway("test-wallet-address-1")
 			assert.are.same(result, testGateway)
 		end)
 
 		it("should get multiple gateways", function()
-			GatewayRegistry.gateways["Bob"] = testGateway
-			GatewayRegistry.gateways["Alice"] = testGateway
+			GatewayRegistry.gateways["test-wallet-address-1"] = testGateway
+			GatewayRegistry.gateways["test-wallet-address-2"] = testGateway
 			local result = gar.getGateways()
 			assert.are.same(result, {
-				Bob = testGateway,
-				Alice = testGateway,
+				["test-wallet-address-1"]= testGateway,
+				["test-wallet-address-2"] = testGateway,
 			})
 		end)
 	end)
 
 	describe("saveObservations", function()
 		it('should throw an error when saving observation too early in the epoch', function()
-			local observer = "Alice"
+			local observer = "test-wallet-address-2"
 			local reportTxId = "reportTxId"
 			local timestamp = 1
 			local failedGateways = {
-				"Bob",
+				"test-wallet-address-1",
 			}
 			local status, error = pcall(gar.saveObservations, observer, reportTxId, failedGateways, timestamp)
 			assert.is_false(status)
 			assert.match("Observations for the current epoch cannot be submitted before", error)
 		end)
 		it("should save observation when the timestamp is after the distribution delay", function()
-			local observer = "Alice"
+			local observer = "test-wallet-address-2"
 			local reportTxId = "reportTxId"
 			local timestamp = gar.getSettings().epochs.distributionDelayMs + 1
 			GatewayRegistry.gateways = {
-				Bob = {
+				["test-wallet-address-1"]= {
 					operatorStake = GatewayRegistry.settings.minOperatorStake,
 					totalDelegatedStake = 0,
 					vaults = {},
@@ -653,9 +653,9 @@ describe("gar", function()
 					},
 					settings = testSettings,
 					status = "joined",
-					observerWallet = "Bob",
+					observerWallet = "test-wallet-address-1",
 				},
-				["Alice"] = {
+				["test-wallet-address-2"] = {
 					operatorStake = GatewayRegistry.settings.minOperatorStake,
 					totalDelegatedStake = 0,
 					vaults = {},
@@ -672,13 +672,13 @@ describe("gar", function()
 					},
 					settings = testSettings,
 					status = "joined",
-					observerWallet = "Alice",
+					observerWallet = "test-wallet-address-2",
 				},
 			}
 			Epochs[0].prescribedObservers = {
 				{
-					gatewayAddress = "Alice",
-					observerAddress = "Alice",
+					gatewayAddress = "test-wallet-address-2",
+					observerAddress = "test-wallet-address-2",
 					stake = GatewayRegistry.settings.minOperatorStake,
 					startTimestamp = startTimestamp,
 					stakeWeight = 1,
@@ -690,7 +690,7 @@ describe("gar", function()
 				},
 			}
 			local failedGateways = {
-				"Bob",
+				"test-wallet-address-1",
 			}
 			local status, result = pcall(gar.saveObservations, observer, reportTxId, failedGateways, timestamp)
 			assert.is_true(status)
@@ -699,7 +699,7 @@ describe("gar", function()
 					[observer] = reportTxId,
 				},
 				failureSummaries = {
-					["Bob"] = { observer },
+					["test-wallet-address-1"] = { observer },
 				},
 			})
 		end)

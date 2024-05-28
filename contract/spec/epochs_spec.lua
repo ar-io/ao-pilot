@@ -1,5 +1,5 @@
 local epochs = require("epochs")
-
+local gar = require("gar")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",
@@ -19,36 +19,18 @@ describe("epochs", function()
 			[0] = {
 				startTimestamp = 0,
 				endTimestamp = 100,
+				distributionTimestamp = 115,
 				prescribedObservers = {},
 				observations = {},
 			},
 		}
-		_G.GatewayRegistry = {
-			gateways = {},
-			settings = {
-				observers = {
-					maxObserversPerEpoch = 2,
-					tenureWeightDays = 180,
-					tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
-					maxTenureWeight = 4,
-				},
-				-- TODO: move this to a nested object for gateways
-				minDelegatedStake = 50 * 1000000, -- 50 IO
-				minOperatorStake = 10000 * 1000000, -- 10,000 IO
-				gatewayLeaveLength = 90 * 24 * 60 * 60 * 1000, -- 90 days
-				maxLockLength = 3 * 365 * 24 * 60 * 60 * 1000, -- 3 years
-				minLockLength = 24 * 60 * 60 * 1000, -- 1 day
-				operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
-				delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
-				maxDelegates = 10000,
-			},
-		}
+		_G.GatewayRegistry = {}
 	end)
 
 	describe("computePrescribedObserversForEpoch", function()
 		it("should return all eligible gateways if fewer than the maximum in network", function()
-			GatewayRegistry.gateways["test-wallet-address-1"] = {
-				operatorStake = GatewayRegistry.settings.minOperatorStake,
+			GatewayRegistry["test-wallet-address-1"] = {
+				operatorStake = gar.getSettings().operators.minStake,
 				totalDelegatedStake = 0,
 				vaults = {},
 				delegates = {},
@@ -64,19 +46,19 @@ describe("epochs", function()
 				},
 				settings = testSettings,
 				status = "joined",
-				observerWallet = "observerWallet",
+				observerAddress = "observerAddress",
 			}
 			local expectation = {
 				{
 					gatewayAddress = "test-wallet-address-1",
-					observerAddress = "observerWallet",
-					stake = GatewayRegistry.settings.minOperatorStake,
+					observerAddress = "observerAddress",
+					stake = gar.getSettings().operators.minStake,
 					startTimestamp = startTimestamp,
 					stakeWeight = 1,
-					tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					tenureWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 					gatewayRewardRatioWeight = 1,
 					observerRewardRatioWeight = 1,
-					compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					compositeWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 					normalizedCompositeWeight = 1,
 				},
 			}
@@ -88,16 +70,15 @@ describe("epochs", function()
 
 		it("should return the maximum number of gateways if more are enrolled in network", function()
 			local hashchain = "c29tZSBzYW1wbGUgaGFzaA==" -- base64 of "some sample hash"
-			local gateways = {}
 			epochs.updateEpochSettings({
 				maxObservers = 2, -- limit to 2 observers
-				epochZeroStartTimestamp = 0,
+				epochZeroStartTimestamp = startTimestamp,
 				durationMs = 60 * 1000 * 60 * 24, -- 24 hours
 				distributionDelayMs = 60 * 1000 * 2 * 15, -- 15 blocks
 			})
 			for i = 1, 3 do
 				local gateway = {
-					operatorStake = GatewayRegistry.settings.minOperatorStake,
+					operatorStake = gar.getSettings().operators.minStake,
 					totalDelegatedStake = 0,
 					vaults = {},
 					delegates = {},
@@ -113,37 +94,36 @@ describe("epochs", function()
 					},
 					settings = testSettings,
 					status = "joined",
-					observerWallet = "observerWallet",
+					observerAddress = "observerAddress",
 				}
 				-- note - ordering of keys is not guaranteed when insert into maps
-				gateways["observer" .. i] = gateway
+				GatewayRegistry["observer" .. i] = gateway
 			end
-			GatewayRegistry.gateways = gateways
 
 			local expectation = {
 				{
 					gatewayAddress = "observer2",
-					observerAddress = "observerWallet",
-					stake = GatewayRegistry.settings.minOperatorStake,
+					observerAddress = "observerAddress",
+					stake = gar.getSettings().operators.minStake,
 					startTimestamp = startTimestamp,
 					stakeWeight = 1,
-					tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					tenureWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 					gatewayRewardRatioWeight = 1,
 					observerRewardRatioWeight = 1,
-					compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
-					normalizedCompositeWeight = 1 / (GatewayRegistry.settings.observers.maxObserversPerEpoch + 1),
+					compositeWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
+					normalizedCompositeWeight = 1 / 3,
 				},
 				{
 					gatewayAddress = "observer1",
-					observerAddress = "observerWallet",
-					stake = GatewayRegistry.settings.minOperatorStake,
+					observerAddress = "observerAddress",
+					stake = gar.getSettings().operators.minStake,
 					startTimestamp = startTimestamp,
 					stakeWeight = 1,
-					tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					tenureWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 					gatewayRewardRatioWeight = 1,
 					observerRewardRatioWeight = 1,
-					compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
-					normalizedCompositeWeight = 1 / (GatewayRegistry.settings.observers.maxObserversPerEpoch + 1),
+					compositeWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
+					normalizedCompositeWeight = 1 / 3,
 				},
 			}
 			local status, result = pcall(epochs.computePrescribedObserversForEpoch, 0, hashchain)
@@ -176,13 +156,13 @@ describe("epochs", function()
 				{
 					gatewayAddress = "test-wallet-address-1",
 					observerAddress = "test-wallet-address-1",
-					stake = GatewayRegistry.settings.minOperatorStake,
+					stake = gar.getSettings().operators.minStake,
 					startTimestamp = startTimestamp,
 					stakeWeight = 1,
-					tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					tenureWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 					gatewayRewardRatioWeight = 1,
 					observerRewardRatioWeight = 1,
-					compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					compositeWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 					normalizedCompositeWeight = 1,
 				},
 			}
@@ -196,9 +176,9 @@ describe("epochs", function()
 				local observer = "test-wallet-address-2"
 				local reportTxId = "reportTxId"
 				local timestamp = 60 * 1000 * 2 * 15 + 1 -- distribution delay + 1
-				GatewayRegistry.gateways = {
+				_G.GatewayRegistry = {
 					["test-wallet-address-1"] = {
-						operatorStake = GatewayRegistry.settings.minOperatorStake,
+						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
 						delegates = {},
@@ -214,10 +194,10 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "joined",
-						observerWallet = "test-wallet-address-1",
+						observerAddress = "test-wallet-address-1",
 					},
 					["test-wallet-address-2"] = {
-						operatorStake = GatewayRegistry.settings.minOperatorStake,
+						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
 						delegates = {},
@@ -233,10 +213,10 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "joined",
-						observerWallet = "test-wallet-address-2",
+						observerAddress = "test-wallet-address-2",
 					},
 					["test-wallet-address-3"] = {
-						operatorStake = GatewayRegistry.settings.minOperatorStake,
+						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
 						delegates = {},
@@ -252,10 +232,10 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "joined",
-						observerWallet = "test-wallet-address-3",
+						observerAddress = "test-wallet-address-3",
 					},
 					["test-wallet-address-4"] = {
-						operatorStake = GatewayRegistry.settings.minOperatorStake,
+						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
 						delegates = {},
@@ -272,20 +252,20 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "leaving",
-						observerWallet = "test-wallet-address-4",
+						observerAddress = "test-wallet-address-4",
 					},
 				}
 				Epochs[0].prescribedObservers = {
 					{
 						gatewayAddress = "test-wallet-address-2",
 						observerAddress = "test-wallet-address-2",
-						stake = GatewayRegistry.settings.minOperatorStake,
+						stake = gar.getSettings().operators.minStake,
 						startTimestamp = startTimestamp,
 						stakeWeight = 1,
-						tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+						tenureWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 						gatewayRewardRatioWeight = 1,
 						observerRewardRatioWeight = 1,
-						compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+						compositeWeight = 1 / gar.getSettings().observers.tenureWeightPeriod,
 						normalizedCompositeWeight = 1,
 					},
 				}

@@ -192,7 +192,6 @@ function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
 	end
 
 	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
-	-- print each prescribed observer
 	if #prescribedObservers == 0 then
 		error("No prescribed observers for the current epoch.")
 	end
@@ -208,7 +207,6 @@ function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
 	end
 
 	local observingGateway = gar.getGateway(observer.gatewayAddress)
-
 	if observingGateway == nil then
 		error("The associated gateway does not exist in the registry.")
 	end
@@ -235,11 +233,11 @@ function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
 
 			-- if list of observers who marked failed does not continue current observer than add it
 			local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(observer)
-				return observer == observingGateway.observerWallet
+				return observer == observingGateway.observerAddress
 			end)
 
 			if not alreadyObservedIndex then
-				table.insert(observersMarkedFailed, observingGateway.observerWallet)
+				table.insert(observersMarkedFailed, observingGateway.observerAddress)
 			end
 
 			Epochs[epochIndex].observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
@@ -251,7 +249,7 @@ function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
 		Epochs[epochIndex].observations.reports = {}
 	end
 
-	Epochs[epochIndex].observations.reports[observingGateway.observerWallet] = reportTxId
+	Epochs[epochIndex].observations.reports[observingGateway.observerAddress] = reportTxId
 	return Epochs[epochIndex].observations
 end
 

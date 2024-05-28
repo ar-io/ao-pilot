@@ -4,32 +4,31 @@ local base64 = require("base64")
 local balances = require("balances")
 local gar = {}
 
-GatewayRegistry = GatewayRegistry
-	or {
-		gateways = {},
-		settings = {
-			observers = {
-				maxObserversPerEpoch = 50,
-				tenureWeightDays = 180,
-				tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
-				maxTenureWeight = 4,
-			},
-			-- TODO: move this to a nested object for gateways
-			minDelegatedStake = 50 * 1000000, -- 50 IO
-			minOperatorStake = 10000 * 1000000, -- 10,000 IO
-			gatewayLeaveLength = 90 * 24 * 60 * 60 * 1000, -- 90 days
-			maxLockLength = 3 * 365 * 24 * 60 * 60 * 1000, -- 3 years
-			minLockLength = 24 * 60 * 60 * 1000, -- 1 day
-			operatorStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
-			delegatedStakeWithdrawLength = 30 * 24 * 60 * 60 * 1000, -- 30 days
-			maxDelegates = 10000,
-		},
-	}
+GatewayRegistry = GatewayRegistry or {}
 -- TODO: any necessary state modifcations as we iterate go here
--- e.g. gar.getSettings().gateways =
+local garSettings = {
+	observers = {
+		maxPerEpoch = 50,
+		tenureWeightDays = 180,
+		tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
+		maxTenureWeight = 4,
+	},
+	operators = {
+		minStake = 10000 * 1000000, -- 10,000 IO
+		withdrawLengthMs = 30 * 24 * 60 * 60 * 1000, -- 30 days to lower operator stake
+		maxDelegates = 10000,
+		leaveLengthMs = 90 * 24 * 60 * 60 * 1000, -- 90 days that balance will be vaulted
+	},
+	delegates = {
+		minStake = 50 * 1000000, -- 50 IO
+		withdrawLengthMs = 30 * 24 * 60 * 60 * 1000, -- 30 days
+		minLockLengthMs = 24 * 60 * 60 * 1000, -- 1 day
+		maxLockLengthMs = 3 * 365 * 24 * 60 * 60 * 1000, -- 3 years
+	},
+}
 
-function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
-	gar.assertValidGatewayParameters(from, stake, settings, observerWallet, timeStamp)
+function gar.joinNetwork(from, stake, settings, observerAddress, timeStamp)
+	gar.assertValidGatewayParameters(from, stake, settings, observerAddress, timeStamp)
 
 	if gar.getGateway(from) then
 		error("Gateway already exists")
@@ -66,7 +65,7 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 			port = settings.port,
 		},
 		status = "joined",
-		observerWallet = observerWallet or from,
+		observerAddress = observerAddress or from,
 	}
 
 	gar.addGateway(from, newGateway)
@@ -85,30 +84,30 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 		error("The gateway is not eligible to leave the network.")
 	end
 
-	local gatewayEndHeight = currentTimestamp + gar.getSettings().gatewayLeaveLength
-	local gatewayStakeWithdrawHeight = currentTimestamp + gar.getSettings().operatorStakeWithdrawLength
-	local delegateEndHeight = currentTimestamp + gar.getSettings().delegatedStakeWithdrawLength
+	local gatewayEndTimestamp = currentTimestamp + gar.getSettings().operators.leaveLengthMs
+	local gatewayStakeWithdrawTimestamp = currentTimestamp + gar.getSettings().operators.withdrawLengthMs
+	local delegateEndTimestamp = currentTimestamp + gar.getSettings().delegates.withdrawLengthMs
 
 	-- Add minimum staked tokens to a vault that unlocks after the gateway completely leaves the network
 	gateway.vaults[from] = {
-		balance = gar.getSettings().minOperatorStake,
+		balance = gar.getSettings().operators.minStake,
 		startTimestamp = currentTimestamp,
-		endTimestamp = gatewayEndHeight,
+		endTimestamp = gatewayEndTimestamp,
 	}
 
-	gateway.operatorStake = gateway.operatorStake - gar.getSettings().minOperatorStake
+	gateway.operatorStake = gateway.operatorStake - gar.getSettings().operators.minStake
 
 	-- Add remainder to another vault
 	if gateway.operatorStake > 0 then
 		gateway.vaults[msgId] = {
 			balance = gateway.operatorStake,
 			startTimestamp = currentTimestamp,
-			endTimestamp = gatewayStakeWithdrawHeight,
+			endTimestamp = gatewayStakeWithdrawTimestamp,
 		}
 	end
 
 	gateway.status = "leaving"
-	gateway.endTimestamp = gatewayEndHeight
+	gateway.endTimestamp = gatewayEndTimestamp
 	gateway.operatorStake = 0
 
 	-- Add tokens from each delegate to a vault that unlocks after the delegate withdrawal period ends
@@ -117,7 +116,7 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 		gateway.delegates[address].vaults[msgId] = {
 			balance = delegate.delegatedStake,
 			startTimestamp = currentTimestamp,
-			endTimestamp = delegateEndHeight,
+			endTimestamp = delegateEndTimestamp,
 		}
 
 		-- Reduce gateway stake and set this delegate stake to 0
@@ -126,7 +125,7 @@ function gar.leaveNetwork(from, currentTimestamp, msgId)
 	end
 
 	-- update global state
-	GatewayRegistry.gateways[from] = gateway
+	GatewayRegistry[from] = gateway
 	return gateway
 end
 
@@ -147,7 +146,7 @@ function gar.increaseOperatorStake(from, qty)
 	end
 
 	balances.reduceBalance(from, qty)
-	GatewayRegistry.gateways[from].operatorStake = gar.getGateway(from).operatorStake + qty
+	GatewayRegistry[from].operatorStake = gar.getGateway(from).operatorStake + qty
 	return gar.getGateway(from)
 end
 
@@ -165,12 +164,12 @@ function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
 		error("Gateway is leaving the network and withdraw more stake.")
 	end
 
-	local maxWithdraw = gateway.operatorStake - gar.getSettings().minOperatorStake
+	local maxWithdraw = gateway.operatorStake - gar.getSettings().operators.minStake
 
 	if qty > maxWithdraw then
 		return error(
 			"Resulting stake is not enough maintain the minimum operator stake of "
-				.. gar.getSettings().minOperatorStake
+				.. gar.getSettings().operators.minStake
 				.. " IO"
 		)
 	end
@@ -179,29 +178,29 @@ function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
 	gateway.vaults[msgId] = {
 		balance = qty,
 		startTimestamp = currentTimestamp,
-		endTimestamp = currentTimestamp + gar.getSettings().operatorStakeWithdrawLength,
+		endTimestamp = currentTimestamp + gar.getSettings().operators.withdrawLengthMs,
 	}
 	return gar.getGateway(from)
 end
 
-function gar.updateGatewaySettings(from, updatedSettings, observerWallet, currentTimestamp, msgId)
+function gar.updateGatewaySettings(from, updatedSettings, observerAddress, currentTimestamp, msgId)
 	if not gar.getGateway(from) then
 		error("Gateway does not exist")
 	end
 
 	local gateway = gar.getGateway(from)
 
-	gar.assertValidGatewayParameters(from, gateway.operatorStake, updatedSettings, observerWallet, currentTimestamp)
+	gar.assertValidGatewayParameters(from, gateway.operatorStake, updatedSettings, observerAddress, currentTimestamp)
 
 	if
 		updatedSettings.minDelegatedStake
-		and updatedSettings.minDelegatedStake < gar.getSettings().minDelegatedStake
+		and updatedSettings.minDelegatedStake < gar.getSettings().delegates.minStake
 	then
-		error("The minimum delegated stake must be at least " .. gar.getSettings().minDelegatedStake .. " IO")
+		error("The minimum delegated stake must be at least " .. gar.getSettings().operators.minStake .. " IO")
 	end
 
 	for gatewayAddress, gateway in pairs(gar.getGateways()) do
-		if gateway.observerWallet == observerWallet and gatewayAddress ~= from then
+		if gateway.observerAddress == observerAddress and gatewayAddress ~= from then
 			error("Invalid observer wallet. The provided observer wallet is correlated with another gateway.")
 		end
 	end
@@ -209,7 +208,7 @@ function gar.updateGatewaySettings(from, updatedSettings, observerWallet, curren
 	-- vault all delegated stakes if it is disabled, we'll return stake at the proper end heights of the vault
 	if not updatedSettings.allowDelegatedStaking and next(gateway.delegates) ~= nil then
 		-- Add tokens from each delegate to a vault that unlocks after the delegate withdrawal period ends
-		local delegateEndHeight = currentTimestamp + gar.getSettings().delegatedStakeWithdrawLength
+		local delegateEndTimestamp = currentTimestamp + gar.getSettings().delegates.withdrawLengthMs
 
 		for address, delegate in pairs(gateway.delegates) do
 			if not gateway.delegates[address].vaults then
@@ -219,7 +218,7 @@ function gar.updateGatewaySettings(from, updatedSettings, observerWallet, curren
 			local newDelegateVault = {
 				balance = delegate.delegatedStake,
 				startTimestamp = currentTimestamp,
-				endTimestamp = delegateEndHeight,
+				endTimestamp = delegateEndTimestamp,
 			}
 			gateway.delegates[address].vaults[msgId] = newDelegateVault
 			-- reduce gateway stake and set this delegate stake to 0
@@ -238,18 +237,18 @@ function gar.updateGatewaySettings(from, updatedSettings, observerWallet, curren
 	end
 
 	gateway.settings = updatedSettings
-	if observerWallet then
-		gateway.observerWallet = observerWallet
+	if observerAddress then
+		gateway.observerAddress = observerAddress
 	end
 	return gar.getGateway(from)
 end
 
-function gar.getGateway(target)
-	return GatewayRegistry.gateways[target]
+function gar.getGateway(address)
+	return GatewayRegistry[address]
 end
 
 function gar.getGateways()
-	return GatewayRegistry.gateways
+	return GatewayRegistry
 end
 
 function gar.delegateStake(from, target, qty, currentTimestamp)
@@ -281,7 +280,7 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		count = count + 1
 	end
 
-	if count > gar.getSettings().maxDelegates then
+	if count > gar.getSettings().operators.maxDelegates then
 		error("This Gateway has reached its maximum amount of delegated stakers.")
 	end
 
@@ -312,13 +311,13 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		}
 	else
 		-- increment the existing delegate's stake
-		gateway.delegates[from].delegatedStake = gar.gateways[target].delegates[from].delegatedStake + qty
+		gateway.delegates[from].delegatedStake = gar[target].delegates[from].delegatedStake + qty
 	end
 	return gateway
 end
 
 function gar.getSettings()
-	return GatewayRegistry.settings
+	return garSettings
 end
 
 function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimestamp, messageId)
@@ -349,7 +348,7 @@ function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimest
 	local newDelegateVault = {
 		balance = qty,
 		startTimestamp = currentTimestamp,
-		endTimestamp = currentTimestamp + gar.getSettings().delegatedStakeWithdrawLength,
+		endTimestamp = currentTimestamp + gar.getSettings().delegates.withdrawLengthMs,
 	}
 
 	-- Lock the qty in a vault to be unlocked after withdrawal period and decrease the gateway's total delegated stake
@@ -381,7 +380,7 @@ function gar.getEligibleGatewaysForTimestamps(startTimestamp, endtimestamp)
 	local eligibleGateways = {}
 	for address, gateway in pairs(gateways) do
 		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, gateway) then
-			eligibleGateways[address] = gar.getGateway(address)
+			eligibleGateways[address] = gateway
 		end
 	end
 	return eligibleGateways
@@ -394,7 +393,7 @@ function gar.getObserverWeightsAtTimestamp(eligbileGateways, timestamp)
 	-- Iterate over gateways to calculate weights
 	for address, gateway in pairs(eligbileGateways) do
 		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
-		local stakeWeightRatio = totalStake / gar.getSettings().minOperatorStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
+		local stakeWeightRatio = totalStake / gar.getSettings().operators.minStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
 		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
 		local gatewayStartTimestamp = gateway.startTimestamp
 		local totalTimeForGateway = timestamp >= gatewayStartTimestamp and (timestamp - gatewayStartTimestamp) or -1
@@ -423,7 +422,7 @@ function gar.getObserverWeightsAtTimestamp(eligbileGateways, timestamp)
 
 		table.insert(weightedObservers, {
 			gatewayAddress = address,
-			observerAddress = gateway.observerWallet,
+			observerAddress = gateway.observerAddress,
 			stake = totalStake,
 			startTimestamp = gateway.startTimestamp,
 			stakeWeight = stakeWeightRatio,
@@ -466,11 +465,11 @@ function gar.getDistributions()
 	return gar.distributions
 end
 
-function gar.assertValidGatewayParameters(from, stake, settings, observerWallet, timeStamp)
+function gar.assertValidGatewayParameters(from, stake, settings, observerAddress, timeStamp)
 	assert(type(from) == "string", "from is required and must be a string!")
 	assert(type(stake) == "number", "stake is required and must be a number!")
 	assert(type(settings) == "table", "settings is required and must be a table!")
-	assert(type(observerWallet) == "string", "observerWallet is required and must be a string!")
+	assert(type(observerAddress) == "string", "observerAddress is required and must be a string!")
 	assert(type(timeStamp) == "number", "timeStamp is required and must be a number!")
 	assert(type(settings.allowDelegatedStaking) == "boolean", "allowDelegatedStaking must be a boolean")
 	assert(type(settings.minDelegatedStake) == "number", "minDelegatedStake must be a number")
@@ -493,7 +492,12 @@ function gar.assertValidGatewayParameters(from, stake, settings, observerWallet,
 end
 
 function gar.addGateway(address, gateway)
-	GatewayRegistry.gateways[address] = gateway
+	GatewayRegistry[address] = gateway
+end
+
+-- for test purposes
+function gar.updateSettings(newSettings)
+	garSettings = newSettings
 end
 
 return gar

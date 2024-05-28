@@ -1,4 +1,3 @@
-local constants = require("constants")
 local base64 = require("base64")
 local crypto = require("crypto.init")
 local utils = {}
@@ -82,6 +81,12 @@ function utils.ensureMilliseconds(timestamp)
 		-- If the timestamp is above the threshold, assume it's already in milliseconds
 		return timestamp
 	end
+end
+
+function utils.getHashFromBase64(str)
+	local decodedHash = base64.decode(str)
+	local hashStream = crypto.utils.stream.fromString(decodedHash)
+	return crypto.digest.sha2_256(hashStream).asBytes()
 end
 
 return utils

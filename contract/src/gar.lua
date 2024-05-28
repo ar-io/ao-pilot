@@ -10,6 +10,7 @@ Epochs = Epochs
 		[0] = {
 			startTimestamp = 0,
 			endTimestamp = 0,
+			distributionTimestamp = 0,
 			-- TODO: add settings here
 			observations = {
 				failureSummaries = {},

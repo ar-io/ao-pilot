@@ -558,25 +558,6 @@ function gar.getPrescribedObserversForEpoch(epochIndex)
 	local prescribedObsevers = Epochs[epochIndex].prescribedObservers or {}
 	return prescribedObsevers
 end
-function gar.getEpoch(timeStamp, currentTimestamp)
-	local requestedTimestamp = timeStamp or currentTimestamp
-	if requestedTimestamp == nil or requestedTimestamp <= 0 then
-		return error("Invalid timestamp")
-	end
-
-	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndexForCurrentTimestamp =
-		gar.getEpochDataForTimestamp(currentTimestamp)
-
-	local result = {
-		epochStartTimestamp,
-		epochEndTimestamp,
-		gar.getSettings().epochs.epochZeroStartTimestamp,
-		epochDistributionTimestamp,
-		epochIndexForCurrentTimestamp,
-		gar.getSettings().epochs.durationMs,
-	}
-	return result
-end
 
 function gar.isGatewayLeaving(gateway, currentTimestamp)
 	return gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp

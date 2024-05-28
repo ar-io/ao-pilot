@@ -1,25 +1,9 @@
 -- gar.lua
 local crypto = require("crypto.init")
-local utils = require("utils")
 local base64 = require("base64")
 local balances = require("balances")
 local gar = {}
 
-Epochs = Epochs
-	or {
-		[0] = {
-			startTimestamp = 0,
-			endTimestamp = 0,
-			distributionTimestamp = 0,
-			-- TODO: add settings here
-			observations = {
-				failureSummaries = {},
-				reports = {},
-			},
-			prescribedObservers = {},
-			distributions = {},
-		},
-	}
 GatewayRegistry = GatewayRegistry
 	or {
 		gateways = {},
@@ -29,11 +13,6 @@ GatewayRegistry = GatewayRegistry
 				tenureWeightDays = 180,
 				tenureWeightPeriod = 180 * 24 * 60 * 60 * 1000,
 				maxTenureWeight = 4,
-			},
-			epochs = {
-				durationMs = 24 * 60 * 60 * 1000, -- One day of miliseconds
-				epochZeroStartTimestamp = 0,
-				distributionDelayMs = 30 * 60 * 1000, -- 30 minutes of miliseconds
 			},
 			-- TODO: move this to a nested object for gateways
 			minDelegatedStake = 50 * 1000000, -- 50 IO
@@ -46,17 +25,6 @@ GatewayRegistry = GatewayRegistry
 			maxDelegates = 10000,
 		},
 	}
-
-local initialStats = {
-	prescribedEpochCount = 0,
-	observeredEpochCount = 0,
-	totalEpochParticipationCount = 0,
-	passedEpochCount = 0,
-	failedEpochCount = 0,
-	failedConsecutiveEpochs = 0,
-	passedConsecutiveEpochs = 0,
-}
-
 -- TODO: any necessary state modifcations as we iterate go here
 -- e.g. gar.getSettings().gateways =
 
@@ -77,7 +45,15 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 		vaults = {},
 		delegates = {},
 		startTimestamp = timeStamp,
-		stats = initialStats,
+		stats = {
+			prescribedEpochCount = 0,
+			observeredEpochCount = 0,
+			totalEpochParticipationCount = 0,
+			passedEpochCount = 0,
+			failedEpochCount = 0,
+			failedConsecutiveEpochs = 0,
+			passedConsecutiveEpochs = 0,
+		},
 		settings = {
 			allowDelegatedStaking = settings.allowDelegatedStaking or false,
 			delegateRewardShareRatio = settings.delegateRewardShareRatio or 0,
@@ -96,82 +72,6 @@ function gar.joinNetwork(from, stake, settings, observerWallet, timeStamp)
 	gar.addGateway(from, newGateway)
 	balances.reduceBalance(from, stake)
 	return gar.getGateway(from)
-end
-
-function gar.computePrescribedObserversForEpoch(epochIndex, hashchain)
-	local eligibleGateways = gar.getEligibleGatewaysForEpoch(epochIndex)
-	local weightedObservers = gar.getObserverWeightsForEpoch(epochIndex, eligibleGateways)
-	-- Filter out any observers that could have a normalized composite weight of 0
-	local filteredObservers = {}
-	-- use ipairs as weightedObservers in array
-	for _, observer in ipairs(weightedObservers) do
-		if observer.normalizedCompositeWeight > 0 then
-			table.insert(filteredObservers, observer)
-		end
-	end
-	if #filteredObservers <= gar.getSettings().observers.maxObserversPerEpoch then
-		return filteredObservers
-	end
-
-	-- the hash we will use to create entropy for prescribed observers
-	local epochHash = gar.getHashFromBase64(hashchain)
-
-	-- sort the observers using entropy from the hash chain, this will ensure that the same observers are selected for the same epoch
-	table.sort(filteredObservers, function(observerA, observerB)
-		local addressAHash = gar.getHashFromBase64(observerA.gatewayAddress .. hashchain)
-		local addressBHash = gar.getHashFromBase64(observerB.gatewayAddress .. hashchain)
-		local addressAString = crypto.utils.array.toString(addressAHash)
-		local addressBString = crypto.utils.array.toString(addressBHash)
-		return addressAString < addressBString
-	end)
-
-	-- get our prescribed observers, using the hashchain as entropy
-	local hash = epochHash
-	local prescribedObserversAddresses = {}
-	while #prescribedObserversAddresses < gar.getSettings().observers.maxObserversPerEpoch do
-		local hashString = crypto.utils.array.toString(hash)
-		local random = crypto.random(nil, nil, hashString) / 0xffffffff
-		local cumulativeNormalizedCompositeWeight = 0
-		-- use ipairs as filtered observers is an array
-		for i = 1, #filteredObservers do
-			local observer = filteredObservers[i]
-			local alreadyPrescribed = utils.findInArray(prescribedObserversAddresses, function(address)
-				return address == observer.gatewayAddress
-			end)
-
-			-- add only if observer has not already been prescribed
-			if not alreadyPrescribed then
-				-- add the observers normalized composite weight to the cumulative weight
-				cumulativeNormalizedCompositeWeight = cumulativeNormalizedCompositeWeight
-					+ observer.normalizedCompositeWeight
-				-- if the random value is less than the cumulative weight, we have found our observer
-				if random <= cumulativeNormalizedCompositeWeight then
-					table.insert(prescribedObserversAddresses, observer.gatewayAddress)
-					break
-				end
-			end
-		end
-		-- hash the hash to get a new hash
-		local newHash = crypto.utils.stream.fromArray(hash)
-		hash = crypto.digest.sha2_256(newHash).asBytes()
-	end
-	local prescribedObservers = {}
-	for _, address in ipairs(prescribedObserversAddresses) do
-		local index = utils.findInArray(filteredObservers, function(observer)
-			return observer.gatewayAddress == address
-		end)
-		table.insert(prescribedObservers, filteredObservers[index])
-		table.sort(prescribedObservers, function(a, b)
-			return a.normalizedCompositeWeight > b.normalizedCompositeWeight
-		end)
-	end
-
-	-- sort them in place
-	table.sort(prescribedObservers, function(a, b)
-		return a.normalizedCompositeWeight > b.normalizedCompositeWeight -- sort by descending weight
-	end)
-
-	return prescribedObservers
 end
 
 function gar.leaveNetwork(from, currentTimestamp, msgId)
@@ -458,103 +358,6 @@ function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimest
 	gateway.totalDelegatedStake = gateway.totalDelegatedStake - qty
 	return gar.getGateway(gatewayAddress)
 end
-
-function gar.saveObservations(from, reportTxId, failedGateways, timestamp)
-	local epochIndex = gar.getEpochIndexForTimestamp(timestamp)
-	local epochStartTimestamp, _, epochDistributionTimestamp, epochIndex = gar.getEpochTimestampsForIndex(epochIndex)
-
-	-- avoid observations before the previous epoch distribution has occurred, as distributions affect weights of the current epoch
-	if timestamp < epochStartTimestamp + gar.getSettings().epochs.distributionDelayMs then
-		error("Observations for the current epoch cannot be submitted before: " .. epochDistributionTimestamp)
-	end
-
-	local prescribedObservers = gar.getPrescribedObserversForEpoch(epochIndex)
-	-- print each prescribed observer
-	if #prescribedObservers == 0 then
-		error("No prescribed observers for the current epoch.")
-	end
-
-	local observerIndex = utils.findInArray(prescribedObservers, function(prescribedObserver)
-		return prescribedObserver.observerAddress == from
-	end)
-
-	local observer = prescribedObservers[observerIndex]
-
-	if observer == nil then
-		error("Caller is not a prescribed observer for the current epoch.")
-	end
-
-	local observingGateway = gar.getGateway(observer.gatewayAddress)
-
-	if observingGateway == nil then
-		error("The associated gateway does not exist in the registry.")
-	end
-
-	-- check if this is the first report filed in this epoch (TODO: use start or end?)
-	if Epochs[epochIndex].observations == nil then
-		Epochs[epochIndex].observations = {
-			failureSummaries = {},
-			reports = {},
-		}
-	end
-
-	for _, failedGatewayAddress in pairs(failedGateways) do
-		local failedGateway = gar.getGateway(failedGatewayAddress)
-		local gatewayPresentDuringEpoch = gar.isGatewayEligibleForDistribution(epochIndex, failedGateway)
-		if gatewayPresentDuringEpoch then
-			-- if there are none, create an array
-			if Epochs[epochIndex].observations.failureSummaries == nil then
-				Epochs[epochIndex].observations.failureSummaries = {}
-			end
-			-- Get the existing set of failed gateways for this observer
-			local observersMarkedFailed = Epochs[epochIndex].observations.failureSummaries[failedGatewayAddress] or {}
-
-			-- if list of observers who marked failed does not continue current observer than add it
-			local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(observer)
-				return observer == observingGateway.observerWallet
-			end)
-
-			if not alreadyObservedIndex then
-				table.insert(observersMarkedFailed, observingGateway.observerWallet)
-			end
-
-			Epochs[epochIndex].observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
-		end
-	end
-
-	-- if reports are not already present, create an array
-	if Epochs[epochIndex].observations.reports == nil then
-		Epochs[epochIndex].observations.reports = {}
-	end
-
-	Epochs[epochIndex].observations.reports[observingGateway.observerWallet] = reportTxId
-	return Epochs[epochIndex].observations
-end
-
-function gar.getEpochTimestampsForIndex(epochIndex)
-	local epochSettings = gar.getSettings().epochs
-	local epochStartTimestamp = epochSettings.epochZeroStartTimestamp + epochSettings.durationMs * epochIndex
-	local epochEndTimestamp = epochStartTimestamp + epochSettings.durationMs
-	local epochDistributionTimestamp = epochEndTimestamp + epochSettings.distributionDelayMs
-	return epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex
-end
-
-function gar.getEpochIndexForTimestamp(timestamp)
-	local epochZeroStartTimestamp = gar.getSettings().epochs.epochZeroStartTimestamp
-	local epochLengthMs = gar.getSettings().epochs.durationMs
-	local epochIndex = math.floor((timestamp - epochZeroStartTimestamp) / epochLengthMs)
-	return epochIndex
-end
-
-function gar.getCurrentEpoch()
-	return GatewayRegistry.epoch
-end
-
-function gar.getPrescribedObserversForEpoch(epochIndex)
-	local prescribedObsevers = Epochs[epochIndex].prescribedObservers or {}
-	return prescribedObsevers
-end
-
 function gar.isGatewayLeaving(gateway, currentTimestamp)
 	return gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp
 end
@@ -567,26 +370,24 @@ function gar.isGatewayEligibleToLeave(gateway, timestamp)
 	return isJoined
 end
 
-function gar.isGatewayEligibleForDistribution(epochIndex, gateway)
-	local epochStartTimestamp, epochEndTimestamp = gar.getEpochTimestampsForIndex(epochIndex)
-	local didStartBeforeEpoch = gateway.startTimestamp <= epochStartTimestamp
-	local didNotLeaveDuringEpoch = not gar.isGatewayLeaving(gateway, epochEndTimestamp)
+function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, gateway)
+	local didStartBeforeEpoch = gateway.startTimestamp <= startTimestamp
+	local didNotLeaveDuringEpoch = not gar.isGatewayLeaving(gateway, endTimestamp)
 	return didStartBeforeEpoch and didNotLeaveDuringEpoch
 end
 
-function gar.getEligibleGatewaysForEpoch(epochIndex)
+function gar.getEligibleGatewaysForTimestamps(startTimestamp, endtimestamp)
 	local gateways = gar.getGateways()
 	local eligibleGateways = {}
 	for address, gateway in pairs(gateways) do
-		if gar.isGatewayEligibleForDistribution(epochIndex, gateway) then
+		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, gateway) then
 			eligibleGateways[address] = gar.getGateway(address)
 		end
 	end
 	return eligibleGateways
 end
 
-function gar.getObserverWeightsForEpoch(epochIndex, eligbileGateways)
-	local epochStartTimestamp = gar.getEpochTimestampsForIndex(epochIndex)
+function gar.getObserverWeightsAtTimestamp(eligbileGateways, timestamp)
 	local weightedObservers = {}
 	local totalCompositeWeight = 0
 
@@ -596,9 +397,7 @@ function gar.getObserverWeightsForEpoch(epochIndex, eligbileGateways)
 		local stakeWeightRatio = totalStake / gar.getSettings().minOperatorStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
 		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
 		local gatewayStartTimestamp = gateway.startTimestamp
-		local totalTimeForGateway = epochStartTimestamp >= gatewayStartTimestamp
-				and (epochStartTimestamp - gatewayStartTimestamp)
-			or -1
+		local totalTimeForGateway = timestamp >= gatewayStartTimestamp and (timestamp - gatewayStartTimestamp) or -1
 		-- TODO: should we increment by one here or are observers that join at the epoch start not eligible to be selected as an observer
 
 		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
@@ -695,36 +494,6 @@ end
 
 function gar.addGateway(address, gateway)
 	GatewayRegistry.gateways[address] = gateway
-end
-
-function gar.createEpochForTimestamp(timestamp)
-	local epochIndex = gar.getEpochIndexForTimestamp(timestamp)
-	if Epochs[epochIndex] then
-		error("Epoch already exists")
-	end
-	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex = gar.getEpochTimestampsForIndex(epochIndex)
-	local epoch = {
-		startTimestamp = epochStartTimestamp,
-		endTimestamp = epochEndTimestamp,
-		distributionTimestamp = epochDistributionTimestamp,
-		observations = {
-			failureSummaries = {},
-			reports = {},
-		},
-		prescribedObservers = {},
-		distributions = {},
-	}
-	Epochs[epochIndex] = epoch
-	GatewayRegistry.epoch = epochIndex
-end
-
-function gar.setPrescribedObserversForEpoch(epochIndex, prescribedObservers)
-	local epoch = Epochs[epochIndex]
-	if epoch == nil then
-		error("Epoch does not exist, it must be created before observers can be prescribed")
-	end
-	epoch.prescribedObservers = prescribedObservers
-	return epoch
 end
 
 return gar

@@ -499,13 +499,8 @@ function gar.saveObservations(from, reportTxId, failedGateways, timestamp)
 
 	for _, failedGatewayAddress in pairs(failedGateways) do
 		local failedGateway = gar.getGateway(failedGatewayAddress)
-
-		-- validate the gateway should be marked as failed for the epoch
-		if
-			failedGateway
-			and failedGateway.startTimestamp <= epochStartTimestamp
-			and failedGateway.status == "joined"
-		then
+		local gatewayPresentDuringEpoch = gar.isGatewayEligibleForDistribution(epochIndex, failedGateway)
+		if gatewayPresentDuringEpoch then
 			-- if there are none, create an array
 			if Epochs[epochIndex].observations.failureSummaries == nil then
 				Epochs[epochIndex].observations.failureSummaries = {}

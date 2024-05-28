@@ -3,7 +3,7 @@ local balances = require("balances")
 describe("balances", function()
 	before_each(function()
 		_G.Balances = {
-			["test-wallet-address-1"]= 100,
+			["test-wallet-address-1"] = 100,
 		}
 	end)
 

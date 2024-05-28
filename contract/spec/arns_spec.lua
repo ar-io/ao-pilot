@@ -13,7 +13,7 @@ describe("arns", function()
 			reserved = {},
 		}
 		_G.Balances = {
-			["test-wallet-address-1"]= 5000000,
+			["test-wallet-address-1"] = 5000000,
 		}
 	end)
 
@@ -21,7 +21,8 @@ describe("arns", function()
 		it("should add a valid lease buyRecord to records object and transfer balance to the protocol", function()
 			local demandBefore = demand.getCurrentPeriodRevenue()
 			local purchasesBefore = demand.getCurrentPeriodPurchases()
-			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
 				purchasePrice = 1500,
@@ -50,7 +51,8 @@ describe("arns", function()
 		it("should default lease to 1 year and lease when not values are not provided", function()
 			local demandBefore = demand.getCurrentPeriodRevenue()
 			local purchasesBefore = demand.getCurrentPeriodPurchases()
-			local status, result = pcall(arns.buyRecord, "test-name", nil, nil, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "test-name", nil, nil, "test-wallet-address-1", timestamp, testProcessId)
 			assert.is_true(status)
 			assert.are.same({
 				purchasePrice = 1500,
@@ -95,8 +97,15 @@ describe("arns", function()
 			function()
 				local demandBefore = demand.getCurrentPeriodRevenue()
 				local purchasesBefore = demand.getCurrentPeriodPurchases()
-				local status, result =
-					pcall(arns.buyRecord, "test-permabuy-name", "permabuy", 1, "test-wallet-address-1", timestamp, testProcessId)
+				local status, result = pcall(
+					arns.buyRecord,
+					"test-permabuy-name",
+					"permabuy",
+					1,
+					"test-wallet-address-1",
+					timestamp,
+					testProcessId
+				)
 				assert.is_true(status)
 				assert.are.same({
 					purchasePrice = 3000,
@@ -130,8 +139,15 @@ describe("arns", function()
 			function()
 				-- give ["test-wallet-address-1"]a massive balance
 				Balances["test-wallet-address-1"] = 15000000
-				local status, result =
-					pcall(arns.buyRecord, "permabuy", "permabuy", nil, "test-wallet-address-1", timestamp, testProcessId)
+				local status, result = pcall(
+					arns.buyRecord,
+					"permabuy",
+					"permabuy",
+					nil,
+					"test-wallet-address-1",
+					timestamp,
+					testProcessId
+				)
 				assert.is_false(status)
 				-- TODO: this will change to `Name must be auctioned` when auctions are impelmented
 				assert.match("Name not available for purchase", result)
@@ -141,7 +157,8 @@ describe("arns", function()
 		it("should throw an error if trying to buy a short name", function()
 			-- give ["test-wallet-address-1"]a massive balance
 			Balances["test-wallet-address-1"] = 15000000
-			local status, result = pcall(arns.buyRecord, "a", "permabuy", 1, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "a", "permabuy", 1, "test-wallet-address-1", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name not available for purchase", result)
 		end)
@@ -156,7 +173,8 @@ describe("arns", function()
 				undernameCount = 10,
 			}
 			NameRegistry.records["test-name"] = existingRecord
-			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name is already registered", result)
 			assert.are.same(existingRecord, NameRegistry.records["test-name"])
@@ -168,7 +186,8 @@ describe("arns", function()
 				endTimestamp = 1000,
 			}
 			NameRegistry.reserved["test-name"] = reservedName
-			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Name is reserved", result)
 			assert.are.same({}, arns.getRecords())
@@ -182,7 +201,8 @@ describe("arns", function()
 				target = "test-wallet-address-1",
 				endTimestamp = 1000,
 			}
-			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
 			local expectation = {
 				endTimestamp = timestamp + constants.oneYearMs,
 				processId = testProcessId,
@@ -204,7 +224,8 @@ describe("arns", function()
 
 		it("should throw an error if the user does not have enough balance", function()
 			Balances["test-wallet-address-1"] = 0
-			local status, result = pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
+			local status, result =
+				pcall(arns.buyRecord, "test-name", "lease", 1, "test-wallet-address-1", timestamp, testProcessId)
 			assert.is_false(status)
 			assert.match("Insufficient balance", result)
 			assert.are.same({}, arns.getRecords())
@@ -213,7 +234,8 @@ describe("arns", function()
 
 	describe("increaseUndernameCount", function()
 		it("should throw an error if name is not active", function()
-			local status, error = pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 50, timestamp)
+			local status, error =
+				pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 50, timestamp)
 			assert.is_false(status)
 			assert.match("Name is not registered", error)
 		end)
@@ -229,7 +251,8 @@ describe("arns", function()
 				undernameCount = 10,
 			}
 			Balances["test-wallet-address-1"] = 0
-			local status, error = pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 50, timestamp)
+			local status, error =
+				pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 50, timestamp)
 			assert.is_false(status)
 			assert.match("Insufficient balance", error)
 		end)
@@ -257,8 +280,13 @@ describe("arns", function()
 				type = "lease",
 				undernameCount = 10,
 			}
-			local status, error =
-				pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 1, timestamp + constants.oneYearMs + 1)
+			local status, error = pcall(
+				arns.increaseUndernameCount,
+				"test-wallet-address-1",
+				"test-name",
+				1,
+				timestamp + constants.oneYearMs + 1
+			)
 			assert.is_false(status)
 			assert.match("Name must be extended before additional unernames can be purchase", error)
 		end)
@@ -274,7 +302,8 @@ describe("arns", function()
 			}
 			local demandBefore = demand.getCurrentPeriodRevenue()
 			local purchasesBefore = demand.getCurrentPeriodPurchases()
-			local status, result = pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 50, timestamp)
+			local status, result =
+				pcall(arns.increaseUndernameCount, "test-wallet-address-1", "test-name", 50, timestamp)
 			local expectation = {
 				endTimestamp = timestamp + constants.oneYearMs,
 				processId = testProcessId,

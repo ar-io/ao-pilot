@@ -32,7 +32,7 @@ local testGateway = {
 describe("gar", function()
 	before_each(function()
 		_G.Balances = {
-			["test-wallet-address-1"]= GatewayRegistry.settings.minOperatorStake,
+			["test-wallet-address-1"] = GatewayRegistry.settings.minOperatorStake,
 		}
 		_G.Epochs = {
 			[0] = {
@@ -183,7 +183,7 @@ describe("gar", function()
 				operatorStake = 0,
 				totalDelegatedStake = 0,
 				vaults = {
-					["test-wallet-address-1"]= {
+					["test-wallet-address-1"] = {
 						balance = GatewayRegistry.settings.minOperatorStake,
 						startTimestamp = startTimestamp,
 						endTimestamp = GatewayRegistry.settings.gatewayLeaveLength,
@@ -373,8 +373,14 @@ describe("gar", function()
 				settings = updatedSettings,
 				status = "joined",
 			}
-			local status, result =
-				pcall(gar.updateGatewaySettings, "test-wallet-address-1", updatedSettings, newObserverWallet, startTimestamp, "msgId")
+			local status, result = pcall(
+				gar.updateGatewaySettings,
+				"test-wallet-address-1",
+				updatedSettings,
+				newObserverWallet,
+				startTimestamp,
+				"msgId"
+			)
 			assert.is_true(status)
 			assert.are.same(expectation, result)
 			assert.are.same(expectation, gar.getGateway("test-wallet-address-1"))
@@ -403,8 +409,12 @@ describe("gar", function()
 				status = "joined",
 				observerWallet = "observerWallet",
 			}
-			local result, err =
-				gar.delegateStake("test-wallet-address-2", "test-wallet-address-1", GatewayRegistry.settings.minDelegatedStake, startTimestamp)
+			local result, err = gar.delegateStake(
+				"test-wallet-address-2",
+				"test-wallet-address-1",
+				GatewayRegistry.settings.minDelegatedStake,
+				startTimestamp
+			)
 			assert.are.same(result, {
 				operatorStake = GatewayRegistry.settings.minOperatorStake,
 				totalDelegatedStake = GatewayRegistry.settings.minDelegatedStake,
@@ -490,7 +500,14 @@ describe("gar", function()
 				status = "joined",
 				observerWallet = "observerWallet",
 			}
-			local status, result = pcall(gar.decreaseDelegateStake, "test-wallet-address-1", "test-wallet-address-2", 1000, startTimestamp, "msgId")
+			local status, result = pcall(
+				gar.decreaseDelegateStake,
+				"test-wallet-address-1",
+				"test-wallet-address-2",
+				1000,
+				startTimestamp,
+				"msgId"
+			)
 			assert.is_true(status)
 			assert.are.same(expectation, result)
 			assert.are.same(expectation, gar.getGateway("test-wallet-address-1"))
@@ -613,14 +630,14 @@ describe("gar", function()
 			GatewayRegistry.gateways["test-wallet-address-2"] = testGateway
 			local result = gar.getGateways()
 			assert.are.same(result, {
-				["test-wallet-address-1"]= testGateway,
+				["test-wallet-address-1"] = testGateway,
 				["test-wallet-address-2"] = testGateway,
 			})
 		end)
 	end)
 
 	describe("saveObservations", function()
-		it('should throw an error when saving observation too early in the epoch', function()
+		it("should throw an error when saving observation too early in the epoch", function()
 			local observer = "test-wallet-address-2"
 			local reportTxId = "reportTxId"
 			local timestamp = 1
@@ -631,12 +648,37 @@ describe("gar", function()
 			assert.is_false(status)
 			assert.match("Observations for the current epoch cannot be submitted before", error)
 		end)
+		it("should throw an error if the caller is not prescribed", function()
+			local observer = "test-wallet-address-2"
+			local reportTxId = "reportTxId"
+			local timestamp = gar.getSettings().epochs.distributionDelayMs + 1
+			local failedGateways = {
+				"test-wallet-address-1",
+			}
+			Epochs[0].prescribedObservers = {
+				{
+					gatewayAddress = "test-wallet-address-1",
+					observerAddress = "test-wallet-address-1",
+					stake = GatewayRegistry.settings.minOperatorStake,
+					startTimestamp = startTimestamp,
+					stakeWeight = 1,
+					tenureWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					gatewayRewardRatioWeight = 1,
+					observerRewardRatioWeight = 1,
+					compositeWeight = 1 / GatewayRegistry.settings.observers.tenureWeightPeriod,
+					normalizedCompositeWeight = 1,
+				},
+			}
+			local status, error = pcall(gar.saveObservations, observer, reportTxId, failedGateways, timestamp)
+			assert.is_false(status)
+			assert.match("Caller is not a prescribed observer for the current epoch.", error)
+		end)
 		it("should save observation when the timestamp is after the distribution delay", function()
 			local observer = "test-wallet-address-2"
 			local reportTxId = "reportTxId"
 			local timestamp = gar.getSettings().epochs.distributionDelayMs + 1
 			GatewayRegistry.gateways = {
-				["test-wallet-address-1"]= {
+				["test-wallet-address-1"] = {
 					operatorStake = GatewayRegistry.settings.minOperatorStake,
 					totalDelegatedStake = 0,
 					vaults = {},

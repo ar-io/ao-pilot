@@ -1,5 +1,5 @@
 local gar = require("gar")
-local crypto = require("crypto")
+local crypto = require("crypto.init")
 local utils = require("utils")
 local epochs = {}
 
@@ -31,10 +31,6 @@ function epochs.getEpoch(epochNumber)
 	return Epochs[epochNumber]
 end
 
-function epochs.getCurrentEpoch()
-	return epochs.getEpoch(#Epochs)
-end
-
 function epochs.getObservers()
 	return epochs.getCurrentEpoch().prescribedObservers
 end
@@ -63,6 +59,10 @@ function epochs.getDistributionForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).distributions
 end
 
+function epochs.getEpochFromTimestamp(timestamp)
+	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
+	return epochs.getEpoch(epochIndex)
+end
 function epochs.setPrescribedObserversForEpoch(epochNumber, hashchain)
 	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochNumber, hashchain)
 	epochs.getEpoch(epochNumber).prescribedObservers = prescribedObservers

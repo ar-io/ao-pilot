@@ -1,6 +1,4 @@
 -- gar.lua
-local crypto = require("crypto.init")
-local base64 = require("base64")
 local balances = require("balances")
 local gar = {}
 
@@ -445,12 +443,6 @@ function gar.getObserverWeightsAtTimestamp(eligbileGateways, timestamp)
 		end
 	end
 	return weightedObservers
-end
-
-function gar.getHashFromBase64(str)
-	local decodedHash = base64.decode(str)
-	local hashStream = crypto.utils.stream.fromString(decodedHash)
-	return crypto.digest.sha2_256(hashStream).asBytes()
 end
 
 function gar.isGatewayJoined(gateway, currentTimestamp)

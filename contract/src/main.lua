@@ -1,37 +1,48 @@
 -- Adjust package.path to include the current directory
 local process = { _version = "0.0.1" }
 
--- local ao = require("ao")
-local utils = require("utils")
-local json = require("json")
-local ao = ao or require("ao")
-local arns = require("arns")
-local gar = require("gar")
-local demand = require("demand")
-
 Name = "Test IO"
 Ticker = "tIO"
 Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
 Denomination = 6
 DemandFactor = DemandFactor or {}
-Balances = Balances or {}
+Balances = Balances or {
+	[ao.id] = 1000000000 * 1000000,
+}
 Vaults = Vaults or {}
 GatewayRegistry = GatewayRegistry or {}
 NameRegistry = NameRegistry or {}
+Epochs = Epochs or {}
 
+local utils = require("utils")
+local json = require("json")
+local ao = ao or require("ao")
 local balances = require("balances")
+local arns = require("arns")
+local gar = require("gar")
+local demand = require("demand")
+local epochs = require("epochs")
 
 local ActionMap = {
+	-- reads
 	Info = "Info",
+	State = "State",
+	Record = "Record",
+	Records = "Records",
 	Transfer = "Transfer",
-	GetBalance = "Balance",
-	GetBalances = "Balances",
+	Balance = "Balance",
+	Balances = "Balances",
+	Gateway = "Gateway",
+	Gateways = "Gateways",
+	DemandFactor = "DemandFactor",
+	Epochs = "Epochs",
+	Epoch = "Epoch",
+	-- writes
 	CreateVault = "CreateVault",
 	VaultedTransfer = "VaultedTransfer",
 	ExtendVault = "ExtendVault",
 	IncreaseVault = "IncreaseVault",
 	BuyRecord = "BuyRecord",
-	SubmitAuctionBid = "SubmitAuctionBid",
 	ExtendLease = "ExtendLease",
 	IncreaseUndernameCount = "IncreaseUndernameCount",
 	JoinNetwork = "JoinNetwork",
@@ -39,20 +50,65 @@ local ActionMap = {
 	IncreaseOperatorStake = "IncreaseOperatorStake",
 	DecreaseOperatorStake = "DecreaseOperatorStake",
 	UpdateGatewaySettings = "UpdateGatewaySettings",
-	GetGateway = "GetGateway",
-	GetGateways = "GetGateways",
 	SaveObservations = "SaveObservations",
-	DemandFactor = "DemandFactor",
 	DelegateStake = "DelegateStake",
 	DecreaseDelegateStake = "DecreaseDelegateStake",
 }
 
--- Handlers for contract functions
+-- -- Handlers for contract functions
 
-Handlers.add("info", Handlers.utils.hasMatchingTag("Action", "Info"), function(msg)
+Handlers.add(ActionMap.Info, Handlers.utils.hasMatchingTag("Action", ActionMap.Info), function(msg)
 	ao.send({
 		Target = msg.From,
 		Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination) },
+	})
+end)
+
+Handlers.add(ActionMap.State, Handlers.utils.hasMatchingTag("Action", ActionMap.State), function(msg)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode({
+			Name = Name,
+			Ticker = Ticker,
+			Denomination = Denomination,
+			Balances = Balances,
+			GatewayRegistry = GatewayRegistry,
+			NameRegistry = NameRegistry,
+			Epochs = Epochs,
+			Vaults = Vaults,
+			DemandFactor = DemandFactor,
+		}),
+	})
+end)
+
+Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateways), function(msg)
+	local gateways = gar.getGateways()
+	ao.send({
+		Target = msg.From,
+		Data = json.encode(gateways),
+	})
+end)
+
+Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
+	local gateway = gar.getGateway(msg.Tags.Target)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode(gateway),
+	})
+end)
+
+Handlers.add(ActionMap.Balances, Handlers.utils.hasMatchingTag("Action", ActionMap.Balances), function(msg)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode(Balances),
+	})
+end)
+
+Handlers.add(ActionMap.Balance, Handlers.utils.hasMatchingTag("Action", ActionMap.Balance), function(msg)
+	local balance = balances.getBalance(msg.Tags.Target)
+	ao.send({
+		Target = msg.From,
+		Data = tostring(balance),
 	})
 end)
 
@@ -102,20 +158,6 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 			Data = tostring(err),
 		})
 	end
-end)
-
-Handlers.add(ActionMap.GetBalance, utils.hasMatchingTag("Action", ActionMap.GetBalance), function(msg)
-	local result = balances.getBalance(msg.Tags.Target, msg.From)
-	ao.send({
-		Target = msg.From,
-		Balance = tostring(result),
-		Data = json.encode(tonumber(result)),
-	})
-end)
-
-Handlers.add(ActionMap.GetBalances, utils.hasMatchingTag("Action", ActionMap.GetBalances), function(msg)
-	local result = balances.getBalances()
-	ao.send({ Target = msg.From, Data = json.encode(result) })
 end)
 
 Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.CreateVault), function(msg)
@@ -224,23 +266,6 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 			Target = msg.From,
 			Tags = { Action = "ArNS-Purchase-Notice", Sender = msg.From },
 			Error = tostring(result),
-			Data = tostring(json.encode(result)),
-		})
-	end
-end)
-
-Handlers.add(ActionMap.SubmitAuctionBid, utils.hasMatchingTag("Action", ActionMap.SubmitAuctionBid), function(msg)
-	local status, result = pcall(arns.submitAuctionBid, msg.From, msg.Tags.Name, msg.Tags.Bid, msg.Timestamp)
-	if not status then
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "Invalid-Auction-Bid" },
-			Data = tostring(result),
-		})
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "Auction-Bid-Submitted" },
 			Data = tostring(json.encode(result)),
 		})
 	end
@@ -420,32 +445,6 @@ Handlers.add(
 	end
 )
 
-Handlers.add(ActionMap.GetGateway, utils.hasMatchingTag("Action", ActionMap.GetGateway), function(msg)
-	local result, err = gar.getGateway(msg.Tags.Target)
-	if err then
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "GAR-Invalid-Gateway-Target" },
-			Data = tostring(err),
-		})
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "GAR-Get-Gateway" },
-			Data = tostring(json.encode(result)),
-		})
-	end
-end)
-
-Handlers.add(ActionMap.GetGateways, utils.hasMatchingTag("Action", ActionMap.GetGateways), function(msg)
-	local result = gar.getGateways()
-	ao.send({
-		Target = msg.From,
-		Tags = { Action = "GAR-Get-Gateways" },
-		Data = tostring(json.encode(result)),
-	})
-end)
-
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
 	gar.saveObservations(msg)
 end)
@@ -459,6 +458,27 @@ Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.De
 	else
 		ao.send({ Target = msg.From, Error = json.encode(result) })
 	end
+end)
+
+Handlers.add(ActionMap.Record, utils.hasMatchingTag("Action", ActionMap.Record), function(msg)
+	local record = arns.getRecord(msg.Tags.Name)
+	ao.send({ Target = msg.From, Data = json.encode(record) })
+end)
+
+Handlers.add(ActionMap.Records, utils.hasMatchingTag("Action", ActionMap.Records), function(msg)
+	local records = arns.getRecords()
+	ao.send({ Target = msg.From, Data = json.encode(records) })
+end)
+
+Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epochs), function(msg)
+	local epochIndex = msg.Tags.EpochNumber or epochs.getEpochIndexFromTimestamp(msg.Timestamp)
+	local epoch = epochs.getEpoch(epochIndex)
+	ao.send({ Target = msg.From, Data = json.encode(epoch) })
+end)
+
+Handlers.add(ActionMap.Epochs, utils.hasMatchingTag("Action", ActionMap.Epochs), function(msg)
+	local epochs = epochs.getEpoch(msg.Timestamp)
+	ao.send({ Target = msg.From, Data = json.encode(Epochs) })
 end)
 
 return process

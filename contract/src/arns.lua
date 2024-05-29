@@ -3,14 +3,13 @@ local utils = require("utils")
 local constants = require("constants")
 local balances = require("balances")
 local demand = require("demand")
+local arns = {}
 
 NameRegistry = NameRegistry or {
 	reserved = {},
 	records = {},
 	-- TODO: auctions
 }
-
-local arns = {}
 
 function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	-- don't catch, let the caller handle the error

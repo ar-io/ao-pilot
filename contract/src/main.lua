@@ -37,6 +37,7 @@ local ActionMap = {
 	DemandFactor = "DemandFactor",
 	Epochs = "Epochs",
 	Epoch = "Epoch",
+	PrescribedObservers = "PrescribedObservers",
 	-- writes
 	CreateVault = "CreateVault",
 	VaultedTransfer = "VaultedTransfer",
@@ -446,7 +447,14 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
-	gar.saveObservations(msg)
+	local status, result = pcall(epochs.saveObservations, msg.From, msg.Data.reportTxId, msg.Data.failedGateways, msg.Timestamp)
+	if status then
+		-- TODO: add tags for successfull save observation
+		ao.send({ Target = msg.From, Data = tostring(result) })
+	else
+		-- TODO: add additional tags for error
+		ao.send({ Target = msg.From, Error = json.encode(result) })
+	end
 end)
 
 -- handler showing how we can fetch data from classes in lua
@@ -471,14 +479,20 @@ Handlers.add(ActionMap.Records, utils.hasMatchingTag("Action", ActionMap.Records
 end)
 
 Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epochs), function(msg)
-	local epochIndex = msg.Tags.EpochNumber or epochs.getEpochIndexFromTimestamp(msg.Timestamp)
+	local epochIndex = tonumber(msg.Tags.EpochNumber) or epochs.getEpochIndexFromTimestamp(msg.Timestamp)
 	local epoch = epochs.getEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(epoch) })
 end)
 
 Handlers.add(ActionMap.Epochs, utils.hasMatchingTag("Action", ActionMap.Epochs), function(msg)
-	local epochs = epochs.getEpoch(msg.Timestamp)
-	ao.send({ Target = msg.From, Data = json.encode(Epochs) })
+	local epochs = epochs.getEpochs()
+	ao.send({ Target = msg.From, Data = json.encode(epochs) })
+end)
+
+Handlers.add(ActionMap.PrescribedObservers, utils.hasMatchingTag("Action", ActionMap.PrescribedObservers), function(msg)
+	local epochIndex = epochs.getEpochTimestampsForIndex(msg.Timestamp)
+	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
+	ao.send({ Target = msg.From, Data = json.encode(prescribedObservers) })
 end)
 
 return process

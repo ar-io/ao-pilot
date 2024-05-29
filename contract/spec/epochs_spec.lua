@@ -286,4 +286,64 @@ describe("epochs", function()
 			end
 		)
 	end)
+
+	describe("getPrescribedObserversForEpoch", function()
+		it("should return the prescribed observers for the epoch", function()
+			local epochIndex = 0
+			local expectation = {}
+			local result = epochs.getPrescribedObserversForEpoch(epochIndex)
+			assert.are.same(result, expectation)
+		end)
+	end)
+
+	describe("getEpochIndexForTimestamp", function()
+		it("should return the epoch index for the given timestamp", function()
+			-- update settings
+			epochs.updateEpochSettings({
+				epochZeroStartTimestamp = 0,
+				durationMs = 10,
+				distributionDelayMs = 15,
+			})
+			local timestamp = 100
+			local result = epochs.getEpochIndexForTimestamp(timestamp)
+			assert.are.equal(result, 10)
+		end)
+	end)
+
+	describe("getEpochTimestampsForIndex", function()
+		it("should return the epoch timestamps for the given epoch index", function()
+			local epochIndex = 0
+			epochs.updateEpochSettings({
+				epochZeroStartTimestamp = 0,
+				durationMs = 100,
+				distributionDelayMs = 15,
+			})
+			local expectation = { 0, 100, 115, 0 }
+			local result = { epochs.getEpochTimestampsForIndex(epochIndex) }
+			assert.are.same(result, expectation)
+		end)
+	end)
+
+	describe("createNewEpoch", function()
+		it("should create a new epoch for the given timestamp", function()
+			local timestamp = 100
+			local epochIndex = 1
+			local epochStartTimestamp = 100
+			local epochEndTimestamp = 200
+			local epochDistributionTimestamp = 215
+			local expectation = {
+				startTimestamp = epochStartTimestamp,
+				endTimestamp = epochEndTimestamp,
+				distributionTimestamp = epochDistributionTimestamp,
+				observations = {
+					failureSummaries = {},
+					reports = {},
+				},
+				prescribedObservers = {},
+				distributions = {},
+			}
+			epochs.createEpochForTimestamp(timestamp)
+			assert.are.same(Epochs[epochIndex], expectation)
+		end)
+	end)
 end)

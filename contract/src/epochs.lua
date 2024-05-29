@@ -27,36 +27,40 @@ local epochSettings = {
 	distributionDelayMs = 60 * 1000 * 2 * 15, -- 15 blocks
 }
 
+function epochs.getEpochs()
+	return Epochs
+end
+
 function epochs.getEpoch(epochNumber)
-	return Epochs[epochNumber]
+	return Epochs[epochNumber] or {}
 end
 
 function epochs.getObservers()
-	return epochs.getCurrentEpoch().prescribedObservers
+	return epochs.getCurrentEpoch().prescribedObservers or {}
 end
 
 function epochs.getObservations()
-	return epochs.getCurrentEpoch().observations
+	return epochs.getCurrentEpoch().observations or {}
 end
 
 function epochs.getReports()
-	return epochs.getObservations().reports
+	return epochs.getObservations().reports or {}
 end
 
 function epochs.getDistribution()
-	return epochs.getCurrentEpoch().distributions
+	return epochs.getCurrentEpoch().distributions or {}
 end
 
 function epochs.getPrescribedObserversForEpoch(epochNumber)
-	return epochs.getEpoch(epochNumber).prescribedObservers
+	return epochs.getEpoch(epochNumber).prescribedObservers or {}
 end
 
 function epochs.getReportsForEpoch(epochNumber)
-	return epochs.getEpoch(epochNumber).observations.reports
+	return epochs.getEpoch(epochNumber).observations.reports or {}
 end
 
 function epochs.getDistributionForEpoch(epochNumber)
-	return epochs.getEpoch(epochNumber).distributions
+	return epochs.getEpoch(epochNumber).distributions or {}
 end
 
 function epochs.getEpochFromTimestamp(timestamp)

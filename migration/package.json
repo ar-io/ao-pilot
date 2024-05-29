@@ -1,0 +1,13 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@ar.io/sdk": "^1.0.7",
+    "@permaweb/aoconnect": "^0.0.53",
+    "arweave": "^1.15.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.13",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

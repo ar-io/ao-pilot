@@ -512,4 +512,18 @@ Handlers.add(ActionMap.PrescribedObservers, utils.hasMatchingTag("Action", Actio
 	ao.send({ Target = msg.From, Data = json.encode(prescribedObservers) })
 end)
 
+-- UTILITY HANDLERS USED FOR MIGRATION
+Handlers.add('addGateway', utils.hasMatchingTag("Action", 'AddGateway'), function(msg)
+	if(msg.From ~= Owner) then
+		ao.send({ Target = msg.From, Data = "Unauthorized" })
+		return
+	end
+	local status, result = pcall(gar.addGateway, msg.Tags.Address, json.decode(msg.Data))
+	if status then
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	else
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	end
+end)
+
 return process

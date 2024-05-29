@@ -25,7 +25,6 @@ const main = async () => {
     });
     const currentBlock = await arweave.blocks.getCurrent();
     const millisecondsPerBlock = 1000 * 2 * 60; // two minutes
-
     for (const [address, gateway] of Object.entries(gateways)) {
         const { message, result } = await connect(jwk)
         const startTimestamp = await arweave.blocks.getByHeight(gateway.start).then(block => block.timestamp)
@@ -42,19 +41,18 @@ const main = async () => {
                 observerAddress: gateway.observerWallet,
                 operatorStake: gateway.operatorStake,
                 settings: gateway.settings,
-                // TODO: fetch the block height of the gateway block height
                 startTimestamp: startTimestamp,
                 status: gateway.status,
                 stats: {
-                    ...gateway.stats,
-                    // give them the max amount of passed
-                    "passedConsecutiveEpochs": gateway.stats.passedEpochCount,
+                    passedEpochCount: 0,
+                    submittedObservationEpochCount: 0,
+                    prescribedEpochCount: 0,
+                    failedConsecutiveEpochs: 0,
+                    passedConsecutiveEpochs: 0,
                 },
-                // TODO: fetch the block height of the gateway block height
                 endTimestamp: endTimestamp,
                 delegates: gateway.delegates,
                 vaults: gateway.vaults,
-
             }),
             signer: createDataItemSigner(jwk),
         });

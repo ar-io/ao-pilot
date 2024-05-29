@@ -526,4 +526,17 @@ Handlers.add('addGateway', utils.hasMatchingTag("Action", 'AddGateway'), functio
 	end
 end)
 
+Handlers.add('addRecord', utils.hasMatchingTag("Action", 'AddRecord'), function(msg)
+	if(msg.From ~= Owner) then
+		ao.send({ Target = msg.From, Data = "Unauthorized" })
+		return
+	end
+	local status, result = pcall(arns.addRecord, msg.Tags.Name, json.decode(msg.Data))
+	if status then
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	else
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	end
+end)
+
 return process

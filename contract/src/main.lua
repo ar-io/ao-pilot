@@ -56,107 +56,53 @@ local ActionMap = {
 	DecreaseDelegateStake = "DecreaseDelegateStake",
 }
 
--- -- Handlers for contract functions
-
-Handlers.add(ActionMap.Info, Handlers.utils.hasMatchingTag("Action", ActionMap.Info), function(msg)
-	ao.send({
-		Target = msg.From,
-		Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination) },
-	})
-end)
-
-Handlers.add(ActionMap.State, Handlers.utils.hasMatchingTag("Action", ActionMap.State), function(msg)
-	ao.send({
-		Target = msg.From,
-		Data = json.encode({
-			Name = Name,
-			Ticker = Ticker,
-			Denomination = Denomination,
-			Balances = Balances,
-			GatewayRegistry = GatewayRegistry,
-			NameRegistry = NameRegistry,
-			Epochs = Epochs,
-			Vaults = Vaults,
-			DemandFactor = DemandFactor,
-		}),
-	})
-end)
-
-Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateways), function(msg)
-	local gateways = gar.getGateways()
-	ao.send({
-		Target = msg.From,
-		Data = json.encode(gateways),
-	})
-end)
-
-Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
-	local gateway = gar.getGateway(msg.Tags.Target)
-	ao.send({
-		Target = msg.From,
-		Data = json.encode(gateway),
-	})
-end)
-
-Handlers.add(ActionMap.Balances, Handlers.utils.hasMatchingTag("Action", ActionMap.Balances), function(msg)
-	ao.send({
-		Target = msg.From,
-		Data = json.encode(Balances),
-	})
-end)
-
-Handlers.add(ActionMap.Balance, Handlers.utils.hasMatchingTag("Action", ActionMap.Balance), function(msg)
-	local balance = balances.getBalance(msg.Tags.Target)
-	ao.send({
-		Target = msg.From,
-		Data = tostring(balance),
-	})
-end)
-
+-- Write handlers
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transfer), function(msg)
-	local result, err = balances.transfer(msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
-	if result and not msg.Cast then
-		-- Send Debit-Notice to the Sender
-		ao.send({
-			Target = msg.From,
-			Action = "Debit-Notice",
-			Recipient = msg.Tags.Recipient,
-			Quantity = tostring(msg.Tags.Quantity),
-			Data = "You transferred " .. msg.Tags.Quantity .. " to " .. msg.Tags.Recipient,
-		})
-		if msg.Tags.Function and msg.Tags.Parameters then
-			-- Send Credit-Notice to the Recipient and include the function and parameters tags
+	local status, _ = pcall(balances.transfer, msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
+	if status then
+		if msg.Cast then
+			-- Send Debit-Notice to the Sender
 			ao.send({
-				Target = msg.Tags.Recipient,
-				Action = "Credit-Notice",
-				Sender = msg.From,
+				Target = msg.From,
+				Action = "Debit-Notice",
+				Recipient = msg.Tags.Recipient,
 				Quantity = tostring(msg.Tags.Quantity),
-				Function = tostring(msg.Tags.Function),
-				Parameters = msg.Tags.Parameters,
-				Data = "You received "
-					.. msg.Tags.Quantity
-					.. " from "
-					.. msg.Tags.Recipient
-					.. " with the instructions for function "
-					.. msg.Tags.Function
-					.. " with the parameters "
-					.. msg.Tags.Parameters,
+				Data = "You transferred " .. msg.Tags.Quantity .. " to " .. msg.Tags.Recipient,
 			})
-		else
-			-- Send Credit-Notice to the Recipient
-			ao.send({
-				Target = msg.Tags.Recipient,
-				Action = "Credit-Notice",
-				Sender = msg.From,
-				Quantity = tostring(msg.Tags.Quantity),
-				Data = "You received " .. msg.Tags.Quantity .. " from " .. msg.Tags.Recipient,
-			})
+			if msg.Tags.Function and msg.Tags.Parameters then
+				-- Send Credit-Notice to the Recipient and include the function and parameters tags
+				ao.send({
+					Target = msg.Tags.Recipient,
+					Action = "Credit-Notice",
+					Sender = msg.From,
+					Quantity = tostring(msg.Tags.Quantity),
+					Function = tostring(msg.Tags.Function),
+					Parameters = msg.Tags.Parameters,
+					Data = "You received "
+						.. msg.Tags.Quantity
+						.. " from "
+						.. msg.Tags.Recipient
+						.. " with the instructions for function "
+						.. msg.Tags.Function
+						.. " with the parameters "
+						.. msg.Tags.Parameters,
+				})
+			else
+				-- Send Credit-Notice to the Recipient
+				ao.send({
+					Target = msg.Tags.Recipient,
+					Action = "Credit-Notice",
+					Sender = msg.From,
+					Quantity = tostring(msg.Tags.Quantity),
+					Data = "You received " .. msg.Tags.Quantity .. " from " .. msg.Tags.Recipient,
+				})
+			end
 		end
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Transfer-Error", ["Message-Id"] = msg.Id, Error = tostring(err) },
-			Data = tostring(err),
+			Tags = { Action = "Transfer-Error" },
+			Data = tostring(reuslt),
 		})
 	end
 end)
@@ -256,8 +202,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 			Target = msg.From,
 			Tags = {
 				Action = "ArNS-Invalid-Buy-Record-Notice",
-				Name = tostring(msg.Tags.Name),
-				ProcessId = tostring(msg.Tags.ProcessId),
+				Sender = msg.From,
 			},
 			Data = tostring(result),
 		})
@@ -266,15 +211,14 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 		ao.send({
 			Target = msg.From,
 			Tags = { Action = "ArNS-Purchase-Notice", Sender = msg.From },
-			Error = tostring(result),
 			Data = tostring(json.encode(result)),
 		})
 	end
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
-	local success, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
-	if not success then
+	local status, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
+	if not status then
 		ao.send({
 			Target = msg.From,
 			Tags = { Action = "Invalid-Extend-Lease" },
@@ -312,7 +256,27 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
-	gar.joinNetwork(msg)
+	local status, result = pcall(
+		gar.joinNetwork,
+		msg.From,
+		tonumber(msg.Tags.Stake),
+		msg.Tags.Settings,
+		msg.Tags.ObserverAddresss or msg.Tags.From,
+		msg.Timestamp
+	)
+	if not status then
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "GAR-Invalid-Network-Join" },
+			Data = tostring(result),
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "GAR-Joined-Network", EndTimeStamp = tostring(result.endTimestamp) },
+			Data = tostring(json.encode(result)),
+		})
+	end
 end)
 
 Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.LeaveNetwork), function(msg)
@@ -326,7 +290,7 @@ Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.Le
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "GAR-Leaving-Network", EndTimeStamp = tostring(result.endTimestamp) },
+			Tags = { Action = "GAR-Leaving-Network" },
 			Data = tostring(json.encode(result)),
 		})
 	end
@@ -346,7 +310,7 @@ Handlers.add(
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Stake-Increased", OperatorStake = tostring(result.operatorStake) },
+				Tags = { Action = "GAR-Stake-Increased" },
 				Data = tostring(json.encode(result)),
 			})
 		end
@@ -357,17 +321,18 @@ Handlers.add(
 	ActionMap.DecreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseOperatorStake),
 	function(msg)
-		local result, err = gar.decreaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
-		if err then
+		local status, result =
+			pcall(gar.decreaseOperatorStake, msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
+		if not status then
 			ao.send({
 				Target = msg.From,
 				Tags = { Action = "GAR-Invalid-Stake-Decrease" },
-				Data = tostring(err),
+				Data = tostring(result),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Stake-Decreased", OperatorStake = tostring(result.operatorStake) },
+				Tags = { Action = "GAR-Stake-Decreased" },
 				Data = tostring(json.encode(result)),
 			})
 		end
@@ -375,21 +340,19 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.DelegateStake, utils.hasMatchingTag("Action", ActionMap.DelegateStake), function(msg)
-	local result, err = gar.delegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
-	if err then
+	local status, result =
+		pcall(gar.delegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+	if not status then
 		ao.send({
 			Target = msg.From,
 			Tags = { Action = "GAR-Invalid-Delegate-Stake-Increase" },
-			Data = tostring(err),
+			Data = tostring(result),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = {
-				Action = "GAR-Delegate-Stake-Increased",
-				DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake),
-			},
-			Data = tostring(json.encode(result)),
+			Tags = { Action = "GAR-Delegate-Stake-Increased" },
+			Data = json.encode(result),
 		})
 	end
 end)
@@ -398,22 +361,19 @@ Handlers.add(
 	ActionMap.DecreaseDelegateStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseDelegateStake),
 	function(msg)
-		local result, err =
-			gar.decreaseDelegateStake(msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
-		if err then
+		local status, result =
+			pcall(gar.decreaseDelegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+		if not status then
 			ao.send({
 				Target = msg.From,
 				Tags = { Action = "GAR-Invalid-Delegate-Stake-Decrease" },
-				Data = tostring(err),
+				Data = tostring(result),
 			})
 		else
 			ao.send({
 				Target = msg.From,
-				Tags = {
-					Action = "GAR-Delegate-Stake-Decreased",
-					DelegatedStake = tostring(result.delegates[msg.From].DelegatedStake),
-				},
-				Data = tostring(json.encode(result)),
+				Tags = { Action = "GAR-Delegate-Stake-Decreased" },
+				Data = json.encode(result),
 			})
 		end
 	end
@@ -423,48 +383,105 @@ Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
-		local result, err = gar.updateGatewaySettings(
+		local status, result = pcall(
+			gar.updateGatewaySettings,
 			msg.From,
 			msg.Tags.UpdatedSettings,
 			msg.Tags.ObserverWallet,
 			msg.Timestamp,
 			msg.Id
 		)
-		if err then
+		if not status then
 			ao.send({
 				Target = msg.From,
 				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
-				Data = tostring(err),
+				Data = tostring(result),
 			})
 		else
 			ao.send({
 				Target = msg.From,
 				Tags = { Action = "GAR-Gateway-Settings-Updated" },
-				Data = tostring(json.encode(result)),
+				Data = json.encode(result),
 			})
 		end
 	end
 )
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
-	local status, result = pcall(epochs.saveObservations, msg.From, msg.Data.reportTxId, msg.Data.failedGateways, msg.Timestamp)
+	local status, result =
+		pcall(epochs.saveObservations, msg.From, msg.Data.reportTxId, msg.Data.failedGateways, msg.Timestamp)
 	if status then
 		-- TODO: add tags for successfull save observation
 		ao.send({ Target = msg.From, Data = tostring(result) })
 	else
 		-- TODO: add additional tags for error
-		ao.send({ Target = msg.From, Error = json.encode(result) })
+		ao.send({ Target = msg.From, Data = json.encode(result) })
 	end
 end)
 
--- handler showing how we can fetch data from classes in lua
+-- -- Read-only handlers
+Handlers.add(ActionMap.Info, Handlers.utils.hasMatchingTag("Action", ActionMap.Info), function(msg)
+	ao.send({
+		Target = msg.From,
+		Tags = { Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination) },
+	})
+end)
+
+Handlers.add(ActionMap.State, Handlers.utils.hasMatchingTag("Action", ActionMap.State), function(msg)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode({
+			Name = Name,
+			Ticker = Ticker,
+			Denomination = Denomination,
+			Balances = Balances,
+			GatewayRegistry = GatewayRegistry,
+			NameRegistry = NameRegistry,
+			Epochs = Epochs,
+			Vaults = Vaults,
+			DemandFactor = DemandFactor,
+		}),
+	})
+end)
+
+Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateways), function(msg)
+	local gateways = gar.getGateways()
+	ao.send({
+		Target = msg.From,
+		Data = json.encode(gateways),
+	})
+end)
+
+Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
+	local gateway = gar.getGateway(msg.Tags.Target)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode(gateway),
+	})
+end)
+
+Handlers.add(ActionMap.Balances, Handlers.utils.hasMatchingTag("Action", ActionMap.Balances), function(msg)
+	ao.send({
+		Target = msg.From,
+		Data = json.encode(Balances),
+	})
+end)
+
+Handlers.add(ActionMap.Balance, Handlers.utils.hasMatchingTag("Action", ActionMap.Balance), function(msg)
+	local balance = balances.getBalance(msg.Tags.Target)
+	ao.send({
+		Target = msg.From,
+		Data = tostring(balance),
+	})
+end)
+
 Handlers.add(ActionMap.DemandFactor, utils.hasMatchingTag("Action", ActionMap.DemandFactor), function(msg)
 	-- wrap in a protected call, and return the result or error accoringly to sender
 	local status, result = pcall(demand.getDemandFactor)
 	if status then
 		ao.send({ Target = msg.From, Data = tostring(result) })
 	else
-		ao.send({ Target = msg.From, Error = json.encode(result) })
+		ao.send({ Target = msg.From, Data = json.encode(result) })
 	end
 end)
 
@@ -478,7 +495,7 @@ Handlers.add(ActionMap.Records, utils.hasMatchingTag("Action", ActionMap.Records
 	ao.send({ Target = msg.From, Data = json.encode(records) })
 end)
 
-Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epochs), function(msg)
+Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), function(msg)
 	local epochIndex = tonumber(msg.Tags.EpochNumber) or epochs.getEpochIndexFromTimestamp(msg.Timestamp)
 	local epoch = epochs.getEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(epoch) })

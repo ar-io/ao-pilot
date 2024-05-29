@@ -41,15 +41,8 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 		error("Name is reserved")
 	end
 
-	if not reservedForCaller and #name < 5 then
-		error("Name not available for purchase")
-	end
-
-	if not reservedForCaller and (purchaseType == "permabuy" and #name < 12) then
-		-- error("Name must be auctioned")
-		-- TODO: for now - just state the name is not available for purchase
-		error("Name not available for purchase")
-	end
+	-- TODO: add back short name requirements
+	-- TODO: add permabuy requirements for names less than 12 characters
 
 	local newRecord = {
 		processId = processId,
@@ -250,7 +243,7 @@ function arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	)
 
 	-- assert purchase type if present is lease or permabuy
-	assert(purchaseType == nil or (purchaseType == "lease" or purchaseType == "permabuy"), "PurchaseType is invalid.")
+	assert(purchaseType == nil or purchaseType == "lease" or purchaseType == "Lease", "PurchaseType is invalid.")
 
 	-- assert processId is valid pattern
 	assert(type(processId) == "string", "ProcessId is required and must be a string.")

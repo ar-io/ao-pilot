@@ -12,39 +12,48 @@ describe("demand", function()
 			revenueThisPeriod = 0,
 			currentDemandFactor = 1,
 			consecutivePeriodsWithMinDemandFactor = 0,
-			settings = constants.demandSettings,
 			fees = constants.genesisFees,
 		}
+		demand.updateSettings({
+			movingAvgPeriodCount = 7,
+			periodLengthMs = 60 * 1000 * 24, -- one day
+			demandFactorBaseValue = 1,
+			demandFactorMin = 0.5,
+			demandFactorUpAdjustment = 0.05,
+			demandFactorDownAdjustment = 0.025,
+			stepDownThreshold = 3,
+			criteria = "revenue",
+		})
 	end)
 
-	-- it("should tally name purchase", function()
-	-- 	demand.tallyNamePurchase(100)
-	-- 	assert.are.equal(1, demand.getCurrentPeriodPurchases())
-	-- 	assert.are.equal(100, demand.getCurrentPeriodRevenue())
-	-- end)
+	it("should tally name purchase", function()
+		demand.tallyNamePurchase(100)
+		assert.are.equal(1, demand.getCurrentPeriodPurchases())
+		assert.are.equal(100, demand.getCurrentPeriodRevenue())
+	end)
 
 	describe("revenue based criteria", function()
-		-- it("mvgAvgTrailingPurchaseCounts() should calculate moving average of trailing purchase counts", function()
-		-- 	DemandFactor.trailingPeriodPurchases = { 1, 2, 3, 4, 5, 6, 7 }
-		-- 	assert.are.equal(4, demand.mvgAvgTrailingPurchaseCounts())
-		-- end)
+		it("mvgAvgTrailingPurchaseCounts() should calculate moving average of trailing purchase counts", function()
+			DemandFactor.trailingPeriodPurchases = { 1, 2, 3, 4, 5, 6, 7 }
+			assert.are.equal(4, demand.mvgAvgTrailingPurchaseCounts())
+		end)
 
-		-- it("mvgAvgTrailingRevenues() should calculate moving average of trailing revenues", function()
-		-- 	DemandFactor.trailingPeriodRevenues = { 1, 2, 3, 4, 5, 6 }
-		-- 	assert.are.equal(3.5, demand.mvgAvgTrailingRevenues())
-		-- end)
+		it("mvgAvgTrailingRevenues() should calculate moving average of trailing revenues", function()
+			DemandFactor.trailingPeriodRevenues = { 1, 2, 3, 4, 5, 6 }
+			assert.are.equal(3.5, demand.mvgAvgTrailingRevenues())
+		end)
 
-		-- it("isDemandIncreasing() should return false when demand is is not increasing based on revenue", function()
-		-- 	DemandFactor.revenueThisPeriod = 0
-		-- 	DemandFactor.trailingPeriodRevenues = { 0, 10, 10, 10, 10, 10 }
-		-- 	assert.is_false(demand.isDemandIncreasing())
-		-- end)
+		it("isDemandIncreasing() should return false when demand is is not increasing based on revenue", function()
+			DemandFactor.revenueThisPeriod = 0
+			DemandFactor.trailingPeriodRevenues = { 0, 10, 10, 10, 10, 10 }
+			assert.is_false(demand.isDemandIncreasing())
+		end)
 
-		-- it("isDemandIncreasing() should return true when demand is increasing based on revenue", function()
-		-- 	DemandFactor.revenueThisPeriod = 10
-		-- 	DemandFactor.trailingPeriodRevenues = { 10, 0, 0, 0, 0, 0, 0 }
-		-- 	assert.is_true(demand.isDemandIncreasing())
-		-- end)
+		it("isDemandIncreasing() should return true when demand is increasing based on revenue", function()
+			DemandFactor.revenueThisPeriod = 10
+			DemandFactor.trailingPeriodRevenues = { 10, 0, 0, 0, 0, 0, 0 }
+			assert.is_true(demand.isDemandIncreasing())
+		end)
 
 		it(
 			"updateDemandFactor() should update demand factor if demand is increasing and a new period has started",
@@ -101,11 +110,19 @@ describe("demand", function()
 
 	describe("purchase count criteria", function()
 		before_each(function()
-			DemandFactor.settings.criteria = "purchases"
+			demand.updateSettings({
+				movingAvgPeriodCount = 7,
+				periodLengthMs = 60 * 1000 * 24, -- one day
+				demandFactorBaseValue = 1,
+				demandFactorMin = 0.5,
+				demandFactorUpAdjustment = 0.05,
+				demandFactorDownAdjustment = 0.025,
+				stepDownThreshold = 3,
+				criteria = "purchases",
+			})
 		end)
 
 		it("isDemandIncreasing() should return true when demand is increasing for purchases based criteria", function()
-			DemandFactor.settings.criteria = "purchases"
 			DemandFactor.purchasesThisPeriod = 10
 			DemandFactor.trailingPeriodPurchases = { 10, 0, 0, 0, 0, 0, 0 }
 			assert.is_true(demand.isDemandIncreasing())
@@ -114,7 +131,6 @@ describe("demand", function()
 		it(
 			"isDemandIncreasing() should return false when demand is not increasing for purchases based criteria",
 			function()
-				DemandFactor.settings.criteria = "purchases"
 				DemandFactor.purchasesThisPeriod = 0
 				DemandFactor.trailingPeriodPurchases = { 0, 10, 10, 10, 10, 10, 10 }
 				assert.is_false(demand.isDemandIncreasing())

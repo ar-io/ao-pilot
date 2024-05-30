@@ -11,9 +11,19 @@ DemandFactor = DemandFactor
 		revenueThisPeriod = 0,
 		currentDemandFactor = 1,
 		consecutivePeriodsWithMinDemandFactor = 0,
-		settings = constants.demandSettings,
 		fees = constants.genesisFees,
 	}
+
+local demandFactorSettings = {
+	movingAvgPeriodCount = 7,
+	periodLengthMs = 60 * 1000 * 24, -- one day
+	demandFactorBaseValue = 1,
+	demandFactorMin = 0.5,
+	demandFactorUpAdjustment = 0.05,
+	demandFactorDownAdjustment = 0.025,
+	stepDownThreshold = 3,
+	criteria = "revenue",
+}
 
 function demand.tallyNamePurchase(qty)
 	demand.incrementPurchasesThisPeriodRevenue(1)
@@ -125,7 +135,7 @@ function demand.getFees()
 end
 
 function demand.getSettings()
-	return DemandFactor.settings
+	return demandFactorSettings
 end
 
 function demand.getConsecutivePeriodsWithMinDemandFactor()
@@ -137,7 +147,7 @@ function demand.getCurrentPeriod()
 end
 
 function demand.updateSettings(settings)
-	DemandFactor.settings = settings
+	demandFactorSettings = settings
 end
 
 function demand.updateStartTimestamp(timestamp)

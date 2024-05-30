@@ -80,6 +80,12 @@ To run the tests, execute the following command:
 busted .
 ```
 
+To see the test coverage, run the following command:
+
+```sh
+luacov --reporter html && open luacov-html/index.html
+```
+
 ### Dependencies
 
 To add new dependencies, install using luarocks to the local directory

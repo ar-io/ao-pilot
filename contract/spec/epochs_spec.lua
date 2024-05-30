@@ -324,7 +324,7 @@ describe("epochs", function()
 		end)
 	end)
 
-	describe("createNewEpoch", function()
+	describe("createEpochForTimestamp", function()
 		it("should create a new epoch for the given timestamp", function()
 			local timestamp = 100
 			local epochIndex = 1
@@ -342,7 +342,8 @@ describe("epochs", function()
 				prescribedObservers = {},
 				distributions = {},
 			}
-			epochs.createEpochForTimestamp(timestamp)
+			local status, result = pcall(epochs.createEpochForTimestamp, timestamp)
+			assert.is_true(status)
 			assert.are.same(Epochs[epochIndex], expectation)
 		end)
 	end)

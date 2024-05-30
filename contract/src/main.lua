@@ -22,6 +22,7 @@ local arns = require("arns")
 local gar = require("gar")
 local demand = require("demand")
 local epochs = require("epochs")
+local vaults = require("vaults")
 
 local ActionMap = {
 	-- reads
@@ -434,12 +435,12 @@ Handlers.add(ActionMap.State, Handlers.utils.hasMatchingTag("Action", ActionMap.
 			Name = Name,
 			Ticker = Ticker,
 			Denomination = Denomination,
-			Balances = Balances,
-			GatewayRegistry = GatewayRegistry,
-			NameRegistry = NameRegistry,
-			Epochs = Epochs,
-			Vaults = Vaults,
-			DemandFactor = DemandFactor,
+			Balances = json.encode(Balances),
+			GatewayRegistry = json.encode(GatewayRegistry),
+			NameRegistry = json.encode(NameRegistry),
+			Epochs = json.encode(Epochs),
+			Vaults = json.encode(Vaults),
+			DemandFactor = json.encode(DemandFactor),
 		}),
 	})
 end)
@@ -535,6 +536,43 @@ Handlers.add("addRecord", utils.hasMatchingTag("Action", "AddRecord"), function(
 	if status then
 		ao.send({ Target = msg.From, Data = json.encode(result) })
 	else
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	end
+end)
+
+Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
+	local timestamp = tonumber(msg.Timestamp)
+	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
+	local previousState = {
+		Balances = Balances,
+		Vaults = Vaults,
+		GatewayRegistry = GatewayRegistry,
+		NameRegistry = NameRegistry,
+		Epochs = Epochs,
+		DemandFactor = DemandFactor,
+	}
+	local function tickState(timestamp)
+		-- TODO: update demand factor window
+		arns.pruneRecords(timestamp)
+		arns.pruneReservedNames(timestamp)
+		vaults.pruneVaults(timestamp)
+		gar.pruneGatewayRegistry(timestamp, msg.HashChain)
+		epochs.distributeRewardsForEpoch(timestamp)
+		epochs.createEpochForTimestamp(timestamp)
+	end
+
+	local status, result = pcall(tickState, timestamp)
+	if status then
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	else
+		-- reset the state to previous state
+		Balances = previousState.Balances
+		Vaults = previousState.Vaults
+		GatewayRegistry = previousState.GatewayRegistry
+		NameRegistry = previousState.NameRegistry
+		Epochs = previousState.Epochs
+		DemandFactor = previousState.DemandFactor
+
 		ao.send({ Target = msg.From, Data = json.encode(result) })
 	end
 end)

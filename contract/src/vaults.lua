@@ -126,4 +126,16 @@ function vaults.setVault(target, id, vault)
 	Vaults[target][id] = vault
 end
 
+-- return any vaults to owners that have expired
+function vaults.pruneVaults(currentTimestamp)
+	for owner, vaults in pairs(Vaults) do
+		for id, vault in pairs(vaults) do
+			if currentTimestamp >= vault.endTimestamp then
+				balances.increaseBalance(owner, vault.balance)
+				vaults[id] = nil
+			end
+		end
+	end
+end
+
 return vaults

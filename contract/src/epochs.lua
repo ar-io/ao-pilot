@@ -1,6 +1,7 @@
 local gar = require("gar")
 local crypto = require("crypto.init")
 local utils = require("utils")
+local balances = require("balances")
 local epochs = {}
 
 Epochs = Epochs
@@ -163,22 +164,23 @@ function epochs.getEpochIndexForTimestamp(timestamp)
 	return epochIndex
 end
 
-function epochs.createEpochForTimestamp(timestamp)
+function epochs.createEpochForTimestamp(timestamp, hashchain)
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
 	if Epochs[epochIndex] then
 		error("Epoch already exists")
 	end
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex =
 		epochs.getEpochTimestampsForIndex(epochIndex)
+	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	local epoch = {
 		startTimestamp = epochStartTimestamp,
 		endTimestamp = epochEndTimestamp,
 		distributionTimestamp = epochDistributionTimestamp,
+		prescribedObservers = prescribedObservers,
 		observations = {
 			failureSummaries = {},
 			reports = {},
 		},
-		prescribedObservers = {},
 		distributions = {},
 	}
 	Epochs[epochIndex] = epoch
@@ -260,6 +262,103 @@ end
 -- for testing purposes
 function epochs.updateEpochSettings(newSettings)
 	epochSettings = newSettings
+end
+
+-- Steps
+-- 1. Get gateways participated in full epoch based on start and end timestamp
+-- 2. Get the prescribed observers for the relevant epoch
+-- 3. Calcualte the rewards for the epoch based on protocol balance
+-- 4. Allocate 95% of the rewards for passed gateways, 5% for observers - based on total gateways during the epoch and # of prescribed observers
+-- 5. Distribute the rewards to the gateways and observers
+-- 6. Increment the epoch stats for the gateways
+function epochs.distributeRewardsForEpoch(currentTimestamp)
+	local epochIndex = epochs.getEpochIndexForTimestamp(currentTimestamp)
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex =
+		epochs.getEpochTimestampsForIndex(epochIndex)
+
+	if currentTimestamp < epochDistributionTimestamp then
+		-- silently ignore
+		return
+	end
+
+	local epoch = epochs.getEpoch(epochIndex)
+	local gateways = gar.getGatewaysActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
+	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
+	local totalRewards = balances.getBalance(ao.id)
+	local gatewayReward = totalRewards * 0.95 / #gateways
+	local observerReward = totalRewards * 0.05 / #prescribedObservers
+
+	-- check if already distributed rewards for epoch
+	if epoch.distributions[epochIndex] then
+		error("Rewards already distributed for epoch: " .. epochIndex)
+	end
+
+	local epochDistributions = {}
+	for _, gateway in ipairs(gateways) do
+		-- check the observations to see if gateway passed, if 50% or more of the observers marked the gateway as failed, it is considered failed
+		local failedObservers = epoch.observations.failureSummaries[gateway.gatewayAddress] or {}
+		local failed = #failedObservers >= #prescribedObservers / 2
+
+		-- if prescribed, we'll update the prescribed stats as well - find if the observer address is in prescribed observers
+		local observerIndex = utils.findInArray(prescribedObservers, function(prescribedObserver)
+			return prescribedObserver.observerAddress == gateway.observerAddress
+		end)
+
+		local observationSubmitted = observerIndex and epoch.observations.reports[gateway.observerAddress] ~= nil
+
+		local updatedStats = {
+			totalEpochCount = gateway.totalEpochCount + 1,
+			failedConsecutiveEpochs = failed and gateway.failedConsecutiveEpochs + 1 or 0,
+			passedConsecutiveEpochs = failed and 0 or gateway.passedConsecutiveEpochs + 1,
+			passedEpochs = failed and gateway.passedEpochs or gateway.passedEpochs + 1,
+			prescribedEpochCount = observerIndex and prescribedObservers[observerIndex].prescribedEpochCount + 1 or 0,
+			submittedObservationForEpoch = observationSubmitted and gateway.submittedObservationForEpoch + 1
+				or gateway.submittedObservationForEpoch,
+		}
+
+		-- calcaulte the reward
+		local reward = 0
+
+		-- if the gateway passed, i.e. it was not marked as failed it gets the gateway reward
+		if not failed then
+			reward = gatewayReward
+		end
+
+		if observerIndex then
+			-- if it submitted observation, it gets the observer reward
+			if observationSubmitted then
+				reward = reward + observerReward
+			else -- if it did not submit observation, it gets 0.5 of the observer reward
+				reward = reward + observerReward * 0.75
+			end
+		end
+
+		-- TODO: distribute rewards to delegates based on minDelegateRewardRatio
+		local delegateRewards = reward * (gateway.delegateRewardRatio / 100)
+		for delegateAddress, delegate in pairs(gateway.delegates) do
+			local delegateReward = (delegate.delegatedStake / gateway.totalDelegatedStake) * delegateRewards
+			balances.transfer(gateway.gatewayAddress, delegateAddress, delegateReward)
+		end
+		local remaingOperatorReward = reward - delegateRewards
+		if gateway.autoStake then
+			gar.increaseOperatorStake(gateway.gatewayAddress, remaingOperatorReward)
+		else
+			balances.transfer(gateway.gatewayAddress, ao.id, remaingOperatorReward)
+		end
+
+		-- update the total distributions for the epoch
+		epochDistributions[gateway.gatewayAddress] = reward
+
+		-- update the gateway
+		gar.updateGatewayStats(gateway.gatewayAddress, updatedStats)
+	end
+
+	-- set the distributions for the epoch
+	epoch.distributions[epochIndex] = {
+		totalDistribution = totalRewards,
+		distributionTimestamp = currentTimestamp,
+		distributions = epochDistributions,
+	}
 end
 
 return epochs

@@ -10,7 +10,6 @@ NameRegistry = NameRegistry or {
 	records = {},
 	-- TODO: auctions
 }
-
 function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 	-- don't catch, let the caller handle the error
 	arns.assertValidBuyRecord(name, years, purchaseType, processId)
@@ -35,8 +34,7 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 		error("Name is already registered")
 	end
 
-	-- todo, handle reserved name timestamps
-	local reservedForCaller = arns.getReservedName(name) and arns.getReservedName(name).target == from
+	-- TODO: handle reserved name timestamps (they should be pruned, so not immediately necessary)
 	if arns.getReservedName(name) and arns.getReservedName(name).target ~= from then
 		error("Name is reserved")
 	end
@@ -313,4 +311,32 @@ function arns.assertValidIncreaseUndername(record, qty, currentTimestamp)
 
 	return true
 end
+
+function arns.removeRecord(name)
+	NameRegistry.records[name] = nil
+end
+
+function arns.removeReservedName(name)
+	NameRegistry.reserved[name] = nil
+end
+
+-- prune records that have expired
+function arns.pruneRecords(currentTimestamp)
+	-- identify any records that are leases and that have expired, account for a one week grace period in seconds
+	for name, record in pairs(arns.getRecords()) do
+		if record.type == "lease" and record.endTimestamp + constants.gracePeriodMs < currentTimestamp then
+			arns.removeRecord(name)
+		end
+	end
+end
+
+-- identify any reserved names that have expired, account for a one week grace period in seconds
+function arns.pruneReservedNames(currentTimestamp)
+	for name, details in pairs(NameRegistry.reserved) do
+		if details.endTimestamp < currentTimestamp then
+			arns.removeReservedName(name)
+		end
+	end
+end
+
 return arns

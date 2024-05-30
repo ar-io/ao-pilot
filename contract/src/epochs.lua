@@ -40,6 +40,10 @@ function epochs.getObservers()
 	return epochs.getCurrentEpoch().prescribedObservers or {}
 end
 
+function epochs.getSettings()
+	return epochSettings
+end
+
 function epochs.getObservations()
 	return epochs.getCurrentEpoch().observations or {}
 end

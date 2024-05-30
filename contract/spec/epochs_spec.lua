@@ -25,6 +25,12 @@ describe("epochs", function()
 			},
 		}
 		_G.GatewayRegistry = {}
+		epochs.updateEpochSettings({
+			maxObservers = 2,
+			epochZeroStartTimestamp = 0,
+			durationMs = 100,
+			distributionDelayMs = 15,
+		})
 	end)
 
 	describe("computePrescribedObserversForEpoch", function()
@@ -148,7 +154,7 @@ describe("epochs", function()
 		it("should throw an error if the caller is not prescribed", function()
 			local observer = "test-wallet-address-2"
 			local reportTxId = "reportTxId"
-			local timestamp = 60 * 1000 * 2 * 15 + 1 -- distribution delay + 1
+			local timestamp = epochs.getSettings().distributionDelayMs + 1
 			local failedGateways = {
 				"test-wallet-address-1",
 			}
@@ -175,7 +181,7 @@ describe("epochs", function()
 			function()
 				local observer = "test-wallet-address-2"
 				local reportTxId = "reportTxId"
-				local timestamp = 60 * 1000 * 2 * 15 + 1 -- distribution delay + 1
+				local timestamp = epochs.getSettings().distributionDelayMs + 1
 				_G.GatewayRegistry = {
 					["test-wallet-address-1"] = {
 						operatorStake = gar.getSettings().operators.minStake,
@@ -298,26 +304,15 @@ describe("epochs", function()
 
 	describe("getEpochIndexForTimestamp", function()
 		it("should return the epoch index for the given timestamp", function()
-			-- update settings
-			epochs.updateEpochSettings({
-				epochZeroStartTimestamp = 0,
-				durationMs = 10,
-				distributionDelayMs = 15,
-			})
-			local timestamp = 100
+			local timestamp = epochs.getSettings().epochZeroStartTimestamp + epochs.getSettings().durationMs + 1
 			local result = epochs.getEpochIndexForTimestamp(timestamp)
-			assert.are.equal(result, 10)
+			assert.are.equal(result, 1)
 		end)
 	end)
 
 	describe("getEpochTimestampsForIndex", function()
 		it("should return the epoch timestamps for the given epoch index", function()
 			local epochIndex = 0
-			epochs.updateEpochSettings({
-				epochZeroStartTimestamp = 0,
-				durationMs = 100,
-				distributionDelayMs = 15,
-			})
 			local expectation = { 0, 100, 115, 0 }
 			local result = { epochs.getEpochTimestampsForIndex(epochIndex) }
 			assert.are.same(result, expectation)
@@ -344,7 +339,7 @@ describe("epochs", function()
 			}
 			local status, result = pcall(epochs.createEpochForTimestamp, timestamp)
 			assert.is_true(status)
-			assert.are.same(Epochs[epochIndex], expectation)
+			assert.are.same(epochs.getEpoch(epochIndex), expectation)
 		end)
 	end)
 end)

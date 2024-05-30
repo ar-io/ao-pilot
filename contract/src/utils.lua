@@ -70,6 +70,14 @@ function utils.walletHasSufficientBalance(wallet, quantity)
 	return Balances[wallet] ~= nil and Balances[wallet] >= quantity
 end
 
+function utils.copyTable(table)
+	local copy = {}
+	for key, value in pairs(table) do
+		copy[key] = value
+	end
+	return copy
+end
+
 function utils.ensureMilliseconds(timestamp)
 	-- Assuming any timestamp before 100000000000 is in seconds
 	-- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous

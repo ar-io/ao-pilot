@@ -6,8 +6,9 @@ import {
 import fs from 'fs'
 import path from 'path'
 
-const processId = 'Wq0LrvyY9tqRtQcxQcKAYfa0F1Yp9Uomkio4PrUlugE'
-const jwk = JSON.parse(fs.readFileSync(path.join(__dirname, 'wallet.json')).toString())
+const processId = 'GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc'
+const dirname = new URL(import.meta.url).pathname
+const jwk = JSON.parse(fs.readFileSync(path.join(dirname, '../wallet.json')).toString())
 
 const main = async () => {
     const { message, result } = await connect(jwk)
@@ -16,7 +17,6 @@ const main = async () => {
         tags: [
             { name: 'ProcessId', value: processId},
             { name: 'Action', value: 'BuyRecord' },
-            { name: 'Name', value: 'dylan' },
             { name: 'PurchaseType', value: 'lease'},
         ],
         signer: createDataItemSigner(jwk),

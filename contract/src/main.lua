@@ -513,8 +513,8 @@ Handlers.add(ActionMap.PrescribedObservers, utils.hasMatchingTag("Action", Actio
 end)
 
 -- UTILITY HANDLERS USED FOR MIGRATION
-Handlers.add('addGateway', utils.hasMatchingTag("Action", 'AddGateway'), function(msg)
-	if(msg.From ~= Owner) then
+Handlers.add("addGateway", utils.hasMatchingTag("Action", "AddGateway"), function(msg)
+	if msg.From ~= Owner then
 		ao.send({ Target = msg.From, Data = "Unauthorized" })
 		return
 	end
@@ -526,8 +526,8 @@ Handlers.add('addGateway', utils.hasMatchingTag("Action", 'AddGateway'), functio
 	end
 end)
 
-Handlers.add('addRecord', utils.hasMatchingTag("Action", 'AddRecord'), function(msg)
-	if(msg.From ~= Owner) then
+Handlers.add("addRecord", utils.hasMatchingTag("Action", "AddRecord"), function(msg)
+	if msg.From ~= Owner then
 		ao.send({ Target = msg.From, Data = "Unauthorized" })
 		return
 	end

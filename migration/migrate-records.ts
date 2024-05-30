@@ -52,8 +52,9 @@ const main = async () => {
                 { name: 'Name', value: name},
             ],
             data: JSON.stringify({
-                type: 'lease',
-                endTimestamp: currentBlock.timestamp * (1000 * 60 * 60 * 24 * 365 * 2), // 2 years
+                type: record.type,
+                // convert it to milliseconds and add 2 years
+                endTimestamp: record.type === 'lease' ? (currentBlock.timestamp * 1000) + (1000 * 60 * 60 * 24 * 365 * 2) : 0, // 2 years
                 contractTxId: record.contractTxId,
                 undernameLimit: record.undernames,
                 purchasePrice: record.purchasePrice,

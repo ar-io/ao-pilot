@@ -78,6 +78,14 @@ function utils.copyTable(table)
 	return copy
 end
 
+function utils.lengthOfTable(table)
+	local count = 0
+	for _ in pairs(table) do
+		count = count + 1
+	end
+	return count
+end
+
 function utils.ensureMilliseconds(timestamp)
 	-- Assuming any timestamp before 100000000000 is in seconds
 	-- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous

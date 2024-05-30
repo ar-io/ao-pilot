@@ -79,8 +79,8 @@ end
 
 function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	local epochStartTimestamp, epochEndTimestamp = epochs.getEpochTimestampsForIndex(epochIndex)
-	local eligibleGateways = gar.getEligibleGatewaysForTimestamps(epochStartTimestamp, epochEndTimestamp)
-	local weightedObservers = gar.getObserverWeightsAtTimestamp(eligibleGateways, epochStartTimestamp)
+	local activeGatewayAddresses = gar.getActiveGatewaysBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
+	local weightedObservers = gar.getObserverWeightsAtTimestamp(activeGatewayAddresses, epochStartTimestamp)
 	-- Filter out any observers that could have a normalized composite weight of 0
 	local filteredObservers = {}
 	-- use ipairs as weightedObservers in array
@@ -112,7 +112,6 @@ function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 		local hashString = crypto.utils.array.toString(hash)
 		local random = crypto.random(nil, nil, hashString) / 0xffffffff
 		local cumulativeNormalizedCompositeWeight = 0
-		-- use ipairs as filtered observers is an array
 		for i = 1, #filteredObservers do
 			local observer = filteredObservers[i]
 			local alreadyPrescribed = utils.findInArray(prescribedObserversAddresses, function(address)
@@ -136,6 +135,7 @@ function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 		hash = crypto.digest.sha2_256(newHash).asBytes()
 	end
 	local prescribedObservers = {}
+	-- use ipairs as prescribedObserversAddresses is an array
 	for _, address in ipairs(prescribedObserversAddresses) do
 		local index = utils.findInArray(filteredObservers, function(observer)
 			return observer.gatewayAddress == address
@@ -158,7 +158,7 @@ function epochs.getEpochTimestampsForIndex(epochIndex)
 	local epochStartTimestamp = epochSettings.epochZeroStartTimestamp + epochSettings.durationMs * epochIndex
 	local epochEndTimestamp = epochStartTimestamp + epochSettings.durationMs
 	local epochDistributionTimestamp = epochEndTimestamp + epochSettings.distributionDelayMs
-	return epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex
+	return epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp
 end
 
 function epochs.getEpochIndexForTimestamp(timestamp)
@@ -173,7 +173,7 @@ function epochs.createEpochForTimestamp(timestamp, hashchain)
 	if Epochs[epochIndex] then
 		error("Epoch already exists")
 	end
-	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex =
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
 	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	local epoch = {
@@ -191,9 +191,9 @@ function epochs.createEpochForTimestamp(timestamp, hashchain)
 	GatewayRegistry.epoch = epochIndex
 end
 
-function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
+function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddresses, timestamp)
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
-	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex =
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
 
 	-- avoid observations before the previous epoch distribution has occurred, as distributions affect weights of the current epoch
@@ -207,7 +207,7 @@ function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
 	end
 
 	local observerIndex = utils.findInArray(prescribedObservers, function(prescribedObserver)
-		return prescribedObserver.observerAddress == from
+		return prescribedObserver.observerAddress == observerAddress
 	end)
 
 	local observer = prescribedObservers[observerIndex]
@@ -221,46 +221,48 @@ function epochs.saveObservations(from, reportTxId, failedGateways, timestamp)
 		error("The associated gateway does not exist in the registry.")
 	end
 
+	local epoch = epochs.getEpoch(epochIndex)
+
 	-- check if this is the first report filed in this epoch (TODO: use start or end?)
-	if Epochs[epochIndex].observations == nil then
-		Epochs[epochIndex].observations = {
+	if epoch.observations == nil then
+		epoch.observations = {
 			failureSummaries = {},
 			reports = {},
 		}
 	end
 
-	for _, failedGatewayAddress in pairs(failedGateways) do
-		local failedGateway = gar.getGateway(failedGatewayAddress)
+	-- use ipairs as failedGatewayAddresses is an array
+	for _, failedGatewayAddress in ipairs(failedGatewayAddresses) do
 		local gatewayPresentDuringEpoch =
-			gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, failedGateway)
+			gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, failedGatewayAddress)
 		if gatewayPresentDuringEpoch then
 			-- if there are none, create an array
-			if Epochs[epochIndex].observations.failureSummaries == nil then
-				Epochs[epochIndex].observations.failureSummaries = {}
+			if epoch.observations.failureSummaries == nil then
+				epoch.observations.failureSummaries = {}
 			end
 			-- Get the existing set of failed gateways for this observer
-			local observersMarkedFailed = Epochs[epochIndex].observations.failureSummaries[failedGatewayAddress] or {}
+			local observersMarkedFailed = epoch.observations.failureSummaries[failedGatewayAddress] or {}
 
 			-- if list of observers who marked failed does not continue current observer than add it
-			local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(observer)
-				return observer == observingGateway.observerAddress
+			local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(address)
+				return address == observingGateway.observerAddress
 			end)
 
 			if not alreadyObservedIndex then
 				table.insert(observersMarkedFailed, observingGateway.observerAddress)
 			end
 
-			Epochs[epochIndex].observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
+			epoch.observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
 		end
 	end
 
 	-- if reports are not already present, create an array
-	if Epochs[epochIndex].observations.reports == nil then
-		Epochs[epochIndex].observations.reports = {}
+	if epoch.observations.reports == nil then
+		epoch.observations.reports = {}
 	end
 
-	Epochs[epochIndex].observations.reports[observingGateway.observerAddress] = reportTxId
-	return Epochs[epochIndex].observations
+	epoch.observations.reports[observingGateway.observerAddress] = reportTxId
+	return epoch.observations
 end
 
 -- for testing purposes
@@ -275,33 +277,36 @@ end
 -- 4. Allocate 95% of the rewards for passed gateways, 5% for observers - based on total gateways during the epoch and # of prescribed observers
 -- 5. Distribute the rewards to the gateways and observers
 -- 6. Increment the epoch stats for the gateways
-function epochs.distributeRewardsForEpoch(currentTimestamp)
-	local epochIndex = epochs.getEpochIndexForTimestamp(currentTimestamp)
-	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp, epochIndex =
+function epochs.distributeRewardsForEpoch(epochIndex, currentTimestamp)
+	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
-
 	if currentTimestamp < epochDistributionTimestamp then
 		-- silently ignore
-		return
+		error("Distribution can only occur after the epoch has ended")
 	end
 
 	local epoch = epochs.getEpoch(epochIndex)
-	local gateways = gar.getGatewaysActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
+	local activeGatewayAddresses = gar.getActiveGatewaysBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
 	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
 	local totalRewards = balances.getBalance(ao.id)
-	local gatewayReward = totalRewards * 0.95 / #gateways
-	local observerReward = totalRewards * 0.05 / #prescribedObservers
+	local gatewayReward = math.floor(totalRewards * 0.95 / #activeGatewayAddresses)
+	local observerReward = math.floor(totalRewards * 0.05 / #prescribedObservers)
 
 	-- check if already distributed rewards for epoch
-	if epoch.distributions[epochIndex] then
+	if epoch.distributions.distributionTimestamp then
 		error("Rewards already distributed for epoch: " .. epochIndex)
 	end
 
 	local epochDistributions = {}
-	for _, gateway in ipairs(gateways) do
+	local totalDistribution = 0
+	-- use pairs as activeGateways is an array
+	for _, gatewayAddress in ipairs(activeGatewayAddresses) do
+		local gateway = gar.getGateway(gatewayAddress)
 		-- check the observations to see if gateway passed, if 50% or more of the observers marked the gateway as failed, it is considered failed
-		local failedObservers = epoch.observations.failureSummaries[gateway.gatewayAddress] or {}
-		local failed = #failedObservers >= #prescribedObservers / 2
+		local observersMarkedFailed = epoch.observations.failureSummaries
+				and epoch.observations.failureSummaries[gatewayAddress]
+			or {}
+		local failed = #observersMarkedFailed > (#prescribedObservers / 2)
 
 		-- if prescribed, we'll update the prescribed stats as well - find if the observer address is in prescribed observers
 		local observerIndex = utils.findInArray(prescribedObservers, function(prescribedObserver)
@@ -309,15 +314,15 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 		end)
 
 		local observationSubmitted = observerIndex and epoch.observations.reports[gateway.observerAddress] ~= nil
-
 		local updatedStats = {
-			totalEpochCount = gateway.totalEpochCount + 1,
-			failedConsecutiveEpochs = failed and gateway.failedConsecutiveEpochs + 1 or 0,
-			passedConsecutiveEpochs = failed and 0 or gateway.passedConsecutiveEpochs + 1,
-			passedEpochs = failed and gateway.passedEpochs or gateway.passedEpochs + 1,
-			prescribedEpochCount = observerIndex and prescribedObservers[observerIndex].prescribedEpochCount + 1 or 0,
-			submittedObservationForEpoch = observationSubmitted and gateway.submittedObservationForEpoch + 1
-				or gateway.submittedObservationForEpoch,
+			totalEpochCount = gateway.stats.totalEpochCount + 1,
+			failedEpochCount = failed and gateway.stats.failedEpochCount + 1 or gateway.stats.failedEpochCount,
+			failedConsecutiveEpochs = failed and gateway.stats.failedConsecutiveEpochs + 1 or 0,
+			passedConsecutiveEpochs = failed and 0 or gateway.stats.passedConsecutiveEpochs + 1,
+			passedEpochCount = failed and gateway.stats.passedEpochCount or gateway.stats.passedEpochCount + 1,
+			prescribedEpochCount = observerIndex and gateway.stats.prescribedEpochCount + 1 or 0,
+			observedEpochCount = observationSubmitted and gateway.stats.observedEpochCount + 1
+				or gateway.stats.observedEpochCount,
 		}
 
 		-- calcaulte the reward
@@ -332,34 +337,43 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			-- if it submitted observation, it gets the observer reward
 			if observationSubmitted then
 				reward = reward + observerReward
-			else -- if it did not submit observation, it gets 0.5 of the observer reward
-				reward = reward + observerReward * 0.75
+			else -- if it did not submit observation gets 75% of the gateway reward
+				reward = reward * 0.75
 			end
 		end
 
-		-- TODO: distribute rewards to delegates based on minDelegateRewardRatio
-		local delegateRewards = reward * (gateway.delegateRewardRatio / 100)
-		for delegateAddress, delegate in pairs(gateway.delegates) do
-			local delegateReward = (delegate.delegatedStake / gateway.totalDelegatedStake) * delegateRewards
-			balances.transfer(gateway.gatewayAddress, delegateAddress, delegateReward)
-		end
-		local remaingOperatorReward = reward - delegateRewards
-		if gateway.autoStake then
-			gar.increaseOperatorStake(gateway.gatewayAddress, remaingOperatorReward)
-		else
-			balances.transfer(gateway.gatewayAddress, ao.id, remaingOperatorReward)
+		if reward > 0 then
+			-- if any delegates are present, distribute the rewards to the delegates
+			local distributedToDelegates = 0
+			local eligbibleDelegateRewards = math.floor(reward * (gateway.settings.delegateRewardRatio / 100))
+			-- use pairs as gateway.delegates is map
+			for delegateAddress, delegate in pairs(gateway.delegates) do
+				local delegateReward =
+					math.floor((delegate.delegatedStake / gateway.totalDelegatedStake) * eligbibleDelegateRewards)
+				balances.transfer(delegateAddress, ao.id, delegateReward)
+				distributedToDelegates = distributedToDelegates + delegateReward
+				epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0) + delegateReward
+			end
+			local remaingOperatorReward = math.floor(reward - distributedToDelegates)
+			if gateway.settings.autoStake then
+				gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
+			else
+				balances.transfer(gatewayAddress, ao.id, remaingOperatorReward)
+			end
+			-- update the total distributions for the epoch
+			epochDistributions[gatewayAddress] = remaingOperatorReward
 		end
 
-		-- update the total distributions for the epoch
-		epochDistributions[gateway.gatewayAddress] = reward
-
+		-- increment the total distributed
+		totalDistribution = math.floor(totalDistribution + reward)
 		-- update the gateway
-		gar.updateGatewayStats(gateway.gatewayAddress, updatedStats)
+		gar.updateGatewayStats(gatewayAddress, updatedStats)
 	end
 
 	-- set the distributions for the epoch
-	epoch.distributions[epochIndex] = {
-		totalDistribution = totalRewards,
+	epoch.distributions = {
+		totalEligible = totalRewards,
+		totalDistribution = totalDistribution,
 		distributionTimestamp = currentTimestamp,
 		distributions = epochDistributions,
 	}

@@ -367,29 +367,35 @@ function gar.isGatewayEligibleToLeave(gateway, timestamp)
 	return isJoined
 end
 
-function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, gateway)
+function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, address)
+	local gateway = gar.getGateway(address)
+	if gateway == nil then
+		return false
+	end
 	local didStartBeforeEpoch = gateway.startTimestamp <= startTimestamp
 	local didNotLeaveDuringEpoch = not gar.isGatewayLeaving(gateway, endTimestamp)
 	return didStartBeforeEpoch and didNotLeaveDuringEpoch
 end
 
-function gar.getEligibleGatewaysForTimestamps(startTimestamp, endtimestamp)
+function gar.getActiveGatewaysBetweenTimestamps(startTimestamp, endtimestamp)
 	local gateways = gar.getGateways()
-	local eligibleGateways = {}
-	for address, gateway in pairs(gateways) do
-		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, gateway) then
-			eligibleGateways[address] = gateway
+	local activeGatewayAddresses = {}
+	-- use pairs as gateways is a map
+	for address, _ in pairs(gateways) do
+		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, address) then
+			table.insert(activeGatewayAddresses, address)
 		end
 	end
-	return eligibleGateways
+	return activeGatewayAddresses
 end
 
-function gar.getObserverWeightsAtTimestamp(eligbileGateways, timestamp)
+function gar.getObserverWeightsAtTimestamp(gatewayAddresses, timestamp)
 	local weightedObservers = {}
 	local totalCompositeWeight = 0
 
 	-- Iterate over gateways to calculate weights
-	for address, gateway in pairs(eligbileGateways) do
+	for _, address in pairs(gatewayAddresses) do
+		local gateway = gar.getGateway(address)
 		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
 		local stakeWeightRatio = totalStake / gar.getSettings().operators.minStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
 		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0

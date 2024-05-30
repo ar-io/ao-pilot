@@ -1,5 +1,6 @@
 local epochs = require("epochs")
 local gar = require("gar")
+local balances = require("balances")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",
@@ -10,9 +11,11 @@ local testSettings = {
 	label = "test",
 }
 local startTimestamp = 0
+local protocolBalance = 500000000 * 1000000
 describe("epochs", function()
 	before_each(function()
 		_G.Balances = {
+			[ao.id] = protocolBalance,
 			["test-wallet-address-1"] = 500000000,
 		}
 		_G.Epochs = {
@@ -21,12 +24,16 @@ describe("epochs", function()
 				endTimestamp = 100,
 				distributionTimestamp = 115,
 				prescribedObservers = {},
-				observations = {},
+				distributions = {},
+				observations = {
+					failureSummaries = {},
+					reports = {},
+				},
 			},
 		}
 		_G.GatewayRegistry = {}
 		epochs.updateEpochSettings({
-			maxObservers = 2,
+			maxObservers = 3,
 			epochZeroStartTimestamp = 0,
 			durationMs = 100,
 			distributionDelayMs = 15,
@@ -313,7 +320,7 @@ describe("epochs", function()
 	describe("getEpochTimestampsForIndex", function()
 		it("should return the epoch timestamps for the given epoch index", function()
 			local epochIndex = 0
-			local expectation = { 0, 100, 115, 0 }
+			local expectation = { 0, 100, 115 }
 			local result = { epochs.getEpochTimestampsForIndex(epochIndex) }
 			assert.are.same(result, expectation)
 		end)
@@ -340,6 +347,128 @@ describe("epochs", function()
 			local status, result = pcall(epochs.createEpochForTimestamp, timestamp)
 			assert.is_true(status)
 			assert.are.same(epochs.getEpoch(epochIndex), expectation)
+		end)
+	end)
+
+	describe("distributeRewardsForEpoch", function()
+		it("should distribute rewards for the epoch", function()
+			local epochIndex = 0
+			local hashchain = "c29tZSBzYW1wbGUgaGFzaA==" -- base64 of "some sample hash"
+			for i = 1, 3 do
+				local gateway = {
+					operatorStake = gar.getSettings().operators.minStake,
+					totalDelegatedStake = 0,
+					vaults = {},
+					delegates = {},
+					startTimestamp = 0,
+					stats = {
+						prescribedEpochCount = 0,
+						observedEpochCount = 0,
+						totalEpochCount = 0,
+						passedEpochCount = 0,
+						failedEpochCount = 0,
+						failedConsecutiveEpochs = 0,
+						passedConsecutiveEpochs = 0,
+					},
+					settings = {
+						fqdn = "test.com",
+						protocol = "https",
+						port = 443,
+						allowDelegatedStaking = true,
+						minDelegatedStake = 100,
+						autoStake = false, -- TODO: validate autostake behavior
+						label = "test",
+						properties = "",
+						delegateRewardRatio = 20,
+					},
+					status = "joined",
+					observerAddress = "test-observer-address-" .. i,
+				}
+				gar.addGateway("test-wallet-address-" .. i, gateway)
+			end
+			epochs.setPrescribedObserversForEpoch(epochIndex, hashchain)
+			-- save observations using saveObsevations function for each gateway, gateway1 failed, gateway2 and gateway3 passed
+			local failedGateways = {
+				"test-wallet-address-1",
+			}
+			local epochStartTimetamp, epochEndTimestamp, epochDistributionTimestamp =
+				epochs.getEpochTimestampsForIndex(epochIndex)
+			local validObservationTimestamp = epochStartTimetamp + epochs.getSettings().distributionDelayMs + 1
+			-- save observations for the epoch for last two gateways
+			for i = 2, 3 do
+				local status = pcall(
+					epochs.saveObservations,
+					"test-observer-address-" .. i,
+					"reportTxId" .. i,
+					failedGateways,
+					validObservationTimestamp
+				)
+				assert.is_true(status)
+			end
+			-- set the protocol balance to 5 million IO
+			local expectedGatewaryReward = math.floor(protocolBalance * 0.95 / 3)
+			local expectedObserverReward = math.floor(protocolBalance * 0.05 / 3)
+			-- clear the balances for the gateways
+			Balances["test-wallet-address-1"] = 0
+
+			-- distribute rewards for the epoch
+			local status, result = pcall(epochs.distributeRewardsForEpoch, epochIndex, epochDistributionTimestamp)
+			assert.is_true(status)
+			-- gateway 1 should only get observer rewards
+			-- gateway 2 should get obesrver and gateway rewards
+			-- gateway 3 should get observer and gateway rewards
+			local gateway1 = gar.getGateway("test-wallet-address-1")
+			local gateway2 = gar.getGateway("test-wallet-address-2")
+			local gateway3 = gar.getGateway("test-wallet-address-3")
+			assert.are.same({
+				prescribedEpochCount = 1,
+				observedEpochCount = 0,
+				passedEpochCount = 0,
+				failedEpochCount = 1,
+				failedConsecutiveEpochs = 1,
+				passedConsecutiveEpochs = 0,
+				totalEpochCount = 1,
+			}, gateway1.stats)
+			assert.are.same({
+				prescribedEpochCount = 1,
+				observedEpochCount = 1,
+				passedEpochCount = 1,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 1,
+				totalEpochCount = 1,
+			}, gateway2.stats)
+
+			assert.are.same({
+				prescribedEpochCount = 1,
+				observedEpochCount = 1,
+				passedEpochCount = 1,
+				failedEpochCount = 0,
+				failedConsecutiveEpochs = 0,
+				passedConsecutiveEpochs = 1,
+				totalEpochCount = 1,
+			}, gateway3.stats)
+			-- check balances
+			assert.are.equal(0, balances.getBalance("test-wallet-address-1"))
+			assert.are.equal(
+				expectedGatewaryReward + expectedObserverReward,
+				balances.getBalance("test-wallet-address-2")
+			)
+			assert.are.equal(
+				expectedGatewaryReward + expectedObserverReward,
+				balances.getBalance("test-wallet-address-3")
+			)
+			-- check the epoch was updated
+			local distributions = epochs.getEpoch(epochIndex).distributions
+			assert.are.same({
+				totalEligible = 500000000000000,
+				totalDistribution = (expectedGatewaryReward + expectedObserverReward) * 2,
+				distributionTimestamp = epochDistributionTimestamp,
+				distributions = {
+					["test-wallet-address-2"] = expectedGatewaryReward + expectedObserverReward,
+					["test-wallet-address-3"] = expectedGatewaryReward + expectedObserverReward,
+				},
+			}, distributions)
 		end)
 	end)
 end)

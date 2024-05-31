@@ -59,6 +59,11 @@ local ActionMap = {
 
 -- Write handlers
 Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transfer), function(msg)
+	-- assert recipient is a valid arweave address
+	assert(utils.isValidArweaveAddress(msg.Tags.Recipient), "Invalid recipient")
+	-- assert quantity is a positive number
+	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+
 	local status, _ = pcall(balances.transfer, msg.Tags.Recipient, msg.From, tonumber(msg.Tags.Quantity))
 	if status then
 		if msg.Cast then
@@ -109,6 +114,11 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 end)
 
 Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.CreateVault), function(msg)
+	-- assert quantity is a positive number
+	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+	-- assert lock length is a positive number
+	assert(tonumber(msg.Tags.LockLength) > 0, "Invalid lock length")
+
 	local result, err = balances.createVault(msg.From, msg.Tags.Quantity, msg.Tags.LockLength, msg.Timestamp, msg.Id)
 	if err then
 		ao.send({
@@ -126,6 +136,13 @@ Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.Cre
 end)
 
 Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap.VaultedTransfer), function(msg)
+	-- assert recipient is a valid arweave address
+	assert(utils.isValidArweaveAddress(msg.Tags.Recipient), "Invalid recipient")
+	-- assert quantity is a positive number
+	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+	-- assert lock length is a positive number
+	assert(tonumber(msg.Tags.LockLength) > 0, "Invalid lock length")
+
 	local result, err = balances.vaultedTransfer(
 		msg.From,
 		msg.Tags.Recipient,
@@ -155,6 +172,11 @@ Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap
 end)
 
 Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.ExtendVault), function(msg)
+	-- assert extend length is a positive number
+	assert(tonumber(msg.Tags.ExtendLength) > 0, "Invalid extend length")
+	-- assert vault id is a valid arweave tx id
+	assert(utils.isValidArweaveTxId(msg.Tags.VaultId), "Invalid vault id")
+
 	local result, err = balances.extendVault(msg.From, msg.Tags.ExtendLength, msg.Timestamp, msg.Tags.VaultId)
 	if err then
 		ao.send({
@@ -172,6 +194,11 @@ Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.Ext
 end)
 
 Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.IncreaseVault), function(msg)
+	-- assert quantity is a positive number
+	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+	-- assert vault id is a valid arweave tx id
+	assert(utils.isValidArweaveTxId(msg.Tags.VaultId), "Invalid vault id")
+
 	local result, err = balances.increaseVault(msg.From, msg.Tags.Quantity, msg.Tags.VaultId, msg.Timestamp)
 	if err then
 		ao.send({
@@ -189,6 +216,13 @@ Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.I
 end)
 
 Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRecord), function(msg)
+	-- assert name is a string
+	assert(type(msg.Tags.Name) == "string", "Invalid name")
+	-- assert purchase type is a string
+	assert(type(msg.Tags.PurchaseType) == "string", "Invalid purchase type")
+	-- assert years is a positive number and less than 5
+	assert(tonumber(msg.Tags.Years) > 0 and tonumber(msg.Tags.Years) < 5, "Invalid years")
+
 	local status, result = pcall(
 		arns.buyRecord,
 		msg.Tags.Name,
@@ -218,6 +252,11 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 end)
 
 Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.ExtendLease), function(msg)
+	-- assert name is a string
+	assert(type(msg.Tags.Name) == "string", "Invalid name")
+	-- assert years is a positive number and less than 5
+	assert(tonumber(msg.Tags.Years) > 0 and tonumber(msg.Tags.Years) < 5, "Invalid years")
+
 	local status, result = pcall(arns.extendLease, msg.From, msg.Tags.Name, msg.Tags.Years, msg.Timestamp)
 	if not status then
 		ao.send({
@@ -238,6 +277,9 @@ Handlers.add(
 	ActionMap.IncreaseUndernameCount,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseUndernameCount),
 	function(msg)
+		assert(type(msg.Tags.Name) == "string", "Invalid name")
+		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+
 		local status, result =
 			pcall(arns.increaseUndernameCount, msg.From, msg.Tags.Name, msg.Tags.Quantity, msg.Timestamp)
 		if not status then
@@ -257,6 +299,13 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
+	-- assert stake is a positive number
+	assert(tonumber(msg.Tags.Stake) > 0, "Invalid stake")
+	-- assert settings is a valid table
+	assert(type(msg.Tags.Settings) == "table", "Invalid settings")
+	-- assert observer address is a valid arweave address
+	assert(utils.isValidArweaveAddress(msg.Tags.ObserverAddress), "Invalid observer address")
+
 	local status, result = pcall(
 		gar.joinNetwork,
 		msg.From,
@@ -281,8 +330,8 @@ Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.Joi
 end)
 
 Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.LeaveNetwork), function(msg)
-	local result, err = gar.leaveNetwork(msg.From, msg.Timestamp, msg.Id)
-	if err then
+	local status, result = pcall(gar.leaveNetwork, msg.From, msg.Timestamp, msg.Id)
+	if not status then
 		ao.send({
 			Target = msg.From,
 			Tags = { Action = "GAR-Invalid-Network-Leave" },
@@ -301,6 +350,8 @@ Handlers.add(
 	ActionMap.IncreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.IncreaseOperatorStake),
 	function(msg)
+		-- assert quantity is a positive number
+		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
 		local result, err = gar.increaseOperatorStake(msg.From, tonumber(msg.Tags.Quantity))
 		if err then
 			ao.send({
@@ -322,6 +373,8 @@ Handlers.add(
 	ActionMap.DecreaseOperatorStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseOperatorStake),
 	function(msg)
+		-- assert quantity is a positive number
+		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
 		local status, result =
 			pcall(gar.decreaseOperatorStake, msg.From, tonumber(msg.Tags.Quantity), msg.Timestamp, msg.Id)
 		if not status then
@@ -341,6 +394,9 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.DelegateStake, utils.hasMatchingTag("Action", ActionMap.DelegateStake), function(msg)
+	assert(utils.isValidArweaveAddress(msg.Tags.Target), "Invalid target address")
+	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+
 	local status, result =
 		pcall(gar.delegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
 	if not status then
@@ -362,6 +418,10 @@ Handlers.add(
 	ActionMap.DecreaseDelegateStake,
 	utils.hasMatchingTag("Action", ActionMap.DecreaseDelegateStake),
 	function(msg)
+		-- assert target is a valid arweave address
+		assert(utils.isValidArweaveAddress(msg.Tags.Target), "Invalid target address")
+		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+
 		local status, result =
 			pcall(gar.decreaseDelegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
 		if not status then
@@ -384,6 +444,15 @@ Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
+		-- assert observer wallet is a valid arweave address
+		-- assert updated settings is a valid table
+		assert(type(msg.Tags.UpdatedSettings) == "table", "Invalid updated settings")
+
+		-- assert observer wallet if it is provided
+		if msg.Tags.ObserverWallet then
+			assert(utils.isValidArweaveAddress(msg.Tags.ObserverWallet), "Invalid observer wallet")
+		end
+
 		local status, result = pcall(
 			gar.updateGatewaySettings,
 			msg.From,
@@ -409,6 +478,11 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
+	-- assesrt report tx id is valid arweave tx id
+	-- assert failed gateways is an array of valid gateway addresses
+	assert(type(msg.Data.reportTxId) == "string", "Invalid reportTxId")
+	assert(type(msg.Data.failedGateways) == "table", "Invalid failedGateways")
+
 	local status, result =
 		pcall(epochs.saveObservations, msg.From, msg.Data.reportTxId, msg.Data.failedGateways, msg.Timestamp)
 	if status then

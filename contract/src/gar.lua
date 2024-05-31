@@ -26,7 +26,7 @@ local garSettings = {
 }
 
 function gar.joinNetwork(from, stake, settings, observerAddress, timeStamp)
-	gar.assertValidGatewayParameters(from, stake, settings, observerAddress, timeStamp)
+	gar.assertValidGatewayParameters(from, stake, settings, observerAddress)
 
 	if gar.getGateway(from) then
 		error("Gateway already exists")
@@ -188,7 +188,7 @@ function gar.updateGatewaySettings(from, updatedSettings, observerAddress, curre
 
 	local gateway = gar.getGateway(from)
 
-	gar.assertValidGatewayParameters(from, gateway.operatorStake, updatedSettings, observerAddress, currentTimestamp)
+	gar.assertValidGatewayParameters(from, gateway.operatorStake, updatedSettings, observerAddress)
 
 	if
 		updatedSettings.minDelegatedStake
@@ -463,12 +463,11 @@ function gar.getDistributions()
 	return gar.distributions
 end
 
-function gar.assertValidGatewayParameters(from, stake, settings, observerAddress, timeStamp)
+function gar.assertValidGatewayParameters(from, stake, settings, observerAddress)
 	assert(type(from) == "string", "from is required and must be a string!")
 	assert(type(stake) == "number", "stake is required and must be a number!")
 	assert(type(settings) == "table", "settings is required and must be a table!")
 	assert(type(observerAddress) == "string", "observerAddress is required and must be a string!")
-	assert(type(timeStamp) == "number", "timeStamp is required and must be a number!")
 	assert(type(settings.allowDelegatedStaking) == "boolean", "allowDelegatedStaking must be a boolean")
 	assert(type(settings.minDelegatedStake) == "number", "minDelegatedStake must be a number")
 	assert(type(settings.label) == "string", "label is required and must be a string")

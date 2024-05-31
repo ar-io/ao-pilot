@@ -7,14 +7,15 @@ local testSettings = {
 	minDelegatedStake = 100,
 	autoStake = true,
 	label = "test",
+	delegateRewardShareRatio = 0,
 }
 
 local startTimestamp = 0
 local testGateway = {
-	operatorStake = 100,
+	operatorStake = gar.getSettings().operators.minStake,
 	vaults = {},
 	delegates = {},
-	startTimestamp = 100,
+	startTimestamp = 0,
 	stats = {
 		prescribedEpochCount = 0,
 		observeredEpochCount = 0,

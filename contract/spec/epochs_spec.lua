@@ -9,6 +9,7 @@ local testSettings = {
 	minDelegatedStake = 100,
 	autoStake = true,
 	label = "test",
+	delegateRewardRatio = 0,
 }
 local startTimestamp = 0
 local protocolBalance = 500000000 * 1000000

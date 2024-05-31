@@ -3,6 +3,7 @@ Balances = Balances or {}
 
 -- Utility functions that modify global Balance object
 local balances = {}
+local utils = require("utils")
 
 -- TODO: if we need to append state at all we would do it here on token
 
@@ -22,11 +23,13 @@ function balances.transfer(recipient, from, qty)
 end
 
 function balances.getBalance(target)
-	return Balances[target] or 0
+	local balance = balances.getBalances()[target]
+	return balance or 0
 end
 
 function balances.getBalances()
-	return Balances
+	local balances = utils.deepCopy(Balances)
+	return balances or {}
 end
 
 function balances.reduceBalance(target, qty)

@@ -70,6 +70,37 @@ function utils.walletHasSufficientBalance(wallet, quantity)
 	return Balances[wallet] ~= nil and Balances[wallet] >= quantity
 end
 
+function utils.copyTable(table)
+	local copy = {}
+	for key, value in pairs(table) do
+		copy[key] = value
+	end
+	return copy
+end
+
+function utils.deepCopy(original)
+	if not original then
+		return nil
+	end
+	local copy = {}
+	for key, value in pairs(original) do
+		if type(value) == "table" then
+			copy[key] = utils.deepCopy(value) -- Recursively copy the nested table
+		else
+			copy[key] = value
+		end
+	end
+	return copy
+end
+
+function utils.lengthOfTable(table)
+	local count = 0
+	for _ in pairs(table) do
+		count = count + 1
+	end
+	return count
+end
+
 function utils.ensureMilliseconds(timestamp)
 	-- Assuming any timestamp before 100000000000 is in seconds
 	-- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous

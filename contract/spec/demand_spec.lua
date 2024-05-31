@@ -97,6 +97,7 @@ describe("demand", function()
 				DemandFactor.trailingPeriodRevenues = { 0, 10, 10, 10, 10, 10 }
 				local expectedFees = {}
 				local startNextPeriodTimestamp = demand.getSettings().periodLengthMs + 1
+				-- use pairs as fees is a map
 				for nameLength, fee in pairs(constants.genesisFees) do
 					expectedFees[nameLength] = fee * demand.getSettings().demandFactorMin
 				end

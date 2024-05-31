@@ -3,6 +3,7 @@ Vaults = Vaults or {}
 -- Utility functions that modify global Vaults object
 local vaults = {}
 local balances = require("balances")
+local utils = require("utils")
 local constants = require("constants")
 
 function vaults.createVault(from, qty, lockLength, currentTimestamp, msgId)
@@ -107,14 +108,13 @@ function vaults.increaseVault(from, qty, vaultId, currentTimestamp)
 end
 
 function vaults.getVaults()
-	return Vaults
+	local vaults = utils.deepCopy(Vaults)
+	return vaults or {}
 end
 
 function vaults.getVault(target, id)
-	if not Vaults[target] then
-		return nil
-	end
-	return Vaults[target][id]
+	local vaults = vaults.getVaults()
+	return vaults[target] and vaults[target][id]
 end
 
 function vaults.setVault(target, id, vault)
@@ -128,14 +128,19 @@ end
 
 -- return any vaults to owners that have expired
 function vaults.pruneVaults(currentTimestamp)
-	for owner, vaults in pairs(Vaults) do
-		for id, vault in pairs(vaults) do
-			if currentTimestamp >= vault.endTimestamp then
-				balances.increaseBalance(owner, vault.balance)
+	local allVaults = vaults.getVaults()
+	for owner, vaults in pairs(allVaults) do
+		for id, nestedVault in pairs(vaults) do
+			if currentTimestamp >= nestedVault.endTimestamp then
+				balances.increaseBalance(owner, nestedVault.balance)
 				vaults[id] = nil
 			end
 		end
+		-- update the owner vault
+		allVaults[owner] = vaults
 	end
+	-- set the vaults to the updated vaults
+	Vaults = allVaults
 end
 
 return vaults

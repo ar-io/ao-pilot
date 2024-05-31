@@ -18,8 +18,8 @@ local testGateway = {
 	startTimestamp = 0,
 	stats = {
 		prescribedEpochCount = 0,
-		observeredEpochCount = 0,
-		totalEpochParticipationCount = 0,
+		observedEpochCount = 0,
+		totalEpochCount = 0,
 		passedEpochCount = 0,
 		failedEpochCount = 0,
 		failedConsecutiveEpochs = 0,
@@ -48,7 +48,7 @@ describe("gar", function()
 
 	describe("joinNetwork", function()
 		it("should fail if the gateway is already in the network", function()
-			GatewayRegistry["test-wallet-address-1"] = {
+			_G.GatewayRegistry["test-wallet-address-1"] = {
 				operatorStake = gar.getSettings().operators.minStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -56,8 +56,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -87,8 +87,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -131,8 +131,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -184,8 +184,8 @@ describe("gar", function()
 				endTimestamp = gar.getSettings().operators.leaveLengthMs,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -209,8 +209,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -229,8 +229,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -245,7 +245,7 @@ describe("gar", function()
 
 	describe("decreaseOperatorStake", function()
 		it("should decrease operator stake", function()
-			GatewayRegistry["test-wallet-address-1"] = {
+			_G.GatewayRegistry["test-wallet-address-1"] = {
 				operatorStake = gar.getSettings().operators.minStake + 1000,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -253,8 +253,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -281,8 +281,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -305,8 +305,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -338,8 +338,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -373,8 +373,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -404,8 +404,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -425,8 +425,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -464,8 +464,8 @@ describe("gar", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,

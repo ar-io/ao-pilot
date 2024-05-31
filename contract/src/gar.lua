@@ -1,5 +1,7 @@
 -- gar.lua
 local balances = require("balances")
+local utils = require("utils")
+local json = require("json")
 local gar = {}
 
 GatewayRegistry = GatewayRegistry or {}
@@ -44,8 +46,8 @@ function gar.joinNetwork(from, stake, settings, observerAddress, timeStamp)
 		startTimestamp = timeStamp,
 		stats = {
 			prescribedEpochCount = 0,
-			observeredEpochCount = 0,
-			totalEpochParticipationCount = 0,
+			observedEpochCount = 0,
+			totalEpochCount = 0,
 			passedEpochCount = 0,
 			failedEpochCount = 0,
 			failedConsecutiveEpochs = 0,
@@ -178,15 +180,17 @@ function gar.decreaseOperatorStake(from, qty, currentTimestamp, msgId)
 		startTimestamp = currentTimestamp,
 		endTimestamp = currentTimestamp + gar.getSettings().operators.withdrawLengthMs,
 	}
+	-- update the gateway
+	GatewayRegistry[from] = gateway
 	return gar.getGateway(from)
 end
 
 function gar.updateGatewaySettings(from, updatedSettings, observerAddress, currentTimestamp, msgId)
-	if not gar.getGateway(from) then
+	local gateway = gar.getGateway(from)
+
+	if not gateway then
 		error("Gateway does not exist")
 	end
-
-	local gateway = gar.getGateway(from)
 
 	gar.assertValidGatewayParameters(from, gateway.operatorStake, updatedSettings, observerAddress)
 
@@ -197,7 +201,9 @@ function gar.updateGatewaySettings(from, updatedSettings, observerAddress, curre
 		error("The minimum delegated stake must be at least " .. gar.getSettings().operators.minStake .. " IO")
 	end
 
-	for gatewayAddress, gateway in pairs(gar.getGateways()) do
+	local gateways = gar.getGateways()
+
+	for gatewayAddress, gateway in pairs(gateways) do
 		if gateway.observerAddress == observerAddress and gatewayAddress ~= from then
 			error("Invalid observer wallet. The provided observer wallet is correlated with another gateway.")
 		end
@@ -238,15 +244,19 @@ function gar.updateGatewaySettings(from, updatedSettings, observerAddress, curre
 	if observerAddress then
 		gateway.observerAddress = observerAddress
 	end
+	-- update the gateway
+	GatewayRegistry[from] = gateway
 	return gar.getGateway(from)
 end
 
 function gar.getGateway(address)
-	return GatewayRegistry[address]
+	local gateway = utils.deepCopy(GatewayRegistry[address])
+	return gateway
 end
 
 function gar.getGateways()
-	return GatewayRegistry
+	local gateways = utils.deepCopy(GatewayRegistry)
+	return gateways or {}
 end
 
 function gar.delegateStake(from, target, qty, currentTimestamp)
@@ -322,10 +332,11 @@ function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimest
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
 
-	if not gar.getGateway(gatewayAddress) then
+	local gateway = gar.getGateway(gatewayAddress)
+
+	if not gateway then
 		error("Gateway does not exist")
 	end
-	local gateway = gar.getGateway(gatewayAddress)
 	if gateway.status == "leaving" then
 		error("Gateway is leaving the network and withdraw more stake.")
 	end
@@ -353,6 +364,8 @@ function gar.decreaseDelegateStake(gatewayAddress, delegator, qty, currentTimest
 	gateway.delegates[delegator].vaults[messageId] = newDelegateVault
 	gateway.delegates[delegator].delegatedStake = gateway.delegates[delegator].delegatedStake - qty
 	gateway.totalDelegatedStake = gateway.totalDelegatedStake - qty
+	-- update the gateway
+	GatewayRegistry[gatewayAddress] = gateway
 	return gar.getGateway(gatewayAddress)
 end
 function gar.isGatewayLeaving(gateway, currentTimestamp)
@@ -396,48 +409,50 @@ function gar.getObserverWeightsAtTimestamp(gatewayAddresses, timestamp)
 	-- Iterate over gateways to calculate weights
 	for _, address in pairs(gatewayAddresses) do
 		local gateway = gar.getGateway(address)
-		local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
-		local stakeWeightRatio = totalStake / gar.getSettings().operators.minStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
-		-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
-		local gatewayStartTimestamp = gateway.startTimestamp
-		local totalTimeForGateway = timestamp >= gatewayStartTimestamp and (timestamp - gatewayStartTimestamp) or -1
-		-- TODO: should we increment by one here or are observers that join at the epoch start not eligible to be selected as an observer
+		if gateway then
+			local totalStake = gateway.operatorStake + gateway.totalDelegatedStake -- 100 - no cap to this
+			local stakeWeightRatio = totalStake / gar.getSettings().operators.minStake -- this is always greater than 1 as the minOperatorStake is always less than the stake
+			-- the percentage of the epoch the gateway was joined for before this epoch, if the gateway starts in the future this will be 0
+			local gatewayStartTimestamp = gateway.startTimestamp
+			local totalTimeForGateway = timestamp >= gatewayStartTimestamp and (timestamp - gatewayStartTimestamp) or -1
+			-- TODO: should we increment by one here or are observers that join at the epoch start not eligible to be selected as an observer
 
-		local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
-			or (
-				totalTimeForGateway > 0 and totalTimeForGateway / gar.getSettings().observers.tenureWeightPeriod
-				or 1 / gar.getSettings().observers.tenureWeightPeriod
-			)
-		local gatewayTenureWeight =
-			math.min(calculatedTenureWeightForGateway, gar.getSettings().observers.maxTenureWeight)
+			local calculatedTenureWeightForGateway = totalTimeForGateway < 0 and 0
+				or (
+					totalTimeForGateway > 0 and totalTimeForGateway / gar.getSettings().observers.tenureWeightPeriod
+					or 1 / gar.getSettings().observers.tenureWeightPeriod
+				)
+			local gatewayTenureWeight =
+				math.min(calculatedTenureWeightForGateway, gar.getSettings().observers.maxTenureWeight)
 
-		local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
-		local totalEpochsParticipatedIn = gateway.stats.totalEpochParticipationCount or 0
-		local gatewayRewardRatioWeight = (1 + totalEpochsGatewayPassed) / (1 + totalEpochsParticipatedIn)
+			local totalEpochsGatewayPassed = gateway.stats.passedEpochCount or 0
+			local totalEpochsParticipatedIn = gateway.stats.totalEpochCount or 0
+			local gatewayRewardRatioWeight = (1 + totalEpochsGatewayPassed) / (1 + totalEpochsParticipatedIn)
 
-		local totalEpochsPrescribed = gateway.stats.totalEpochsPrescribedCount or 0
-		local totalEpochsSubmitted = gateway.stats.submittedEpochCount or 0
-		local observerRewardRatioWeight = (1 + totalEpochsSubmitted) / (1 + totalEpochsPrescribed)
+			local totalEpochsPrescribed = gateway.stats.totalEpochsPrescribedCount or 0
+			local totalEpochsSubmitted = gateway.stats.submittedEpochCount or 0
+			local observerRewardRatioWeight = (1 + totalEpochsSubmitted) / (1 + totalEpochsPrescribed)
 
-		local compositeWeight = stakeWeightRatio
-			* gatewayTenureWeight
-			* gatewayRewardRatioWeight
-			* observerRewardRatioWeight
+			local compositeWeight = stakeWeightRatio
+				* gatewayTenureWeight
+				* gatewayRewardRatioWeight
+				* observerRewardRatioWeight
 
-		table.insert(weightedObservers, {
-			gatewayAddress = address,
-			observerAddress = gateway.observerAddress,
-			stake = totalStake,
-			startTimestamp = gateway.startTimestamp,
-			stakeWeight = stakeWeightRatio,
-			tenureWeight = gatewayTenureWeight,
-			gatewayRewardRatioWeight = gatewayRewardRatioWeight,
-			observerRewardRatioWeight = observerRewardRatioWeight,
-			compositeWeight = compositeWeight,
-			normalizedCompositeWeight = nil, -- set later once we have the total composite weight
-		})
+			table.insert(weightedObservers, {
+				gatewayAddress = address,
+				observerAddress = gateway.observerAddress,
+				stake = totalStake,
+				startTimestamp = gateway.startTimestamp,
+				stakeWeight = stakeWeightRatio,
+				tenureWeight = gatewayTenureWeight,
+				gatewayRewardRatioWeight = gatewayRewardRatioWeight,
+				observerRewardRatioWeight = observerRewardRatioWeight,
+				compositeWeight = compositeWeight,
+				normalizedCompositeWeight = nil, -- set later once we have the total composite weight
+			})
 
-		totalCompositeWeight = totalCompositeWeight + compositeWeight
+			totalCompositeWeight = totalCompositeWeight + compositeWeight
+		end
 	end
 
 	-- Calculate the normalized composite weight for each observer
@@ -453,14 +468,6 @@ end
 
 function gar.isGatewayJoined(gateway, currentTimestamp)
 	return gateway.status == "joined" and gateway.startTimestamp <= currentTimestamp
-end
-
-function gar.getObservations()
-	return gar.observations
-end
-
-function gar.getDistributions()
-	return gar.distributions
 end
 
 function gar.assertValidGatewayParameters(from, stake, settings, observerAddress)
@@ -493,6 +500,14 @@ function gar.updateGatewayStats(address, stats)
 	if gateway == nil then
 		error("Gateway does not exist")
 	end
+
+	assert(stats.prescribedEpochCount, "prescribedEpochCount is required")
+	assert(stats.observedEpochCount, "observedEpochCount is required")
+	assert(stats.totalEpochCount, "totalEpochCount is required")
+	assert(stats.passedEpochCount, "passedEpochCount is required")
+	assert(stats.failedEpochCount, "failedEpochCount is required")
+	assert(stats.failedConsecutiveEpochs, "failedConsecutiveEpochs is required")
+	assert(stats.passedConsecutiveEpochs, "passedConsecutiveEpochs is required")
 
 	gateway.stats = stats
 	GatewayRegistry[address] = gateway

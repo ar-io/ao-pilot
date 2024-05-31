@@ -129,15 +129,23 @@ function arns.increaseUndernameCount(from, name, qty, currentTimestamp)
 end
 
 function arns.getRecord(name)
-	return NameRegistry.records[name]
+	local records = arns.getRecords()
+	return records[name]
 end
 
 function arns.getRecords()
-	return NameRegistry.records
+	local records = utils.deepCopy(NameRegistry.records)
+	return records or {}
+end
+
+function arns.getReservedNames()
+	local reserved = utils.deepCopy(NameRegistry.reserved)
+	return reserved or {}
 end
 
 function arns.getReservedName(name)
-	return NameRegistry.reserved[name]
+	local reserved = arns.getReservedNames()
+	return reserved[name]
 end
 
 function arns.modifyRecordUndernameCount(name, qty)
@@ -179,10 +187,6 @@ function arns.addReservedName(name, details)
 
 	NameRegistry.reserved[name] = details
 	return arns.getReservedName(name)
-end
-
-function arns.getReservedNames()
-	return NameRegistry.reserved
 end
 
 -- internal functions

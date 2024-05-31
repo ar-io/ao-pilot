@@ -51,8 +51,8 @@ describe("epochs", function()
 				startTimestamp = startTimestamp,
 				stats = {
 					prescribedEpochCount = 0,
-					observeredEpochCount = 0,
-					totalEpochParticipationCount = 0,
+					observedEpochCount = 0,
+					totalEpochCount = 0,
 					passedEpochCount = 0,
 					failedEpochCount = 0,
 					failedConsecutiveEpochs = 0,
@@ -99,8 +99,8 @@ describe("epochs", function()
 					startTimestamp = startTimestamp,
 					stats = {
 						prescribedEpochCount = 0,
-						observeredEpochCount = 0,
-						totalEpochParticipationCount = 0,
+						observedEpochCount = 0,
+						totalEpochCount = 0,
 						passedEpochCount = 0,
 						failedEpochCount = 0,
 						failedConsecutiveEpochs = 0,
@@ -199,8 +199,8 @@ describe("epochs", function()
 						startTimestamp = 0,
 						stats = {
 							prescribedEpochCount = 0,
-							observeredEpochCount = 0,
-							totalEpochParticipationCount = 0,
+							observedEpochCount = 0,
+							totalEpochCount = 0,
 							passedEpochCount = 0,
 							failedEpochCount = 0,
 							failedConsecutiveEpochs = 0,
@@ -218,8 +218,8 @@ describe("epochs", function()
 						startTimestamp = startTimestamp,
 						stats = {
 							prescribedEpochCount = 0,
-							observeredEpochCount = 0,
-							totalEpochParticipationCount = 0,
+							observedEpochCount = 0,
+							totalEpochCount = 0,
 							passedEpochCount = 0,
 							failedEpochCount = 0,
 							failedConsecutiveEpochs = 0,
@@ -237,8 +237,8 @@ describe("epochs", function()
 						startTimestamp = startTimestamp + 10, -- joined after the epoch started
 						stats = {
 							prescribedEpochCount = 0,
-							observeredEpochCount = 0,
-							totalEpochParticipationCount = 0,
+							observedEpochCount = 0,
+							totalEpochCount = 0,
 							passedEpochCount = 0,
 							failedEpochCount = 0,
 							failedConsecutiveEpochs = 0,
@@ -257,8 +257,8 @@ describe("epochs", function()
 						startTimestamp = startTimestamp - 10,
 						stats = {
 							prescribedEpochCount = 0,
-							observeredEpochCount = 0,
-							totalEpochParticipationCount = 0,
+							observedEpochCount = 0,
+							totalEpochCount = 0,
 							passedEpochCount = 0,
 							failedEpochCount = 0,
 							failedConsecutiveEpochs = 0,

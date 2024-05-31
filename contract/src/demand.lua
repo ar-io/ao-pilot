@@ -1,4 +1,5 @@
 local constants = require("constants")
+local utils = require("utils")
 local demand = {}
 
 DemandFactor = DemandFactor
@@ -111,27 +112,33 @@ function demand.updateFees(multiplier)
 end
 
 function demand.getDemandFactor()
-	return DemandFactor.currentDemandFactor
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.currentDemandFactor or 1
 end
 
 function demand.getCurrentPeriodRevenue()
-	return DemandFactor.revenueThisPeriod
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.revenueThisPeriod or 0
 end
 
 function demand.getCurrentPeriodPurchases()
-	return DemandFactor.purchasesThisPeriod
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.purchasesThisPeriod or 0
 end
 
 function demand.getTrailingPeriodPurchases()
-	return DemandFactor.trailingPeriodPurchases
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.trailingPeriodPurchases or { 0, 0, 0, 0, 0, 0, 0 }
 end
 
 function demand.getTrailingPeriodRevenues()
-	return DemandFactor.trailingPeriodRevenues
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.trailingPeriodRevenues or { 0, 0, 0, 0, 0, 0, 0 }
 end
 
 function demand.getFees()
-	return DemandFactor.fees
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.fees or {}
 end
 
 function demand.getSettings()
@@ -139,11 +146,13 @@ function demand.getSettings()
 end
 
 function demand.getConsecutivePeriodsWithMinDemandFactor()
-	return DemandFactor.consecutivePeriodsWithMinDemandFactor
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.consecutivePeriodsWithMinDemandFactor or 0
 end
 
 function demand.getCurrentPeriod()
-	return DemandFactor.currentPeriod
+	local demandFactor = utils.deepCopy(DemandFactor)
+	return demandFactor and demandFactor.currentPeriod or 0
 end
 
 function demand.updateSettings(settings)

@@ -2,6 +2,7 @@ local gar = require("gar")
 local crypto = require("crypto.init")
 local utils = require("utils")
 local balances = require("balances")
+local json = require("json")
 local epochs = {}
 
 Epochs = Epochs
@@ -29,11 +30,13 @@ local epochSettings = {
 }
 
 function epochs.getEpochs()
-	return Epochs
+	local epochs = utils.deepCopy(Epochs) or {}
+	return epochs
 end
 
 function epochs.getEpoch(epochNumber)
-	return Epochs[epochNumber] or {}
+	local epoch = utils.deepCopy(Epochs[epochNumber]) or {}
+	return epoch
 end
 
 function epochs.getObservers()
@@ -74,7 +77,10 @@ function epochs.getEpochFromTimestamp(timestamp)
 end
 function epochs.setPrescribedObserversForEpoch(epochNumber, hashchain)
 	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochNumber, hashchain)
-	epochs.getEpoch(epochNumber).prescribedObservers = prescribedObservers
+	local epoch = epochs.getEpoch(epochNumber)
+	-- assign the prescribed observers and update the epoch
+	epoch.prescribedObservers = prescribedObservers
+	Epochs[epochNumber] = epoch
 end
 
 function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
@@ -262,6 +268,8 @@ function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddre
 	end
 
 	epoch.observations.reports[observingGateway.observerAddress] = reportTxId
+	-- update the epoch
+	Epochs[epochIndex] = epoch
 	return epoch.observations
 end
 
@@ -377,6 +385,9 @@ function epochs.distributeRewardsForEpoch(epochIndex, currentTimestamp)
 		distributionTimestamp = currentTimestamp,
 		distributions = epochDistributions,
 	}
+
+	-- update the epoch
+	Epochs[epochIndex] = epoch
 end
 
 return epochs

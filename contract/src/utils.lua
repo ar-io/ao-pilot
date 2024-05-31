@@ -78,6 +78,21 @@ function utils.copyTable(table)
 	return copy
 end
 
+function utils.deepCopy(original)
+	if not original then
+		return nil
+	end
+	local copy = {}
+	for key, value in pairs(original) do
+		if type(value) == "table" then
+			copy[key] = utils.deepCopy(value) -- Recursively copy the nested table
+		else
+			copy[key] = value
+		end
+	end
+	return copy
+end
+
 function utils.lengthOfTable(table)
 	local count = 0
 	for _ in pairs(table) do

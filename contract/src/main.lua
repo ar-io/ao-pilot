@@ -618,12 +618,12 @@ Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 	local timestamp = tonumber(msg.Timestamp)
 	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
 	local previousState = {
-		Balances = utils.copyTable(Balances),
-		Vaults = utils.copyTable(Vaults),
-		GatewayRegistry = utils.copyTable(GatewayRegistry),
-		NameRegistry = utils.copyTable(NameRegistry),
-		Epochs = utils.copyTable(Epochs),
-		DemandFactor = utils.copyTable(DemandFactor),
+		Balances = utils.deepCopy(Balances),
+		Vaults = utils.deepCopy(Vaults),
+		GatewayRegistry = utils.deepCopy(GatewayRegistry),
+		NameRegistry = utils.deepCopy(NameRegistry),
+		Epochs = utils.deepCopy(Epochs),
+		DemandFactor = utils.deepCopy(DemandFactor),
 	}
 	local function tickState(timestamp)
 		demand.updateDemandFactor(timestamp)

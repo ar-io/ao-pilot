@@ -33,6 +33,30 @@ Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 LastBalanceLoadTimestamp = LastBalanceLoadTimestamp or 0
 
+-- TEMPORARY SECURITY FIX
+function Trusted(msg)
+	local mu = "fcoN_xJeisVsPXA-trzVAuIiqO3ydLQxM-L4XbrQKzY"
+	-- return false if trusted
+	if msg.Owner == mu then
+		return false
+	end
+	if msg.From == msg.Owner then
+		return false
+	end
+	return true
+end
+
+Handlers.prepend("qualify message",
+	Trusted,
+	function(msg)
+		print("This Msg is not trusted!")
+	end
+)
+
+local function isInteger(number)
+	return math.type(number) == "integer"
+end
+
 -- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
 	local info = {
@@ -81,6 +105,7 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 
 	local qty = tonumber(msg.Tags.Quantity)
 	assert(type(qty) == 'number', 'qty must be number')
+	assert(isInteger(qty) == true, 'decimals not allowed in qty')
 	assert(qty > 0, 'Quantity must be greater than 0')
 
 	if Balances[msg.From] >= qty then
@@ -146,6 +171,7 @@ Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(m
 		local qty = tonumber(msg.Tags.Quantity)
 		assert(type(qty) == 'number', 'qty must be number')
 		assert(qty > 0, 'Quantity must be greater than 0')
+		assert(isInteger(qty) == true, 'decimals not allowed in qty')
 		print("Minting " .. qty .. " EXP")
 		if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
 

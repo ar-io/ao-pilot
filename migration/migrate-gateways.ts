@@ -41,8 +41,9 @@ const main = async () => {
                 observerAddress: gateway.observerWallet,
                 operatorStake: gateway.operatorStake,
                 settings: gateway.settings,
-                startTimestamp: currentBlock.timestamp * 1000,
+                startTimestamp: 0,
                 status: 'joined', // only joined are migrated
+                totalDelegatedStake: 0,
                 stats: {
                     totalEpochCount: 0,
                     passedEpochCount: 0,

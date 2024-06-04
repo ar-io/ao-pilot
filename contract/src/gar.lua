@@ -374,17 +374,13 @@ end
 
 function gar.isGatewayEligibleToLeave(gateway, timestamp)
 	if gateway == nil then
-		return error("Gateway does not exist")
+		error("Gateway does not exist")
 	end
 	local isJoined = gar.isGatewayJoined(gateway, timestamp)
 	return isJoined
 end
 
-function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, address)
-	local gateway = gar.getGateway(address)
-	if gateway == nil then
-		return false
-	end
+function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, gateway)
 	local didStartBeforeEpoch = gateway.startTimestamp <= startTimestamp
 	local didNotLeaveDuringEpoch = not gar.isGatewayLeaving(gateway, endTimestamp)
 	return didStartBeforeEpoch and didNotLeaveDuringEpoch
@@ -394,15 +390,15 @@ function gar.getActiveGatewaysBetweenTimestamps(startTimestamp, endtimestamp)
 	local gateways = gar.getGateways()
 	local activeGatewayAddresses = {}
 	-- use pairs as gateways is a map
-	for address, _ in pairs(gateways) do
-		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, address) then
+	for address, gateway in pairs(gateways) do
+		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, gateway) then
 			table.insert(activeGatewayAddresses, address)
 		end
 	end
 	return activeGatewayAddresses
 end
 
-function gar.getObserverWeightsAtTimestamp(gatewayAddresses, timestamp)
+function gar.getGatewayWeightsAtTimestamp(gatewayAddresses, timestamp)
 	local weightedObservers = {}
 	local totalCompositeWeight = 0
 

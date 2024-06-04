@@ -1,6 +1,7 @@
 local epochs = require("epochs")
 local gar = require("gar")
 local balances = require("balances")
+local json = require("json")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",
@@ -269,7 +270,7 @@ describe("epochs", function()
 						observerAddress = "test-wallet-address-4",
 					},
 				}
-				Epochs[0].prescribedObservers = {
+				_G.Epochs[0].prescribedObservers = {
 					{
 						gatewayAddress = "test-wallet-address-2",
 						observerAddress = "test-wallet-address-2",
@@ -327,16 +328,18 @@ describe("epochs", function()
 		end)
 	end)
 
-	describe("createEpochForTimestamp", function()
+	describe("createEpoch", function()
 		it("should create a new epoch for the given timestamp", function()
 			local timestamp = 100
 			local epochIndex = 1
 			local epochStartTimestamp = 100
 			local epochEndTimestamp = 200
 			local epochDistributionTimestamp = 215
+			local epochStartBlockHeight = 0
 			local expectation = {
 				startTimestamp = epochStartTimestamp,
 				endTimestamp = epochEndTimestamp,
+				epochIndex = epochIndex,
 				distributionTimestamp = epochDistributionTimestamp,
 				observations = {
 					failureSummaries = {},
@@ -345,7 +348,7 @@ describe("epochs", function()
 				prescribedObservers = {},
 				distributions = {},
 			}
-			local status, result = pcall(epochs.createEpochForTimestamp, timestamp)
+			local status, result = pcall(epochs.createEpoch, timestamp, epochStartBlockHeight, "hashchain")
 			assert.is_true(status)
 			assert.are.same(epochs.getEpoch(epochIndex), expectation)
 		end)
@@ -397,7 +400,7 @@ describe("epochs", function()
 			local validObservationTimestamp = epochStartTimetamp + epochs.getSettings().distributionDelayMs + 1
 			-- save observations for the epoch for last two gateways
 			for i = 2, 3 do
-				local status = pcall(
+				local status, result = pcall(
 					epochs.saveObservations,
 					"test-observer-address-" .. i,
 					"reportTxId" .. i,
@@ -413,7 +416,7 @@ describe("epochs", function()
 			Balances["test-wallet-address-1"] = 0
 
 			-- distribute rewards for the epoch
-			local status, result = pcall(epochs.distributeRewardsForEpoch, epochIndex, epochDistributionTimestamp)
+			local status, result = pcall(epochs.distributeRewardsForEpoch, epochDistributionTimestamp)
 			assert.is_true(status)
 			-- gateway 1 should only get observer rewards
 			-- gateway 2 should get obesrver and gateway rewards

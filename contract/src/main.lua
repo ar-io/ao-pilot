@@ -617,6 +617,19 @@ Handlers.add("addRecord", utils.hasMatchingTag("Action", "AddRecord"), function(
 	end
 end)
 
+Handlers.add("addReservedName", utils.hasMatchingTag("Action", "AddReservedName"), function(msg)
+	if msg.From ~= Owner then
+		ao.send({ Target = msg.From, Data = "Unauthorized" })
+		return
+	end
+	local status, result = pcall(arns.addReservedName, msg.Tags.Name, json.decode(msg.Data))
+	if status then
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	else
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	end
+end)
+
 Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 	local timestamp = tonumber(msg.Timestamp)
 	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
@@ -634,8 +647,8 @@ Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 		vaults.pruneVaults(timestamp)
 		gar.pruneGateways(timestamp)
 		-- demand.updateDemandFactor(timestamp)
-		-- epochs.distributeRewardsForEpoch(timestamp)
-		-- epochs.createEpochForTimestamp(timestamp, msg.HashChain)
+		epochs.distributeRewardsForEpoch(timestamp)
+		epochs.createEpoch(timestamp, tonumber(msg["Block-Height"]), msg["Hash-Chain"])
 	end
 
 	local status, result = pcall(tickState, timestamp)

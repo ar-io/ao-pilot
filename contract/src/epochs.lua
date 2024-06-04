@@ -2,6 +2,7 @@ local gar = require("gar")
 local crypto = require("crypto.init")
 local utils = require("utils")
 local balances = require("balances")
+local json = require("json")
 local epochs = {}
 
 Epochs = Epochs
@@ -10,7 +11,7 @@ Epochs = Epochs
 			startTimestamp = 0,
 			endTimestamp = 0,
 			distributionTimestamp = 0,
-			-- TODO: add settings here
+			startBlockHeight = 0,
 			observations = {
 				failureSummaries = {},
 				reports = {},
@@ -83,9 +84,13 @@ function epochs.setPrescribedObserversForEpoch(epochNumber, hashchain)
 end
 
 function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
+	assert(epochIndex >= 0, "Epoch index must be greater than or equal to 0")
+	assert(type(hashchain) == "string", "Hashchain must be a string")
+
 	local epochStartTimestamp, epochEndTimestamp = epochs.getEpochTimestampsForIndex(epochIndex)
 	local activeGatewayAddresses = gar.getActiveGatewaysBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
-	local weightedObservers = gar.getObserverWeightsAtTimestamp(activeGatewayAddresses, epochStartTimestamp)
+	local weightedObservers = gar.getGatewayWeightsAtTimestamp(activeGatewayAddresses, epochStartTimestamp)
+
 	-- Filter out any observers that could have a normalized composite weight of 0
 	local filteredObservers = {}
 	-- use ipairs as weightedObservers in array
@@ -173,15 +178,21 @@ function epochs.getEpochIndexForTimestamp(timestamp)
 	return epochIndex
 end
 
-function epochs.createEpochForTimestamp(timestamp, hashchain)
+function epochs.createEpoch(timestamp, blockHeight, hashchain)
+	assert(type(timestamp) == "number", "Timestamp must be a number")
+	assert(type(blockHeight) == "number", "Block height must be a number")
+	assert(type(hashchain) == "string", "Hashchain must be a string")
+
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
-	if Epochs[epochIndex] then
-		error("Epoch already exists")
+	if next(epochs.getEpoch(epochIndex)) then
+		-- silently return
+		return
 	end
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
 	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	local epoch = {
+		epochIndex = epochIndex,
 		startTimestamp = epochStartTimestamp,
 		endTimestamp = epochEndTimestamp,
 		distributionTimestamp = epochDistributionTimestamp,
@@ -193,7 +204,6 @@ function epochs.createEpochForTimestamp(timestamp, hashchain)
 		distributions = {},
 	}
 	Epochs[epochIndex] = epoch
-	GatewayRegistry.epoch = epochIndex
 end
 
 function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddresses, timestamp)
@@ -238,8 +248,9 @@ function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddre
 
 	-- use ipairs as failedGatewayAddresses is an array
 	for _, failedGatewayAddress in ipairs(failedGatewayAddresses) do
+		local gateway = gar.getGateway(failedGatewayAddress)
 		local gatewayPresentDuringEpoch =
-			gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, failedGatewayAddress)
+			gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, gateway)
 		if gatewayPresentDuringEpoch then
 			-- if there are none, create an array
 			if epoch.observations.failureSummaries == nil then
@@ -284,16 +295,20 @@ end
 -- 4. Allocate 95% of the rewards for passed gateways, 5% for observers - based on total gateways during the epoch and # of prescribed observers
 -- 5. Distribute the rewards to the gateways and observers
 -- 6. Increment the epoch stats for the gateways
-function epochs.distributeRewardsForEpoch(epochIndex, currentTimestamp)
-	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
-		epochs.getEpochTimestampsForIndex(epochIndex)
-	if currentTimestamp < epochDistributionTimestamp then
-		-- silently ignore
-		error("Distribution can only occur after the epoch has ended")
+function epochs.distributeRewardsForEpoch(currentTimestamp)
+	local epochIndex = epochs.getEpochIndexForTimestamp(currentTimestamp - epochSettings.durationMs) -- go back to previous epoch
+	local epoch = epochs.getEpoch(epochIndex)
+	if not next(epoch) then
+		error("Epoch does not exist: " .. epochIndex)
+	end
+	
+	if currentTimestamp < epoch.distributionTimestamp then
+		-- silently ignore - Distribution can only occur after the epoch has ended
+		print("Distribution can only occur after the epoch has ended", currentTimestamp, epoch.distributionTimestamp)
+		return
 	end
 
-	local epoch = epochs.getEpoch(epochIndex)
-	local activeGatewayAddresses = gar.getActiveGatewaysBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
+	local activeGatewayAddresses = gar.getActiveGatewaysBetweenTimestamps(epoch.startTimestamp, epoch.endTimestamp)
 	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
 	local totalRewards = balances.getBalance(ao.id)
 	local gatewayReward = math.floor(totalRewards * 0.95 / #activeGatewayAddresses)

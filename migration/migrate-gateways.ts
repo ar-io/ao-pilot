@@ -41,7 +41,7 @@ const main = async () => {
                 observerAddress: gateway.observerWallet,
                 operatorStake: gateway.operatorStake,
                 settings: gateway.settings,
-                startTimestamp: 0,
+                startTimestamp: currentBlock.timestamp * 1000 - (1000 * 60 * 60 * 24 * 30), // 30 days ago
                 status: 'joined', // only joined are migrated
                 totalDelegatedStake: 0,
                 stats: {
@@ -56,7 +56,7 @@ const main = async () => {
                 // TODO: we will wipe delegates in testnet migration, this is useful in devnet for testing
                 delegates: Object.keys(gateway.delegates).reduce((acc: Record<string, any>, delegateAddress: string) => {
                     const delegate = {
-                        startTimestamp: currentBlock.timestamp * 1000,
+                        startTimestamp: currentBlock.timestamp * 1000 - (1000 * 60 * 60 * 24 * 30), // 30 days ago
                         delegatedStake: gateway.delegates[delegateAddress].delegatedStake,
                         vaults: Object.keys(gateway.delegates[delegateAddress].vaults).reduce((acc: Record<string, any>, vaultAddress: string) => {
                             acc[vaultAddress] = {

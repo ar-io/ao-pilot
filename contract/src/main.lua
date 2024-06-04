@@ -70,7 +70,7 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Transfer-Error" },
+			Tags = { Error = "Transfer-Error" },
 			Data = tostring(inputResult),
 		})
 		return
@@ -508,37 +508,37 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.DelegateStake, utils.hasMatchingTag("Action", ActionMap.DelegateStake), function(msg)
-	local checkAssertions = function()
-		assert(utils.isValidArweaveAddress(msg.Tags.Target), "Invalid target address")
-		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
-	end
+	-- local checkAssertions = function()
+	-- 	assert(utils.isValidArweaveAddress(msg.Tags.Target), "Invalid target address")
+	-- 	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+	-- end
 
-	local inputStatus, inputResult = pcall(checkAssertions)
+	-- local inputStatus, inputResult = pcall(checkAssertions)
 
-	if not inputStatus then
+	-- if not inputStatus then
+	-- 	ao.send({
+	-- 		Target = msg.From,
+	-- 		Tags = { Action = "GAR-Invalid-Delegate-Stake-Increase" },
+	-- 		Data = tostring(inputResult),
+	-- 	})
+	-- 	return
+	-- end
+
+	-- local status, result =
+	-- 	pcall(gar.delegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+	-- // if not status then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "GAR-Invalid-Delegate-Stake-Increase" },
-			Data = tostring(inputResult),
+			Tags = { Error = "GAR-Invalid-Delegate-Stake-Increase" },
+			Data = tostring({}),
 		})
-		return
-	end
-
-	local status, result =
-		pcall(gar.delegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
-	if not status then
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "GAR-Invalid-Delegate-Stake-Increase" },
-			Data = tostring(result),
-		})
-	else
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "GAR-Delegate-Stake-Increased" },
-			Data = json.encode(result),
-		})
-	end
+	-- else
+	-- 	ao.send({
+	-- 		Target = msg.From,
+	-- 		Tags = { Action = "GAR-Delegate-Stake-Increased" },
+	-- 		Data = json.encode({}),
+	-- 	})
+	-- end
 end)
 
 Handlers.add(

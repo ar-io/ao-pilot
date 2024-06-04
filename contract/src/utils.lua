@@ -16,9 +16,18 @@ function utils.isValidBase64Url(url)
 	local isValidBase64Url = #url == 43 and string.match(url, "^[%w-_]+$") ~= nil
 
 	if not isValidBase64Url then
-		error("processId pattern is invalid.")
+		error("String pattern is invalid.")
 	end
 	return url
+end
+
+function utils.isValidArweaveAddress(address)
+	local isValidArweaveAddress = #address == 43 and string.match(address, "^[%w-_]+$") ~= nil
+
+	if not isValidArweaveAddress then
+		error("String pattern is invalid.")
+	end
+	return address
 end
 
 function utils.validateFQDN(fqdn)

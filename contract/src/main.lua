@@ -528,7 +528,7 @@ Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
-	local gateway = gar.getGateway(msg.Tags.Target)
+	local gateway = gar.getGateway(msg.Tags.Address)
 	ao.send({
 		Target = msg.From,
 		Data = json.encode(gateway),
@@ -571,8 +571,11 @@ Handlers.add(ActionMap.Records, utils.hasMatchingTag("Action", ActionMap.Records
 end)
 
 Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), function(msg)
-	local epochIndex = tonumber(msg.Tags.EpochNumber) or epochs.getEpochIndexFromTimestamp(msg.Timestamp)
+	local epochIndex = tonumber(msg.Tags.EpochNumber)
+		or epochs.getEpochIndexFromTimestamp(tonumber(msg.Tags.Timestamp) or tonumber(msg.Timestamp))
 	local epoch = epochs.getEpoch(epochIndex)
+	-- add the epoch index to the epoch object
+	epoch.epochIndex = epochIndex
 	ao.send({ Target = msg.From, Data = json.encode(epoch) })
 end)
 
@@ -626,13 +629,13 @@ Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 		DemandFactor = utils.deepCopy(DemandFactor),
 	}
 	local function tickState(timestamp)
-		demand.updateDemandFactor(timestamp)
 		arns.pruneRecords(timestamp)
 		arns.pruneReservedNames(timestamp)
 		vaults.pruneVaults(timestamp)
-		gar.pruneGatewayRegistry(timestamp, msg.HashChain)
-		epochs.distributeRewardsForEpoch(timestamp)
-		epochs.createEpochForTimestamp(timestamp)
+		gar.pruneGateways(timestamp)
+		-- demand.updateDemandFactor(timestamp)
+		-- epochs.distributeRewardsForEpoch(timestamp)
+		-- epochs.createEpochForTimestamp(timestamp, msg.HashChain)
 	end
 
 	local status, result = pcall(tickState, timestamp)

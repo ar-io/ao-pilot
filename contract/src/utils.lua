@@ -100,20 +100,6 @@ function utils.lengthOfTable(table)
 	end
 	return count
 end
-
-function utils.ensureMilliseconds(timestamp)
-	-- Assuming any timestamp before 100000000000 is in seconds
-	-- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous
-	local threshold = 100000000000
-	if timestamp < threshold then
-		-- If the timestamp is below the threshold, it's likely in seconds, so convert to milliseconds
-		return timestamp * 1000
-	else
-		-- If the timestamp is above the threshold, assume it's already in milliseconds
-		return timestamp
-	end
-end
-
 function utils.getHashFromBase64(str)
 	local decodedHash = base64.decode(str)
 	local hashStream = crypto.utils.stream.fromString(decodedHash)

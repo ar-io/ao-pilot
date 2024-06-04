@@ -74,11 +74,11 @@ function gar.joinNetwork(from, stake, settings, observerAddress, timeStamp)
 end
 
 function gar.leaveNetwork(from, currentTimestamp, msgId)
-	if not gar.getGateway(from) then
+	local gateway = gar.getGateway(from)
+
+	if not gateway then
 		error("Gateway does not exist in the network")
 	end
-
-	local gateway = gar.getGateway(from)
 
 	if not gar.isGatewayEligibleToLeave(gateway, currentTimestamp) then
 		error("The gateway is not eligible to leave the network.")
@@ -523,30 +523,43 @@ function gar.updateSettings(newSettings)
 end
 
 function gar.pruneGateways(currentTimestamp)
-	for address, gateway in pairs(GatewayRegistry) do
-		-- first, return any expired vaults regardless of the gateway status
-		for vaultId, vault in pairs(gateway.vaults) do
-			if vault.endTimestamp <= currentTimestamp then
-				balances.increaseBalance(address, vault.balance)
-				gateway.vaults[vaultId] = nil
-			end
-		end
-		-- return any delegated vaults as well
-		for delegateAddress, delegate in pairs(gateway.delegates) do
-			for vaultId, vault in pairs(delegate.vaults) do
+	local gateways = gar.getGateways()
+	-- we take a deep copy so we can operate directly on the gateway object
+	for address, gateway in pairs(gateways) do
+		if gateway then
+			-- first, return any expired vaults regardless of the gateway status
+			for vaultId, vault in pairs(gateway.vaults) do
 				if vault.endTimestamp <= currentTimestamp then
-					balances.increaseBalance(delegateAddress, vault.balance)
-					delegate.vaults[vaultId] = nil
+					balances.increaseBalance(address, vault.balance)
+					gateway.vaults[vaultId] = nil
 				end
 			end
-		end
-		-- if gateway is joined but failed more than 3 consecutive epochs, mark it as leaving and put operator stake and delegate stakes in vaults
-		if gateway.status == "joined" and gateway.stats.failedConsecutiveEpochs >= 3 then
-			gar.leaveNetwork(address, currentTimestamp, address)
-		else
-			if gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp then
-				-- if the timestamp is after gateway end timestamp, mark the gateway as nil
-				GatewayRegistry[address] = nil
+			-- return any delegated vaults and return the stake to the delegate
+			for delegateAddress, delegate in pairs(gateway.delegates) do
+				for vaultId, vault in pairs(delegate.vaults) do
+					if vault.endTimestamp <= currentTimestamp then
+						balances.increaseBalance(delegateAddress, vault.balance)
+						delegate.vaults[vaultId] = nil
+					end
+				end
+			end
+			-- remove the delegate if all vaults are empty and the delegated stake is 0
+			for delegateAddress, delegate in pairs(gateway.delegates) do
+				if delegate.delegatedStake == 0 and next(delegate.vaults) == nil then
+					gateway.delegates[delegateAddress] = nil
+				end
+			end
+			-- update the gateway before we do anything else
+			GatewayRegistry[address] = gateway
+
+			-- if gateway is joined but failed more than 3 consecutive epochs, mark it as leaving and put operator stake and delegate stakes in vaults
+			if gateway.status == "joined" and gateway.stats.failedConsecutiveEpochs >= 3 then
+				gar.leaveNetwork(address, currentTimestamp, address)
+			else
+				if gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp then
+					-- if the timestamp is after gateway end timestamp, mark the gateway as nil
+					GatewayRegistry[address] = nil
+				end
 			end
 		end
 	end

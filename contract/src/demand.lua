@@ -57,11 +57,17 @@ function demand.isDemandIncreasing()
 	local mvgAvgOfTrailingNamePurchases = demand.mvgAvgTrailingPurchaseCounts()
 	local mvgAvgOfTrailingRevenue = demand.mvgAvgTrailingRevenues()
 
-	if settings.criteria == "revenue" then
-		return revenueInLastPeriod > 0 and revenueInLastPeriod > mvgAvgOfTrailingRevenue
-	else
-		return purchasesLastPeriod > 0 and purchasesLastPeriod > mvgAvgOfTrailingNamePurchases
-	end
+	print("purchasesLastPeriod", json.encode(purchasesLastPeriod))
+	print("revenueInLastPeriod", revenueInLastPeriod)
+	print("mvgAvgOfTrailingNamePurchases", mvgAvgOfTrailingNamePurchases)
+	print("mvgAvgOfTrailingRevenue", mvgAvgOfTrailingRevenue)
+
+	return false
+	-- if settings.criteria == "revenue" then
+	-- 	return revenueInLastPeriod > 0 and revenueInLastPeriod > mvgAvgOfTrailingRevenue
+	-- else
+	-- 	return purchasesLastPeriod > 0 and purchasesLastPeriod > mvgAvgOfTrailingNamePurchases
+	-- end
 end
 
 -- update at the end of the demand if the current timestamp results in a period greater than our current state
@@ -73,7 +79,8 @@ end
 
 function demand.updateDemandFactor(timestamp)
 	if not demand.shouldUpdateDemandFactor(timestamp) then
-		return
+		print("Not updating demand factor")
+		return -- silently return
 	end
 
 	local settings = demand.getSettings()
@@ -82,24 +89,24 @@ function demand.updateDemandFactor(timestamp)
 		local upAdjustment = settings.demandFactorUpAdjustment
 		demand.setDemandFactor(demand.getDemandFactor() * (1 + upAdjustment))
 	else
-		if demand.getDemandFactor() > settings.demandFactorMin then
-			local downAdjustment = settings.demandFactorDownAdjustment
-			local updatedDemandFactor = demand.getDemandFactor() * (1 - downAdjustment)
-			demand.setDemandFactor(updatedDemandFactor)
-		end
+		-- if demand.getDemandFactor() > settings.demandFactorMin then
+		-- 	local downAdjustment = settings.demandFactorDownAdjustment
+		-- 	local updatedDemandFactor = demand.getDemandFactor() * (1 - downAdjustment)
+		-- 	demand.setDemandFactor(updatedDemandFactor)
+		-- end
 	end
 
-	if demand.getDemandFactor() == settings.demandFactorMin then
-		if demand.getConsecutivePeriodsWithMinDemandFactor() >= settings.stepDownThreshold then
-			demand.resetConsecutivePeriodsWithMinimumDemandFactor()
-			demand.updateFees(settings.demandFactorMin)
-			demand.setDemandFactor(settings.demandFactorBaseValue)
-		else
-			demand.incrementConsecutivePeriodsWithMinDemandFactor(1)
-		end
-	end
+	-- if demand.getDemandFactor() == settings.demandFactorMin then
+	-- 	if demand.getConsecutivePeriodsWithMinDemandFactor() >= settings.stepDownThreshold then
+	-- 		demand.resetConsecutivePeriodsWithMinimumDemandFactor()
+	-- 		demand.updateFees(settings.demandFactorMin)
+	-- 		demand.setDemandFactor(settings.demandFactorBaseValue)
+	-- 	else
+	-- 		demand.incrementConsecutivePeriodsWithMinDemandFactor(1)
+	-- 	end
+	-- end
 
-	demand.incrementPeriodAndResetValues()
+	-- demand.incrementPeriodAndResetValues()
 end
 
 function demand.updateFees(multiplier)

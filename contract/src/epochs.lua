@@ -299,12 +299,14 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 	local epochIndex = epochs.getEpochIndexForTimestamp(currentTimestamp - epochSettings.durationMs) -- go back to previous epoch
 	local epoch = epochs.getEpoch(epochIndex)
 	if not next(epoch) then
-		error("Epoch does not exist: " .. epochIndex)
+		-- silently return
+		print("Not distributing rewards for last epoch.")
+		return
 	end
-	
+
 	if currentTimestamp < epoch.distributionTimestamp then
 		-- silently ignore - Distribution can only occur after the epoch has ended
-		print("Distribution can only occur after the epoch has ended", currentTimestamp, epoch.distributionTimestamp)
+		print("Distribution can only occur after the epoch has ended")
 		return
 	end
 

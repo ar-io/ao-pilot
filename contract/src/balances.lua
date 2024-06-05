@@ -9,9 +9,10 @@ local utils = require("utils")
 
 function balances.transfer(recipient, from, qty)
 	assert(type(recipient) == "string", "Recipient is required!")
-	-- TODO: assert to/from are 43 character arweave tx ids
+	assert(type(from) == "string", "From is required!")
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
+	-- assert(qty % 1 == 0, "Quantity must be an integer")
 
 	balances.reduceBalance(from, qty)
 	balances.increaseBalance(recipient, qty)

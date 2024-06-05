@@ -2,7 +2,6 @@ local gar = require("gar")
 local crypto = require("crypto.init")
 local utils = require("utils")
 local balances = require("balances")
-local json = require("json")
 local epochs = {}
 
 Epochs = Epochs
@@ -23,10 +22,11 @@ Epochs = Epochs
 
 local epochSettings = {
 	-- TODO: make these configurable
+	rewardPercentage = 0.0025, -- 0.25%
 	maxObservers = 50,
 	epochZeroStartTimestamp = 0,
 	durationMs = 60 * 1000 * 60 * 24, -- 24 hours
-	distributionDelayMs = 60 * 1000 * 2 * 15, -- 15 blocks
+	distributionDelayMs = 60 * 1000 * 2 * 15, -- 15 blocks / 30 minutes
 }
 
 function epochs.getEpochs()
@@ -312,13 +312,14 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 
 	local activeGatewayAddresses = gar.getActiveGatewaysBetweenTimestamps(epoch.startTimestamp, epoch.endTimestamp)
 	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
-	local totalRewards = balances.getBalance(ao.id)
-	local gatewayReward = math.floor(totalRewards * 0.95 / #activeGatewayAddresses)
-	local observerReward = math.floor(totalRewards * 0.05 / #prescribedObservers)
+	local totalEligibleRewards = math.floor(balances.getBalance(ao.id) * epochSettings.rewardPercentage)
+	local gatewayReward = math.floor(totalEligibleRewards * 0.95 / #activeGatewayAddresses)
+	local observerReward = math.floor(totalEligibleRewards * 0.05 / #prescribedObservers)
 
 	-- check if already distributed rewards for epoch
 	if epoch.distributions.distributionTimestamp then
-		error("Rewards already distributed for epoch: " .. epochIndex)
+		print("Rewards already distributed for epoch: " .. epochIndex)
+		return -- silently return
 	end
 
 	local epochDistributions = {}
@@ -372,23 +373,29 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			if reward > 0 then
 				-- if any delegates are present, distribute the rewards to the delegates
 				local distributedToDelegates = 0
-				local eligbibleDelegateRewards = math.floor(reward * (gateway.settings.delegateRewardRatio / 100))
+				local eligbibleDelegateRewards = math.floor(reward * (gateway.settings.delegateRewardShareRatio / 100))
 				-- use pairs as gateway.delegates is map
 				for delegateAddress, delegate in pairs(gateway.delegates) do
-					local delegateReward =
-						math.floor((delegate.delegatedStake / gateway.totalDelegatedStake) * eligbibleDelegateRewards)
-					balances.transfer(delegateAddress, ao.id, delegateReward)
-					distributedToDelegates = distributedToDelegates + delegateReward
-					epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0) + delegateReward
+					if gateway.totalDelegatedStake > 0 then
+						local delegateReward = math.floor(
+							(delegate.delegatedStake / gateway.totalDelegatedStake) * eligbibleDelegateRewards
+						)
+						balances.transfer(delegateAddress, ao.id, delegateReward)
+						distributedToDelegates = distributedToDelegates + delegateReward
+						epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0)
+							+ delegateReward
+					end
 				end
 				local remaingOperatorReward = math.floor(reward - distributedToDelegates)
-				if gateway.settings.autoStake then
-					gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
-				else
+				if remaingOperatorReward > 0 then
 					balances.transfer(gatewayAddress, ao.id, remaingOperatorReward)
+					-- transfer the rewards to the operator
+					if gateway.settings.autoStake then
+						gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
+					end
+					-- update the total distributions for the epoch
+					epochDistributions[gatewayAddress] = remaingOperatorReward
 				end
-				-- update the total distributions for the epoch
-				epochDistributions[gatewayAddress] = remaingOperatorReward
 			end
 
 			-- increment the total distributed
@@ -400,10 +407,10 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 
 	-- set the distributions for the epoch
 	epoch.distributions = {
-		totalEligible = totalRewards,
-		totalDistribution = totalDistribution,
+		totalEligibleRewards = totalEligibleRewards,
+		totalDistributedRewards = totalDistribution,
 		distributionTimestamp = currentTimestamp,
-		distributions = epochDistributions,
+		rewards = epochDistributions,
 	}
 
 	-- update the epoch

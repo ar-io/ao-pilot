@@ -43,10 +43,13 @@ const main = async () => {
                 settings: gateway.settings,
                 startTimestamp: currentBlock.timestamp * 1000 - (1000 * 60 * 60 * 24 * 30), // 30 days ago
                 status: 'joined', // only joined are migrated
-                totalDelegatedStake: 0,
+                totalDelegatedStake: Object.keys(gateway.delegates).reduce((acc: number, delegateAddress: string) => {
+                    return acc + gateway.delegates[delegateAddress].delegatedStake;
+                }, 0), // result delegates,
                 stats: {
                     totalEpochCount: 0,
                     passedEpochCount: 0,
+                    failedEpochCount: 0,
                     observedEpochCount: 0,
                     prescribedEpochCount: 0,
                     failedConsecutiveEpochs: 0,

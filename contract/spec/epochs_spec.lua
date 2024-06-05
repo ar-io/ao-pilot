@@ -10,7 +10,7 @@ local testSettings = {
 	minDelegatedStake = 100,
 	autoStake = true,
 	label = "test",
-	delegateRewardRatio = 0,
+	delegateRewardShareRatio = 0,
 }
 local startTimestamp = 0
 local protocolBalance = 500000000 * 1000000
@@ -39,6 +39,7 @@ describe("epochs", function()
 			epochZeroStartTimestamp = 0,
 			durationMs = 100,
 			distributionDelayMs = 15,
+			rewardPercentage = 0.0025, -- 0.25%
 		})
 	end)
 
@@ -383,7 +384,7 @@ describe("epochs", function()
 						autoStake = false, -- TODO: validate autostake behavior
 						label = "test",
 						properties = "",
-						delegateRewardRatio = 20,
+						delegateRewardShareRatio = 20,
 					},
 					status = "joined",
 					observerAddress = "test-observer-address-" .. i,
@@ -410,13 +411,14 @@ describe("epochs", function()
 				assert.is_true(status)
 			end
 			-- set the protocol balance to 5 million IO
-			local expectedGatewaryReward = math.floor(protocolBalance * 0.95 / 3)
-			local expectedObserverReward = math.floor(protocolBalance * 0.05 / 3)
+			local totalEligibleRewards = math.floor(protocolBalance * 0.0025)
+			local expectedGatewaryReward = math.floor(totalEligibleRewards * 0.95 / 3)
+			local expectedObserverReward = math.floor(totalEligibleRewards * 0.05 / 3)
 			-- clear the balances for the gateways
 			Balances["test-wallet-address-1"] = 0
 
 			-- distribute rewards for the epoch
-			local status, result = pcall(epochs.distributeRewardsForEpoch, epochDistributionTimestamp)
+			local status = pcall(epochs.distributeRewardsForEpoch, epochDistributionTimestamp)
 			assert.is_true(status)
 			-- gateway 1 should only get observer rewards
 			-- gateway 2 should get obesrver and gateway rewards
@@ -465,10 +467,10 @@ describe("epochs", function()
 			-- check the epoch was updated
 			local distributions = epochs.getEpoch(epochIndex).distributions
 			assert.are.same({
-				totalEligible = 500000000000000,
-				totalDistribution = (expectedGatewaryReward + expectedObserverReward) * 2,
+				totalEligibleRewards = totalEligibleRewards,
+				totalDistributedRewards = (expectedGatewaryReward + expectedObserverReward) * 2,
 				distributionTimestamp = epochDistributionTimestamp,
-				distributions = {
+				rewards = {
 					["test-wallet-address-2"] = expectedGatewaryReward + expectedObserverReward,
 					["test-wallet-address-3"] = expectedGatewaryReward + expectedObserverReward,
 				},

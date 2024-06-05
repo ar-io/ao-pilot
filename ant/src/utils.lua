@@ -30,9 +30,8 @@ function utils.isExistingActiveRecord(record)
 		return false
 	end
 
-    return true
+	return true
 end
-
 
 function utils.assertAvailableRecord(name)
 	local isActiveRecord = utils.isExistingActiveRecord(Records[name])
@@ -44,42 +43,42 @@ function utils.assertAvailableRecord(name)
 end
 
 function utils.validateUndername(name)
-    local valid = string.match(name, constants.UNDERNAME_REGEXP) ~= nil
-    if valid == false then
-        return valid, constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE
-    end
-    return valid
+	local valid = string.match(name, constants.UNDERNAME_REGEXP) ~= nil
+	if valid == false then
+		return valid, constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE
+	end
+	return valid
 end
 
 function utils.validateArweaveId(id)
-    local valid = string.match(id, constants.ARWEAVE_ID_REGEXP) ~= nil
-    if valid == false then
-        return valid, constants.INVALID_ARWEAVE_ID_MESSAGE
-    end
-    return valid
+	local valid = string.match(id, constants.ARWEAVE_ID_REGEXP) ~= nil
+	if valid == false then
+		return valid, constants.INVALID_ARWEAVE_ID_MESSAGE
+	end
+	return valid
 end
 
 function utils.validateTTLSeconds(ttl)
-    local valid = type(ttl) == 'number' and ttl >= constants.MIN_TTL_SECONDS and ttl <= constants.MAX_TTL_SECONDS
-    if valid == false then
-        return valid, constants.INVALID_TTL_MESSAGE
-    end
-    return valid
+	local valid = type(ttl) == "number" and ttl >= constants.MIN_TTL_SECONDS and ttl <= constants.MAX_TTL_SECONDS
+	if valid == false then
+		return valid, constants.INVALID_TTL_MESSAGE
+	end
+	return valid
 end
 
 function utils.validateTransfer(msg)
-    local isOwner = Balances[msg.From] ~= nil
+	local isOwner = Balances[msg.From] ~= nil
 
-    if not isOwner then
-        return false, "Sender is not the owner."
-    end
+	if not isOwner then
+		return false, "Sender is not the owner."
+	end
 end
 
 function utils.hasPermission(msg)
-    local hasPermission = Controllers[msg.From] or Balances[msg.From]
-    if not hasPermission then
-        return false, "Only controllers and owners can set controllers and records."
-    end
+	local hasPermission = Controllers[msg.From] or Balances[msg.From]
+	if not hasPermission then
+		return false, "Only controllers and owners can set controllers and records."
+	end
 end
 
 return utils

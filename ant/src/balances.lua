@@ -2,50 +2,49 @@ local utils = require(".utils")
 local json = require(".json")
 
 if not Balances then
-    Balances = {}
+	Balances = {}
 end
 
 local balances = {}
 
 function balances.info(msg)
-    utils.reply(json.encode({
-        Name = Name,
-        Ticker = Ticker,
-        TotalSupply = 1,
-        Logo = Logo,
-        Denomination = tostring(Denomination),
-    }))
+	utils.reply(json.encode({
+		Name = Name,
+		Ticker = Ticker,
+		TotalSupply = 1,
+		Logo = Logo,
+		Denomination = tostring(Denomination),
+	}))
 end
 
 function balances.transfer(msg)
-    local from = msg.Tags.From
-    local to = msg.Tags.Recipient
+	local from = msg.Tags.From
+	local to = msg.Tags.Recipient
 
-    local transferValidty, transferValidityError = utils.validateTransfer(msg)
-    if transferValidty == false then
-      return utils.reply(transferValidityError)
-    end
+	local transferValidty, transferValidityError = utils.validateTransfer(msg)
+	if transferValidty == false then
+		return utils.reply(transferValidityError)
+	end
 
-    Balances[from] = nil
-    Balances[to] = 1
+	Balances[from] = nil
+	Balances[to] = 1
 end
 
 function balances.balance(msg)
-    local address = msg.Tags.Address or msg.From
-    local balance = Balances[address]
-    if balance == nil then
-        return utils.reply("0")
-    end
-    utils.reply("1")
+	local address = msg.Tags.Address or msg.From
+	local balance = Balances[address]
+	if balance == nil then
+		return utils.reply("0")
+	end
+	utils.reply("1")
 end
 
 function balances.balances(msg)
-    utils.reply(json.encode(Balances))
+	utils.reply(json.encode(Balances))
 end
 
 function balances.mint(msg)
-    utils.reply("Minting not supported")
+	utils.reply("Minting not supported")
 end
-
 
 return balances

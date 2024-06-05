@@ -8,3 +8,8 @@ node_modules
 /lua
 /lua_modules
 /.luarocks
+wallet.json
+.DS_Store
+luacov-html
+.luacov
+*.gz

@@ -5,24 +5,21 @@ local initialize = require("ant.srcb.initialize")
 local records = require("ant.srcb.records")
 local controllers = require("ant.srcb.controllers")
 
-
 if not Name then
-    Name = "Arweave Name Token"
+	Name = "Arweave Name Token"
 end
 
 if not Ticker then
-    Ticker = "ANT"
+	Ticker = "ANT"
 end
 
 if not Logo then
-    Logo = "LOGO"
+	Logo = "LOGO"
 end
 
 if not Denomination then
-    Denomination = 1
+	Denomination = 1
 end
-
-
 
 local ActionMap = {
 	-- write

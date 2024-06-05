@@ -84,24 +84,24 @@ function demand.updateDemandFactor(timestamp)
 		local upAdjustment = settings.demandFactorUpAdjustment
 		demand.setDemandFactor(demand.getDemandFactor() * (1 + upAdjustment))
 	else
-		-- if demand.getDemandFactor() > settings.demandFactorMin then
-		-- 	local downAdjustment = settings.demandFactorDownAdjustment
-		-- 	local updatedDemandFactor = demand.getDemandFactor() * (1 - downAdjustment)
-		-- 	demand.setDemandFactor(updatedDemandFactor)
-		-- end
+		if demand.getDemandFactor() > settings.demandFactorMin then
+			local downAdjustment = settings.demandFactorDownAdjustment
+			local updatedDemandFactor = demand.getDemandFactor() * (1 - downAdjustment)
+			demand.setDemandFactor(updatedDemandFactor)
+		end
 	end
 
-	-- if demand.getDemandFactor() == settings.demandFactorMin then
-	-- 	if demand.getConsecutivePeriodsWithMinDemandFactor() >= settings.stepDownThreshold then
-	-- 		demand.resetConsecutivePeriodsWithMinimumDemandFactor()
-	-- 		demand.updateFees(settings.demandFactorMin)
-	-- 		demand.setDemandFactor(settings.demandFactorBaseValue)
-	-- 	else
-	-- 		demand.incrementConsecutivePeriodsWithMinDemandFactor(1)
-	-- 	end
-	-- end
+	if demand.getDemandFactor() == settings.demandFactorMin then
+		if demand.getConsecutivePeriodsWithMinDemandFactor() >= settings.stepDownThreshold then
+			demand.resetConsecutivePeriodsWithMinimumDemandFactor()
+			demand.updateFees(settings.demandFactorMin)
+			demand.setDemandFactor(settings.demandFactorBaseValue)
+		else
+			demand.incrementConsecutivePeriodsWithMinDemandFactor(1)
+		end
+	end
 
-	-- demand.incrementPeriodAndResetValues()
+	demand.incrementPeriodAndResetValues()
 end
 
 function demand.updateFees(multiplier)

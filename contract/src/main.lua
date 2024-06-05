@@ -597,7 +597,6 @@ Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
-
 		local gateway = gar.getGateway(msg.From)
 		if not gateway then
 			ao.send({
@@ -610,25 +609,21 @@ Handlers.add(
 
 		-- keep defaults, but update any new ones
 		local updatedSettings = {
-			label= msg.Tags.Label or gateway.settings.label,
+			label = msg.Tags.Label or gateway.settings.label,
 			note = msg.Tags.Note or gateway.settings.note,
 			fqdn = msg.Tags.FQDN or gateway.settings.fqdn,
-			port = msg.Tags.Port or gateway.settings.port,
+			port = tonumber(msg.Tags.Port) or gateway.settings.port,
 			protocol = msg.Tags.Protocol or gateway.settings.protocol,
-			allowDelegatedStaking = msg.Tags.AllowDelegatedStaking or gateway.settings.allowDelegatedStaking,
-			minDelegatedStake = msg.Tags.MinDelegatedStake or gateway.settings.minDelegatedStake,
-			delegateRewardShareRatio = msg.Tags.DelegateRewardShareRatio or gateway.settings.delegateRewardShareRatio,
-			autoStake = msg.Tags.AutoStake or gateway.settings.autoStake,
+			allowDelegatedStaking = msg.Tags.AllowDelegatedStaking == "true" or gateway.settings.allowDelegatedStaking,
+			minDelegatedStake = tonumber(msg.Tags.MinDelegatedStake) or gateway.settings.minDelegatedStake,
+			delegateRewardShareRatio = tonumber(msg.Tags.DelegateRewardShareRatio)
+				or gateway.settings.delegateRewardShareRatio,
+			properties = msg.Tags.Properties or gateway.settings.properties,
+			autoStake = msg.Tags.AutoStake == "true" or gateway.settings.autoStake,
 		}
 		local observerAddress = msg.Tags.ObserverAddress or gateway.observerAddress
-		local status, result = pcall(
-			gar.updateGatewaySettings,
-			msg.From,
-			updatedSettings,
-			observerAddress,
-			msg.Timestamp,
-			msg.Id
-		)
+		local status, result =
+			pcall(gar.updateGatewaySettings, msg.From, updatedSettings, observerAddress, msg.Timestamp, msg.Id)
 		if not status then
 			ao.send({
 				Target = msg.From,

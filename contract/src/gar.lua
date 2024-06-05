@@ -482,6 +482,7 @@ function gar.assertValidGatewayParameters(from, stake, settings, observerAddress
 	assert(type(settings.fqdn) == "string", "fqdn is required and must be a string")
 	assert(type(settings.protocol) == "string", "protocol is required and must be a string")
 	assert(type(settings.port) == "number", "port is required and must be a number")
+	assert(type(settings.properties) == "string", "properties is required and must be a string")
 	if settings.delegateRewardShareRatio ~= nil then
 		assert(type(settings.delegateRewardShareRatio) == "number", "delegateRewardShareRatio must be a number")
 	end

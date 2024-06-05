@@ -8,6 +8,7 @@ local testSettings = {
 	autoStake = true,
 	label = "test",
 	delegateRewardShareRatio = 0,
+	properties = "properties",
 }
 
 local startTimestamp = 0

@@ -319,7 +319,7 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		}
 	else
 		-- increment the existing delegate's stake
-		gateway.delegates[from].delegatedStake = gar[target].delegates[from].delegatedStake + qty
+		gateway.delegates[from].delegatedStake = gateway.delegates[from].delegatedStake + qty
 	end
 	-- Decrement the user's balance
 	balances.reduceBalance(from, qty)

@@ -139,6 +139,7 @@ function arns.getActiveArNSNamesBetweenTimestamps(startTimestamp, endTimestamp)
 			or (
 				record.type == "lease"
 				and record.endTimestamp
+				and record.startTimestamp
 				and record.startTimestamp <= startTimestamp
 				and record.endTimestamp >= endTimestamp
 			)

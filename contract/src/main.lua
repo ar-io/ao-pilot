@@ -394,7 +394,7 @@ Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.Joi
 	local observerAddress = msg.Tags.ObserverAddress or msg.Tags.From
 
 	local status, result =
-		pcall(gar.joinNetwork, msg.From, tonumber(msg.Tags.Stake), updatedSettings, observerAddress, msg.Timestamp)
+		pcall(gar.joinNetwork, msg.From, tonumber(msg.Tags.OperatorStake), updatedSettings, observerAddress, msg.Timestamp)
 	if not status then
 		ao.send({
 			Target = msg.From,
@@ -772,7 +772,7 @@ end)
 Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Tags.Timestamp or msg.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -780,13 +780,13 @@ Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), f
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Error = "Bad-Input", Action = ActionMap.PrescribedObservers },
+			Tags = { Error = "Bad-Input", Action = ActionMap.Epoch },
 			Data = tostring(inputResult),
 		})
 		return
 	end
 
-	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Tags.Timestamp or msg.Timestamp))
 	local epoch = epochs.getEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(epoch) })
 end)
@@ -799,7 +799,7 @@ end)
 Handlers.add(ActionMap.PrescribedObservers, utils.hasMatchingTag("Action", ActionMap.PrescribedObservers), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Timestamp or msg.Tags.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)

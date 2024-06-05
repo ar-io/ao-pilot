@@ -130,6 +130,25 @@ function arns.getRecord(name)
 	return records[name]
 end
 
+function arns.getActiveArNSNamesBetweenTimestamps(startTimestamp, endTimestamp)
+	local records = arns.getRecords()
+	local activeNames = {}
+	for name, record in pairs(records) do
+		if
+			record.type == "permabuy"
+			or (
+				record.type == "lease"
+				and record.endTimestamp
+				and record.startTimestamp <= startTimestamp
+				and record.endTimestamp >= endTimestamp
+			)
+		then
+			table.insert(activeNames, name)
+		end
+	end
+	return activeNames
+end
+
 function arns.getRecords()
 	local records = utils.deepCopy(NameRegistry.records)
 	return records or {}

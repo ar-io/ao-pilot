@@ -2,6 +2,8 @@ local gar = require("gar")
 local crypto = require("crypto.init")
 local utils = require("utils")
 local balances = require("balances")
+local arns = require("arns")
+local json = require("json")
 local epochs = {}
 
 Epochs = Epochs
@@ -22,6 +24,7 @@ Epochs = Epochs
 
 local epochSettings = {
 	-- TODO: make these configurable
+	prescribedNameCount = 5,
 	rewardPercentage = 0.0025, -- 0.25%
 	maxObservers = 50,
 	epochZeroStartTimestamp = 0,
@@ -83,6 +86,61 @@ function epochs.setPrescribedObserversForEpoch(epochNumber, hashchain)
 	Epochs[epochNumber] = epoch
 end
 
+function epochs.setPrescribedNamesForEpoch(epochNumber, hashchain)
+	local prescribedNames = epochs.computePrescribedNamesForEpoch(epochNumber, hashchain)
+	local epoch = epochs.getEpoch(epochNumber)
+	-- assign the prescribed names and update the epoch
+	epoch.prescribedNames = prescribedNames
+	Epochs[epochNumber] = epoch
+end
+
+function epochs.computePrescribedNamesForEpoch(epochIndex, hashchain)
+	local epochStartTimestamp, epochEndTimestamp = epochs.getEpochTimestampsForIndex(epochIndex)
+	local activeArNSNames = arns.getActiveArNSNamesBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
+
+	-- sort active records by name and hashchain
+	table.sort(activeArNSNames, function(nameA, nameB)
+		local nameAHash = utils.getHashFromBase64URL(nameA)
+		local nameBHash = utils.getHashFromBase64URL(nameB)
+		local nameAString = crypto.utils.array.toString(nameAHash)
+		local nameBString = crypto.utils.array.toString(nameBHash)
+		return nameAString < nameBString
+	end)
+
+	if #activeArNSNames < epochSettings.prescribedNameCount then
+		return activeArNSNames
+	end
+
+	local epochHash = utils.getHashFromBase64URL(hashchain)
+	local prescribedNames = {}
+	local hash = epochHash
+	while #prescribedNames < epochSettings.prescribedNameCount do
+		local hashString = crypto.utils.array.toString(hash)
+		local random = crypto.random(nil, nil, hashString) % #activeArNSNames
+
+		for i = 0, #activeArNSNames do
+			local index = (random + i) % #activeArNSNames
+			local alreadyPrescribed = utils.findInArray(prescribedNames, function(name)
+				return name == activeArNSNames[index]
+			end)
+			if not alreadyPrescribed then
+				table.insert(prescribedNames, activeArNSNames[index])
+				break
+			end
+		end
+
+		-- hash the hash to get a new hash
+		local newHash = crypto.utils.stream.fromArray(hash)
+		hash = crypto.digest.sha2_256(newHash).asBytes()
+	end
+
+	-- sort them by name
+	table.sort(prescribedNames, function(a, b)
+		return a < b
+	end)
+	return prescribedNames
+end
+
 function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	assert(epochIndex >= 0, "Epoch index must be greater than or equal to 0")
 	assert(type(hashchain) == "string", "Hashchain must be a string")
@@ -104,12 +162,12 @@ function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	end
 
 	-- the hash we will use to create entropy for prescribed observers
-	local epochHash = utils.getHashFromBase64(hashchain)
+	local epochHash = utils.getHashFromBase64URL(hashchain)
 
 	-- sort the observers using entropy from the hash chain, this will ensure that the same observers are selected for the same epoch
 	table.sort(filteredObservers, function(observerA, observerB)
-		local addressAHash = utils.getHashFromBase64(observerA.gatewayAddress .. hashchain)
-		local addressBHash = utils.getHashFromBase64(observerB.gatewayAddress .. hashchain)
+		local addressAHash = utils.getHashFromBase64URL(observerA.gatewayAddress .. hashchain)
+		local addressBHash = utils.getHashFromBase64URL(observerB.gatewayAddress .. hashchain)
 		local addressAString = crypto.utils.array.toString(addressAHash)
 		local addressBString = crypto.utils.array.toString(addressBHash)
 		return addressAString < addressBString
@@ -186,17 +244,33 @@ function epochs.createEpoch(timestamp, blockHeight, hashchain)
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
 	if next(epochs.getEpoch(epochIndex)) then
 		-- silently return
+		print("Epoch already exists for index: " .. epochIndex)
 		return
 	end
+
+	-- TODO: we may not want to create the epoch until after rewards are distributed and weights are updated
+	local prevEpochIndex = epochIndex - 1
+	local prevEpoch = epochs.getEpoch(prevEpochIndex)
+	if prevEpochIndex >= 0 and timestamp < prevEpoch.distributions.distributionTimestamp then
+		-- silently return
+		print(
+			"Distributions have not occured for the previous epoch. A new epoch will not be created until those are complete: "
+				.. prevEpochIndex
+		)
+		return
+	end
+
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
 	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
+	local prescribedNames = epochs.computePrescribedNamesForEpoch(epochIndex, hashchain)
 	local epoch = {
 		epochIndex = epochIndex,
 		startTimestamp = epochStartTimestamp,
 		endTimestamp = epochEndTimestamp,
 		distributionTimestamp = epochDistributionTimestamp,
 		prescribedObservers = prescribedObservers,
+		prescribedNames = prescribedNames,
 		observations = {
 			failureSummaries = {},
 			reports = {},

@@ -109,8 +109,8 @@ function utils.lengthOfTable(table)
 	end
 	return count
 end
-function utils.getHashFromBase64(str)
-	local decodedHash = base64.decode(str)
+function utils.getHashFromBase64URL(str)
+	local decodedHash = base64.decode(str, base64.URL_DECODER)
 	local hashStream = crypto.utils.stream.fromString(decodedHash)
 	return crypto.digest.sha2_256(hashStream).asBytes()
 end

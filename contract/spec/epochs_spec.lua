@@ -14,6 +14,8 @@ local testSettings = {
 }
 local startTimestamp = 0
 local protocolBalance = 500000000 * 1000000
+local hashchain = "NGU1fq_ssL9m6kRbRU1bqiIDBht79ckvAwRMGElkSOg" -- base64 of "some sample hash"
+
 describe("epochs", function()
 	before_each(function()
 		_G.Balances = {
@@ -34,7 +36,12 @@ describe("epochs", function()
 			},
 		}
 		_G.GatewayRegistry = {}
+		_G.NameRegistry = {
+			records = {},
+			reserved = {},
+		}
 		epochs.updateEpochSettings({
+			prescribedNameCount = 5,
 			maxObservers = 3,
 			epochZeroStartTimestamp = 0,
 			durationMs = 100,
@@ -78,7 +85,7 @@ describe("epochs", function()
 					normalizedCompositeWeight = 1,
 				},
 			}
-			local status, result = pcall(epochs.computePrescribedObserversForEpoch, 0, "stubbed-hash-chain")
+			local status, result = pcall(epochs.computePrescribedObserversForEpoch, 0, hashchain)
 			assert.is_true(status)
 			assert.are.equal(1, #result)
 			assert.are.same(expectation, result)
@@ -145,6 +152,80 @@ describe("epochs", function()
 			local status, result = pcall(epochs.computePrescribedObserversForEpoch, 0, hashchain)
 			assert.is_true(status)
 			assert.are.equal(2, #result)
+			assert.are.same(expectation, result)
+		end)
+	end)
+
+	describe("computePrescrbiedNamesForEpoch", function()
+		it("should return all eligible names if fewer than the maximum in name registry", function()
+			_G.NameRegistry.records = {
+				["arns-name-1"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-2"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+			}
+			local expectation = { "arns-name-1", "arns-name-2" }
+			local status, result = pcall(epochs.computePrescribedNamesForEpoch, 0, hashchain)
+			assert.is_true(status)
+			assert.are.equal(2, #result)
+			assert.are.same(expectation, result)
+		end)
+
+		it("should return a subset of eligible names if more than the maximum in the name registry", function()
+			_G.NameRegistry.records = {
+				["arns-name-1"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-2"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-3"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-4"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-5"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-6"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+			}
+			local expectation = { "arns-name-1", "arns-name-2", "arns-name-4", "arns-name-5", "arns-name-6" }
+			local status, result = pcall(epochs.computePrescribedNamesForEpoch, 0, hashchain)
+			assert.is_true(status)
+			assert.are.equal(5, #result)
 			assert.are.same(expectation, result)
 		end)
 	end)
@@ -330,29 +411,39 @@ describe("epochs", function()
 	end)
 
 	describe("createEpoch", function()
-		it("should create a new epoch for the given timestamp", function()
-			local timestamp = 100
-			local epochIndex = 1
-			local epochStartTimestamp = 100
-			local epochEndTimestamp = 200
-			local epochDistributionTimestamp = 215
-			local epochStartBlockHeight = 0
-			local expectation = {
-				startTimestamp = epochStartTimestamp,
-				endTimestamp = epochEndTimestamp,
-				epochIndex = epochIndex,
-				distributionTimestamp = epochDistributionTimestamp,
-				observations = {
-					failureSummaries = {},
-					reports = {},
-				},
-				prescribedObservers = {},
-				distributions = {},
-			}
-			local status, result = pcall(epochs.createEpoch, timestamp, epochStartBlockHeight, "hashchain")
-			assert.is_true(status)
-			assert.are.same(epochs.getEpoch(epochIndex), expectation)
-		end)
+		it(
+			"should create a new epoch for the given timestamp once distributions for the last epoch have occurred",
+			function()
+				local timestamp = 100
+				local epochIndex = 1
+				local epochStartTimestamp = 100
+				local epochEndTimestamp = 200
+				local epochDistributionTimestamp = 215
+				local epochStartBlockHeight = 0
+				local expectation = {
+					startTimestamp = epochStartTimestamp,
+					endTimestamp = epochEndTimestamp,
+					epochIndex = epochIndex,
+					distributionTimestamp = epochDistributionTimestamp,
+					observations = {
+						failureSummaries = {},
+						reports = {},
+					},
+					prescribedObservers = {},
+					prescribedNames = {},
+					distributions = {},
+				}
+				_G.Epochs[0].distributions = {
+					totalEligibleRewards = 0,
+					totalDistributedRewards = 0,
+					distributionTimestamp = 0,
+					rewards = {},
+				}
+				local status = pcall(epochs.createEpoch, timestamp, epochStartBlockHeight, hashchain)
+				assert.is_true(status)
+				assert.are.same(epochs.getEpoch(epochIndex), expectation)
+			end
+		)
 	end)
 
 	describe("distributeRewardsForEpoch", function()

@@ -39,9 +39,6 @@ function arns.buyRecord(name, purchaseType, years, from, timestamp, processId)
 		error("Name is reserved")
 	end
 
-	-- TODO: add back short name requirements
-	-- TODO: add permabuy requirements for names less than 12 characters
-
 	local newRecord = {
 		processId = processId,
 		startTimestamp = timestamp,
@@ -149,27 +146,26 @@ function arns.getReservedName(name)
 end
 
 function arns.modifyRecordUndernameCount(name, qty)
-	if not NameRegistry.records[name] then
+	local record = arns.getRecord(name)
+	if not record then
 		error("Name is not registered")
 	end
 	-- if qty brings it over the limit, throw error
-	if NameRegistry.records[name].undernameCount + qty > constants.MAX_ALLOWED_UNDERNAMES then
+	if record.undernameCount + qty > constants.MAX_ALLOWED_UNDERNAMES then
 		error(constants.ARNS_MAX_UNDERNAME_MESSAGE)
 	end
 
-	NameRegistry.records[name].undernameCount = NameRegistry.records[name].undernameCount + qty
+	NameRegistry.records[name].undernameCount = record.undernameCount + qty
 end
 
 function arns.modifyRecordEndTimestamp(name, newEndTimestamp)
-	if not NameRegistry.records[name] then
+	local record = arns.getRecord(name)
+	if not record then
 		error("Name is not registered")
 	end
 
 	-- if new end timestamp + existing timetamp is > 5 years throw error
-	if
-		newEndTimestamp
-		> NameRegistry.records[name].startTimestamp + constants.maxLeaseLengthYears * constants.oneYearMs
-	then
+	if newEndTimestamp > record.startTimestamp + constants.maxLeaseLengthYears * constants.oneYearMs then
 		error("Cannot extend lease beyond 5 years")
 	end
 
@@ -245,7 +241,7 @@ function arns.assertValidBuyRecord(name, years, purchaseType, processId)
 	)
 
 	-- assert purchase type if present is lease or permabuy
-	assert(purchaseType == nil or purchaseType == "lease" or purchaseType == "Lease", "PurchaseType is invalid.")
+	assert(purchaseType == nil or purchaseType == "lease" or purchaseType == "permabuy", "PurchaseType is invalid.")
 
 	-- assert processId is valid pattern
 	assert(type(processId) == "string", "ProcessId is required and must be a string.")
@@ -336,8 +332,9 @@ end
 
 -- identify any reserved names that have expired, account for a one week grace period in seconds
 function arns.pruneReservedNames(currentTimestamp)
-	for name, details in pairs(NameRegistry.reserved) do
-		if details.endTimestamp < currentTimestamp then
+	local reserved = arns.getReservedNames()
+	for name, details in pairs(reserved) do
+		if details.endTimestamp and details.endTimestamp <= currentTimestamp then
 			arns.removeReservedName(name)
 		end
 	end

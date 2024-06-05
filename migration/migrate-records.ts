@@ -68,6 +68,31 @@ const main = async () => {
         })
         console.log('Result:', res)
     }
+
+    // migrate reserved names
+    const reservedNames = await devnetContract.getArNSReservedNames({});
+    for (const [name, reservedName] of Object.entries(reservedNames)) {
+        const { message, result } = await connect(jwk)
+        const messageTxId = await message({
+            process: processId,
+            tags: [
+                { name: 'ProcessId', value: processId},
+                { name: 'Action', value: 'AddReservedName' },
+                { name: 'Name', value: name},
+            ],
+            data: JSON.stringify({
+                ...reservedName.endTimestamp ? { endTimestamp: (currentBlock.timestamp * 1000) + (1000 * 60 * 60 * 24 * 365 * 1)  }: {}, // 1 year
+                ...reservedName.target ? { target: reservedName.target }: {},
+            }),
+            signer: createDataItemSigner(jwk),
+        });
+        console.log('Sent data to process', messageTxId)
+        const res = await result({
+            message: messageTxId,
+            process: processId
+        })
+        console.log('Result:', res)
+    }
 }
 
 main()

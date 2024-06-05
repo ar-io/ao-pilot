@@ -16,9 +16,18 @@ function utils.isValidBase64Url(url)
 	local isValidBase64Url = #url == 43 and string.match(url, "^[%w-_]+$") ~= nil
 
 	if not isValidBase64Url then
-		error("processId pattern is invalid.")
+		error("String pattern is invalid.")
 	end
 	return url
+end
+
+function utils.isValidArweaveAddress(address)
+	local isValidArweaveAddress = #address == 43 and string.match(address, "^[%w-_]+$") ~= nil
+
+	if not isValidArweaveAddress then
+		error("String pattern is invalid.")
+	end
+	return address
 end
 
 function utils.validateFQDN(fqdn)
@@ -100,20 +109,6 @@ function utils.lengthOfTable(table)
 	end
 	return count
 end
-
-function utils.ensureMilliseconds(timestamp)
-	-- Assuming any timestamp before 100000000000 is in seconds
-	-- This is a heuristic approach since determining the exact unit of a timestamp can be ambiguous
-	local threshold = 100000000000
-	if timestamp < threshold then
-		-- If the timestamp is below the threshold, it's likely in seconds, so convert to milliseconds
-		return timestamp * 1000
-	else
-		-- If the timestamp is above the threshold, assume it's already in milliseconds
-		return timestamp
-	end
-end
-
 function utils.getHashFromBase64(str)
 	local decodedHash = base64.decode(str)
 	local hashStream = crypto.utils.stream.fromString(decodedHash)

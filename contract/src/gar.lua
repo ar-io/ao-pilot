@@ -1,7 +1,6 @@
 -- gar.lua
 local balances = require("balances")
 local utils = require("utils")
-local json = require("json")
 local gar = {}
 
 GatewayRegistry = GatewayRegistry or {}
@@ -74,11 +73,11 @@ function gar.joinNetwork(from, stake, settings, observerAddress, timeStamp)
 end
 
 function gar.leaveNetwork(from, currentTimestamp, msgId)
-	if not gar.getGateway(from) then
+	local gateway = gar.getGateway(from)
+
+	if not gateway then
 		error("Gateway does not exist in the network")
 	end
-
-	local gateway = gar.getGateway(from)
 
 	if not gar.isGatewayEligibleToLeave(gateway, currentTimestamp) then
 		error("The gateway is not eligible to leave the network.")
@@ -133,11 +132,13 @@ function gar.increaseOperatorStake(from, qty)
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
 
-	if gar.getGateway(from) == nil then
+	local gateway = gar.getGateway(from)
+
+	if gateway == nil then
 		error("Gateway does not exist")
 	end
 
-	if gar.getGateway(from).status == "leaving" then
+	if gateway.status == "leaving" then
 		error("Gateway is leaving the network and cannot accept additional stake.")
 	end
 
@@ -146,7 +147,9 @@ function gar.increaseOperatorStake(from, qty)
 	end
 
 	balances.reduceBalance(from, qty)
-	GatewayRegistry[from].operatorStake = gar.getGateway(from).operatorStake + qty
+	gateway.operatorStake = gateway.operatorStake + qty
+	-- update the gateway
+	GatewayRegistry[from] = gateway
 	return gar.getGateway(from)
 end
 
@@ -306,9 +309,6 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		error("Quantity must be greater than the minimum delegated stake amount.")
 	end
 
-	-- Decrement the user's balance
-	balances.reduceBalance(from, qty)
-	gateway.totalDelegatedStake = gateway.totalDelegatedStake + qty
 	-- If this delegate has staked before, update its amount, if not, create a new delegated staker
 	if existingDelegate == nil then
 		-- create the new delegate stake
@@ -319,9 +319,14 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		}
 	else
 		-- increment the existing delegate's stake
-		gateway.delegates[from].delegatedStake = gar[target].delegates[from].delegatedStake + qty
+		gateway.delegates[from].delegatedStake = gateway.delegates[from].delegatedStake + qty
 	end
-	return gateway
+	-- Decrement the user's balance
+	balances.reduceBalance(from, qty)
+	gateway.totalDelegatedStake = gateway.totalDelegatedStake + qty
+	-- update the gateway
+	GatewayRegistry[target] = gateway
+	return gar.getGateway(target)
 end
 
 function gar.getSettings()
@@ -374,17 +379,13 @@ end
 
 function gar.isGatewayEligibleToLeave(gateway, timestamp)
 	if gateway == nil then
-		return error("Gateway does not exist")
+		error("Gateway does not exist")
 	end
 	local isJoined = gar.isGatewayJoined(gateway, timestamp)
 	return isJoined
 end
 
-function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, address)
-	local gateway = gar.getGateway(address)
-	if gateway == nil then
-		return false
-	end
+function gar.isGatewayActiveBetweenTimestamps(startTimestamp, endTimestamp, gateway)
 	local didStartBeforeEpoch = gateway.startTimestamp <= startTimestamp
 	local didNotLeaveDuringEpoch = not gar.isGatewayLeaving(gateway, endTimestamp)
 	return didStartBeforeEpoch and didNotLeaveDuringEpoch
@@ -394,15 +395,15 @@ function gar.getActiveGatewaysBetweenTimestamps(startTimestamp, endtimestamp)
 	local gateways = gar.getGateways()
 	local activeGatewayAddresses = {}
 	-- use pairs as gateways is a map
-	for address, _ in pairs(gateways) do
-		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, address) then
+	for address, gateway in pairs(gateways) do
+		if gar.isGatewayActiveBetweenTimestamps(startTimestamp, endtimestamp, gateway) then
 			table.insert(activeGatewayAddresses, address)
 		end
 	end
 	return activeGatewayAddresses
 end
 
-function gar.getObserverWeightsAtTimestamp(gatewayAddresses, timestamp)
+function gar.getGatewayWeightsAtTimestamp(gatewayAddresses, timestamp)
 	local weightedObservers = {}
 	local totalCompositeWeight = 0
 
@@ -481,6 +482,7 @@ function gar.assertValidGatewayParameters(from, stake, settings, observerAddress
 	assert(type(settings.fqdn) == "string", "fqdn is required and must be a string")
 	assert(type(settings.protocol) == "string", "protocol is required and must be a string")
 	assert(type(settings.port) == "number", "port is required and must be a number")
+	assert(type(settings.properties) == "string", "properties is required and must be a string")
 	if settings.delegateRewardShareRatio ~= nil then
 		assert(type(settings.delegateRewardShareRatio) == "number", "delegateRewardShareRatio must be a number")
 	end
@@ -523,30 +525,43 @@ function gar.updateSettings(newSettings)
 end
 
 function gar.pruneGateways(currentTimestamp)
-	for address, gateway in pairs(GatewayRegistry) do
-		-- first, return any expired vaults regardless of the gateway status
-		for vaultId, vault in pairs(gateway.vaults) do
-			if vault.endTimestamp <= currentTimestamp then
-				balances.increaseBalance(address, vault.balance)
-				gateway.vaults[vaultId] = nil
-			end
-		end
-		-- return any delegated vaults as well
-		for delegateAddress, delegate in pairs(gateway.delegates) do
-			for vaultId, vault in pairs(delegate.vaults) do
+	local gateways = gar.getGateways()
+	-- we take a deep copy so we can operate directly on the gateway object
+	for address, gateway in pairs(gateways) do
+		if gateway then
+			-- first, return any expired vaults regardless of the gateway status
+			for vaultId, vault in pairs(gateway.vaults) do
 				if vault.endTimestamp <= currentTimestamp then
-					balances.increaseBalance(delegateAddress, vault.balance)
-					delegate.vaults[vaultId] = nil
+					balances.increaseBalance(address, vault.balance)
+					gateway.vaults[vaultId] = nil
 				end
 			end
-		end
-		-- if gateway is joined but failed more than 3 consecutive epochs, mark it as leaving and put operator stake and delegate stakes in vaults
-		if gateway.status == "joined" and gateway.stats.failedConsecutiveEpochs >= 3 then
-			gar.leaveNetwork(address, currentTimestamp, address)
-		else
-			if gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp then
-				-- if the timestamp is after gateway end timestamp, mark the gateway as nil
-				GatewayRegistry[address] = nil
+			-- return any delegated vaults and return the stake to the delegate
+			for delegateAddress, delegate in pairs(gateway.delegates) do
+				for vaultId, vault in pairs(delegate.vaults) do
+					if vault.endTimestamp <= currentTimestamp then
+						balances.increaseBalance(delegateAddress, vault.balance)
+						delegate.vaults[vaultId] = nil
+					end
+				end
+			end
+			-- remove the delegate if all vaults are empty and the delegated stake is 0
+			for delegateAddress, delegate in pairs(gateway.delegates) do
+				if delegate.delegatedStake == 0 and next(delegate.vaults) == nil then
+					gateway.delegates[delegateAddress] = nil
+				end
+			end
+			-- update the gateway before we do anything else
+			GatewayRegistry[address] = gateway
+
+			-- if gateway is joined but failed more than 3 consecutive epochs, mark it as leaving and put operator stake and delegate stakes in vaults
+			if gateway.status == "joined" and gateway.stats.failedConsecutiveEpochs >= 3 then
+				gar.leaveNetwork(address, currentTimestamp, address)
+			else
+				if gateway.status == "leaving" and gateway.endTimestamp <= currentTimestamp then
+					-- if the timestamp is after gateway end timestamp, mark the gateway as nil
+					GatewayRegistry[address] = nil
+				end
 			end
 		end
 	end

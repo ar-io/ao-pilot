@@ -1,6 +1,7 @@
 local epochs = require("epochs")
 local gar = require("gar")
 local balances = require("balances")
+local json = require("json")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",
@@ -9,7 +10,7 @@ local testSettings = {
 	minDelegatedStake = 100,
 	autoStake = true,
 	label = "test",
-	delegateRewardRatio = 0,
+	delegateRewardShareRatio = 0,
 }
 local startTimestamp = 0
 local protocolBalance = 500000000 * 1000000
@@ -38,6 +39,7 @@ describe("epochs", function()
 			epochZeroStartTimestamp = 0,
 			durationMs = 100,
 			distributionDelayMs = 15,
+			rewardPercentage = 0.0025, -- 0.25%
 		})
 	end)
 
@@ -269,7 +271,7 @@ describe("epochs", function()
 						observerAddress = "test-wallet-address-4",
 					},
 				}
-				Epochs[0].prescribedObservers = {
+				_G.Epochs[0].prescribedObservers = {
 					{
 						gatewayAddress = "test-wallet-address-2",
 						observerAddress = "test-wallet-address-2",
@@ -327,16 +329,18 @@ describe("epochs", function()
 		end)
 	end)
 
-	describe("createEpochForTimestamp", function()
+	describe("createEpoch", function()
 		it("should create a new epoch for the given timestamp", function()
 			local timestamp = 100
 			local epochIndex = 1
 			local epochStartTimestamp = 100
 			local epochEndTimestamp = 200
 			local epochDistributionTimestamp = 215
+			local epochStartBlockHeight = 0
 			local expectation = {
 				startTimestamp = epochStartTimestamp,
 				endTimestamp = epochEndTimestamp,
+				epochIndex = epochIndex,
 				distributionTimestamp = epochDistributionTimestamp,
 				observations = {
 					failureSummaries = {},
@@ -345,7 +349,7 @@ describe("epochs", function()
 				prescribedObservers = {},
 				distributions = {},
 			}
-			local status, result = pcall(epochs.createEpochForTimestamp, timestamp)
+			local status, result = pcall(epochs.createEpoch, timestamp, epochStartBlockHeight, "hashchain")
 			assert.is_true(status)
 			assert.are.same(epochs.getEpoch(epochIndex), expectation)
 		end)
@@ -380,7 +384,7 @@ describe("epochs", function()
 						autoStake = false, -- TODO: validate autostake behavior
 						label = "test",
 						properties = "",
-						delegateRewardRatio = 20,
+						delegateRewardShareRatio = 20,
 					},
 					status = "joined",
 					observerAddress = "test-observer-address-" .. i,
@@ -397,7 +401,7 @@ describe("epochs", function()
 			local validObservationTimestamp = epochStartTimetamp + epochs.getSettings().distributionDelayMs + 1
 			-- save observations for the epoch for last two gateways
 			for i = 2, 3 do
-				local status = pcall(
+				local status, result = pcall(
 					epochs.saveObservations,
 					"test-observer-address-" .. i,
 					"reportTxId" .. i,
@@ -407,13 +411,14 @@ describe("epochs", function()
 				assert.is_true(status)
 			end
 			-- set the protocol balance to 5 million IO
-			local expectedGatewaryReward = math.floor(protocolBalance * 0.95 / 3)
-			local expectedObserverReward = math.floor(protocolBalance * 0.05 / 3)
+			local totalEligibleRewards = math.floor(protocolBalance * 0.0025)
+			local expectedGatewaryReward = math.floor(totalEligibleRewards * 0.95 / 3)
+			local expectedObserverReward = math.floor(totalEligibleRewards * 0.05 / 3)
 			-- clear the balances for the gateways
 			Balances["test-wallet-address-1"] = 0
 
 			-- distribute rewards for the epoch
-			local status, result = pcall(epochs.distributeRewardsForEpoch, epochIndex, epochDistributionTimestamp)
+			local status = pcall(epochs.distributeRewardsForEpoch, epochDistributionTimestamp)
 			assert.is_true(status)
 			-- gateway 1 should only get observer rewards
 			-- gateway 2 should get obesrver and gateway rewards
@@ -462,10 +467,10 @@ describe("epochs", function()
 			-- check the epoch was updated
 			local distributions = epochs.getEpoch(epochIndex).distributions
 			assert.are.same({
-				totalEligible = 500000000000000,
-				totalDistribution = (expectedGatewaryReward + expectedObserverReward) * 2,
+				totalEligibleRewards = totalEligibleRewards,
+				totalDistributedRewards = (expectedGatewaryReward + expectedObserverReward) * 2,
 				distributionTimestamp = epochDistributionTimestamp,
-				distributions = {
+				rewards = {
 					["test-wallet-address-2"] = expectedGatewaryReward + expectedObserverReward,
 					["test-wallet-address-3"] = expectedGatewaryReward + expectedObserverReward,
 				},

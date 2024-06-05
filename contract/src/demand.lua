@@ -1,5 +1,6 @@
 local constants = require("constants")
 local utils = require("utils")
+local json = require("json")
 local demand = {}
 
 DemandFactor = DemandFactor
@@ -52,8 +53,8 @@ end
 function demand.isDemandIncreasing()
 	local currentPeriod = demand.getCurrentPeriod()
 	local settings = demand.getSettings()
-	local purchasesLastPeriod = demand.getTrailingPeriodPurchases()[currentPeriod]
-	local revenueInLastPeriod = demand.getTrailingPeriodRevenues()[currentPeriod]
+	local purchasesLastPeriod = demand.getTrailingPeriodPurchases()[currentPeriod] or 0
+	local revenueInLastPeriod = demand.getTrailingPeriodRevenues()[currentPeriod] or 0
 	local mvgAvgOfTrailingNamePurchases = demand.mvgAvgTrailingPurchaseCounts()
 	local mvgAvgOfTrailingRevenue = demand.mvgAvgTrailingRevenues()
 
@@ -73,7 +74,8 @@ end
 
 function demand.updateDemandFactor(timestamp)
 	if not demand.shouldUpdateDemandFactor(timestamp) then
-		return
+		print("Not updating demand factor")
+		return -- silently return
 	end
 
 	local settings = demand.getSettings()

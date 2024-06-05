@@ -563,18 +563,24 @@ Handlers.add(
 		if not inputStatus then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Delegate-Stake-Decrease" },
+				Tags = { Error = "BadInput", Action = ActionMap.DecreaseDelegateStake },
 				Data = tostring(inputResult),
 			})
 			return
 		end
 
-		local status, result =
-			pcall(gar.decreaseDelegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
+		local status, result = pcall(
+			gar.decreaseDelegateStake,
+			msg.Tags.Target,
+			msg.From,
+			tonumber(msg.Tags.Quantity),
+			msg.Timestamp,
+			msg.Id
+		)
 		if not status then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Delegate-Stake-Decrease" },
+				Tags = { Error = "GAR-Invalid-Delegate-Stake-Decrease", Action = ActionMap.DecreaseDelegateStake },
 				Data = tostring(result),
 			})
 		else

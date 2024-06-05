@@ -1,7 +1,6 @@
 -- gar.lua
 local balances = require("balances")
 local utils = require("utils")
-local json = require("json")
 local gar = {}
 
 GatewayRegistry = GatewayRegistry or {}
@@ -133,11 +132,13 @@ function gar.increaseOperatorStake(from, qty)
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
 
-	if gar.getGateway(from) == nil then
+	local gateway = gar.getGateway(from)
+
+	if gateway == nil then
 		error("Gateway does not exist")
 	end
 
-	if gar.getGateway(from).status == "leaving" then
+	if gateway.status == "leaving" then
 		error("Gateway is leaving the network and cannot accept additional stake.")
 	end
 
@@ -146,7 +147,9 @@ function gar.increaseOperatorStake(from, qty)
 	end
 
 	balances.reduceBalance(from, qty)
-	GatewayRegistry[from].operatorStake = gar.getGateway(from).operatorStake + qty
+	gateway.operatorStake = gateway.operatorStake + qty
+	-- update the gateway
+	GatewayRegistry[from] = gateway
 	return gar.getGateway(from)
 end
 
@@ -306,9 +309,6 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		error("Quantity must be greater than the minimum delegated stake amount.")
 	end
 
-	-- Decrement the user's balance
-	balances.reduceBalance(from, qty)
-	gateway.totalDelegatedStake = gateway.totalDelegatedStake + qty
 	-- If this delegate has staked before, update its amount, if not, create a new delegated staker
 	if existingDelegate == nil then
 		-- create the new delegate stake
@@ -321,7 +321,12 @@ function gar.delegateStake(from, target, qty, currentTimestamp)
 		-- increment the existing delegate's stake
 		gateway.delegates[from].delegatedStake = gar[target].delegates[from].delegatedStake + qty
 	end
-	return gateway
+	-- Decrement the user's balance
+	balances.reduceBalance(from, qty)
+	gateway.totalDelegatedStake = gateway.totalDelegatedStake + qty
+	-- update the gateway
+	GatewayRegistry[target] = gateway
+	return gar.getGateway(target)
 end
 
 function gar.getSettings()

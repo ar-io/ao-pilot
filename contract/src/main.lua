@@ -28,17 +28,25 @@ local ActionMap = {
 	-- reads
 	Info = "Info",
 	State = "State",
-	Record = "Record",
-	Records = "Records",
 	Transfer = "Transfer",
 	Balance = "Balance",
 	Balances = "Balances",
-	Gateway = "Gateway",
-	Gateways = "Gateways",
 	DemandFactor = "DemandFactor",
+	-- EPOCH READ APIS
 	Epochs = "Epochs",
 	Epoch = "Epoch",
-	PrescribedObservers = "PrescribedObservers",
+	PrescribedObservers = "EpochPrescribedObservers",
+	PrescribedNames = "EpochPrescribedNames",
+	Observations = "EpochObservations",
+	Distributions = "EpochDistributions",
+	-- NAME REGISTRY READ APIS
+	Record = "Record",
+	Records = "Records",
+	ReservedNames = "ReservedNames",
+	ReservedName = "ReservedName",
+	-- GATEWAY REGISTRY READ APIS
+	Gateway = "Gateway",
+	Gateways = "Gateways",
 	-- writes
 	CreateVault = "CreateVault",
 	VaultedTransfer = "VaultedTransfer",
@@ -508,37 +516,37 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.DelegateStake, utils.hasMatchingTag("Action", ActionMap.DelegateStake), function(msg)
-	-- local checkAssertions = function()
-	-- 	assert(utils.isValidArweaveAddress(msg.Tags.Target), "Invalid target address")
-	-- 	assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
-	-- end
+	local checkAssertions = function()
+		assert(utils.isValidArweaveAddress(msg.Tags.Target), "Invalid target address")
+		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
+	end
 
-	-- local inputStatus, inputResult = pcall(checkAssertions)
+	local inputStatus, inputResult = pcall(checkAssertions)
 
-	-- if not inputStatus then
-	-- 	ao.send({
-	-- 		Target = msg.From,
-	-- 		Tags = { Action = "GAR-Invalid-Delegate-Stake-Increase" },
-	-- 		Data = tostring(inputResult),
-	-- 	})
-	-- 	return
-	-- end
-
-	-- local status, result =
-	-- 	pcall(gar.delegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), msg.Timestamp)
-	-- // if not status then
+	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Error = "GAR-Invalid-Delegate-Stake-Increase" },
-			Data = tostring({}),
+			Tags = { Error = "Bad-Input", Action = ActionMap.DelegateStake },
+			Data = tostring(inputResult),
 		})
-	-- else
-	-- 	ao.send({
-	-- 		Target = msg.From,
-	-- 		Tags = { Action = "GAR-Delegate-Stake-Increased" },
-	-- 		Data = json.encode({}),
-	-- 	})
-	-- end
+		return
+	end
+
+	local status, result =
+		pcall(gar.delegateStake, msg.From, msg.Tags.Target, tonumber(msg.Tags.Quantity), tonumber(msg.Timestamp))
+	if not status then
+		ao.send({
+			Target = msg.From,
+			Tags = { Error = "GAR-Invalid-Delegate-Stake-Increase", Action = ActionMap.DelegateStake, Message = result },
+			Data = tostring(json.encode(result)),
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = "GAR-Delegate-Stake-Increased" },
+			Data = tostring(json.encode(result)),
+		})
+	end
 end)
 
 Handlers.add(
@@ -655,7 +663,46 @@ Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMa
 	end
 end)
 
--- -- Read-only handlers
+-- TICK HANDLER
+Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
+	local timestamp = tonumber(msg.Timestamp)
+	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
+	local previousState = {
+		Balances = utils.deepCopy(Balances),
+		Vaults = utils.deepCopy(Vaults),
+		GatewayRegistry = utils.deepCopy(GatewayRegistry),
+		NameRegistry = utils.deepCopy(NameRegistry),
+		Epochs = utils.deepCopy(Epochs),
+		DemandFactor = utils.deepCopy(DemandFactor),
+	}
+	local function tickState(timestamp)
+		arns.pruneRecords(timestamp)
+		arns.pruneReservedNames(timestamp)
+		vaults.pruneVaults(timestamp)
+		gar.pruneGateways(timestamp)
+		demand.updateDemandFactor(timestamp)
+		epochs.distributeRewardsForEpoch(timestamp)
+		epochs.createEpoch(timestamp, tonumber(msg["Block-Height"]), msg["Hash-Chain"])
+	end
+
+	local status, result = pcall(tickState, timestamp)
+	if status then
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	else
+		-- reset the state to previous state
+		Balances = previousState.Balances
+		Vaults = previousState.Vaults
+		GatewayRegistry = previousState.GatewayRegistry
+		NameRegistry = previousState.NameRegistry
+		Epochs = previousState.Epochs
+		DemandFactor = previousState.DemandFactor
+
+		ao.send({ Target = msg.From, Data = json.encode(result) })
+	end
+end)
+
+-- READ HANDLERS
+
 Handlers.add(ActionMap.Info, Handlers.utils.hasMatchingTag("Action", ActionMap.Info), function(msg)
 	ao.send({
 		Target = msg.From,
@@ -732,11 +779,24 @@ Handlers.add(ActionMap.Records, utils.hasMatchingTag("Action", ActionMap.Records
 end)
 
 Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), function(msg)
-	local epochIndex = tonumber(msg.Tags.EpochNumber)
-		or epochs.getEpochIndexFromTimestamp(tonumber(msg.Tags.Timestamp) or tonumber(msg.Timestamp))
+	-- check if the epoch number is provided, if not get the epoch number from the timestamp
+	local checkAssertions = function()
+		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+	end
+
+	local inputStatus, inputResult = pcall(checkAssertions)
+
+	if not inputStatus then
+		ao.send({
+			Target = msg.From,
+			Tags = { Error = "Bad-Input", Action = ActionMap.PrescribedObservers },
+			Data = tostring(inputResult),
+		})
+		return
+	end
+
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
 	local epoch = epochs.getEpoch(epochIndex)
-	-- add the epoch index to the epoch object
-	epoch.epochIndex = epochIndex
 	ao.send({ Target = msg.From, Data = json.encode(epoch) })
 end)
 
@@ -746,10 +806,104 @@ Handlers.add(ActionMap.Epochs, utils.hasMatchingTag("Action", ActionMap.Epochs),
 end)
 
 Handlers.add(ActionMap.PrescribedObservers, utils.hasMatchingTag("Action", ActionMap.PrescribedObservers), function(msg)
-	local epochIndex = epochs.getEpochTimestampsForIndex(msg.Timestamp)
+	-- check if the epoch number is provided, if not get the epoch number from the timestamp
+	local checkAssertions = function()
+		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+	end
+
+	local inputStatus, inputResult = pcall(checkAssertions)
+
+	if not inputStatus then
+		ao.send({
+			Target = msg.From,
+			Tags = { Error = "Bad-Input", Action = ActionMap.PrescribedObservers },
+			Data = tostring(inputResult),
+		})
+		return
+	end
+
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
 	local prescribedObservers = epochs.getPrescribedObserversForEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(prescribedObservers) })
 end)
+
+Handlers.add(ActionMap.Observations, utils.hasMatchingTag("Action", ActionMap.Observations), function(msg)
+	-- check if the epoch number is provided, if not get the epoch number from the timestamp
+	local checkAssertions = function()
+		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+	end
+
+	local inputStatus, inputResult = pcall(checkAssertions)
+
+	if not inputStatus then
+		ao.send({
+			Target = msg.From,
+			Tags = { Error = "Bad-Input", Action = ActionMap.Observations },
+			Data = tostring(inputResult),
+		})
+		return
+	end
+
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local observations = epochs.getObservationsForEpoch(epochIndex)
+	ao.send({ Target = msg.From, Data = json.encode(observations) })
+end)
+
+Handlers.add(ActionMap.PrescribedNames, utils.hasMatchingTag("Action", ActionMap.PrescribedNames), function(msg)
+	-- check if the epoch number is provided, if not get the epoch number from the timestamp
+	local checkAssertions = function()
+		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+	end
+
+	local inputStatus, inputResult = pcall(checkAssertions)
+
+	if not inputStatus then
+		ao.send({
+			Target = msg.From,
+			Tags = { Error = "Bad-Input", Action = ActionMap.PrescribedNames },
+			Data = tostring(inputResult),
+		})
+		return
+	end
+
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local prescribedNames = epochs.getPrescribedNamesForEpoch(epochIndex)
+	ao.send({ Target = msg.From, Data = json.encode(prescribedNames) })
+end)
+
+Handlers.add(ActionMap.Distributions, utils.hasMatchingTag("Action", ActionMap.Distributions), function(msg)
+	-- check if the epoch number is provided, if not get the epoch number from the timestamp
+	local checkAssertions = function()
+		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+	end
+
+	local inputStatus, inputResult = pcall(checkAssertions)
+
+	if not inputStatus then
+		ao.send({
+			Target = msg.From,
+			Tags = { Error = "Bad-Input", Action = ActionMap.Distributions },
+			Data = tostring(inputResult),
+		})
+		return
+	end
+
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local distributions = epochs.getDistributionsForEpoch(epochIndex)
+	ao.send({ Target = msg.From, Data = json.encode(distributions) })
+end)
+
+Handlers.add(ActionMap.ReservedNames, utils.hasMatchingTag("Action", ActionMap.ReservedNames), function(msg)
+	local reservedNames = arns.getReservedNames()
+	ao.send({ Target = msg.From, Data = json.encode(reservedNames) })
+end)
+
+Handlers.add(ActionMap.ReservedName, utils.hasMatchingTag("Action", ActionMap.ReservedName), function(msg)
+	local reservedName = arns.getReservedName(msg.Tags.Name)
+	ao.send({ Target = msg.From, Data = json.encode(reservedName) })
+end)
+
+-- END READ HANDLERS
 
 -- UTILITY HANDLERS USED FOR MIGRATION
 Handlers.add("addGateway", utils.hasMatchingTag("Action", "AddGateway"), function(msg)
@@ -791,41 +945,6 @@ Handlers.add("addReservedName", utils.hasMatchingTag("Action", "AddReservedName"
 	end
 end)
 
-Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
-	local timestamp = tonumber(msg.Timestamp)
-	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
-	local previousState = {
-		Balances = utils.deepCopy(Balances),
-		Vaults = utils.deepCopy(Vaults),
-		GatewayRegistry = utils.deepCopy(GatewayRegistry),
-		NameRegistry = utils.deepCopy(NameRegistry),
-		Epochs = utils.deepCopy(Epochs),
-		DemandFactor = utils.deepCopy(DemandFactor),
-	}
-	local function tickState(timestamp)
-		arns.pruneRecords(timestamp)
-		arns.pruneReservedNames(timestamp)
-		vaults.pruneVaults(timestamp)
-		gar.pruneGateways(timestamp)
-		demand.updateDemandFactor(timestamp)
-		epochs.distributeRewardsForEpoch(timestamp)
-		epochs.createEpoch(timestamp, tonumber(msg["Block-Height"]), msg["Hash-Chain"])
-	end
-
-	local status, result = pcall(tickState, timestamp)
-	if status then
-		ao.send({ Target = msg.From, Data = json.encode(result) })
-	else
-		-- reset the state to previous state
-		Balances = previousState.Balances
-		Vaults = previousState.Vaults
-		GatewayRegistry = previousState.GatewayRegistry
-		NameRegistry = previousState.NameRegistry
-		Epochs = previousState.Epochs
-		DemandFactor = previousState.DemandFactor
-
-		ao.send({ Target = msg.From, Data = json.encode(result) })
-	end
-end)
+-- END UTILITY HANDLERS USED FOR MIGRATION
 
 return process

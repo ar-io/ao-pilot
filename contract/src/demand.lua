@@ -1,5 +1,6 @@
 local constants = require("constants")
 local utils = require("utils")
+local json = require("json")
 local demand = {}
 
 DemandFactor = DemandFactor
@@ -52,22 +53,16 @@ end
 function demand.isDemandIncreasing()
 	local currentPeriod = demand.getCurrentPeriod()
 	local settings = demand.getSettings()
-	local purchasesLastPeriod = demand.getTrailingPeriodPurchases()[currentPeriod]
-	local revenueInLastPeriod = demand.getTrailingPeriodRevenues()[currentPeriod]
+	local purchasesLastPeriod = demand.getTrailingPeriodPurchases()[currentPeriod] or 0
+	local revenueInLastPeriod = demand.getTrailingPeriodRevenues()[currentPeriod] or 0
 	local mvgAvgOfTrailingNamePurchases = demand.mvgAvgTrailingPurchaseCounts()
 	local mvgAvgOfTrailingRevenue = demand.mvgAvgTrailingRevenues()
 
-	print("purchasesLastPeriod", json.encode(purchasesLastPeriod))
-	print("revenueInLastPeriod", revenueInLastPeriod)
-	print("mvgAvgOfTrailingNamePurchases", mvgAvgOfTrailingNamePurchases)
-	print("mvgAvgOfTrailingRevenue", mvgAvgOfTrailingRevenue)
-
-	return false
-	-- if settings.criteria == "revenue" then
-	-- 	return revenueInLastPeriod > 0 and revenueInLastPeriod > mvgAvgOfTrailingRevenue
-	-- else
-	-- 	return purchasesLastPeriod > 0 and purchasesLastPeriod > mvgAvgOfTrailingNamePurchases
-	-- end
+	if settings.criteria == "revenue" then
+		return revenueInLastPeriod > 0 and revenueInLastPeriod > mvgAvgOfTrailingRevenue
+	else
+		return purchasesLastPeriod > 0 and purchasesLastPeriod > mvgAvgOfTrailingNamePurchases
+	end
 end
 
 -- update at the end of the demand if the current timestamp results in a period greater than our current state

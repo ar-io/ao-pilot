@@ -95,11 +95,11 @@ Handlers.add(ActionMap.GetRecords, utils.hasMatchingTag("Action", ActionMap.GetR
 end)
 
 Handlers.add(ActionMap.SetName, utils.hasMatchingTag("Action", ActionMap.SetName), function(msg)
-	initialize.setName(msg)
+	balances.setName(msg)
 end)
 
 Handlers.add(ActionMap.SetTicker, utils.hasMatchingTag("Action", ActionMap.SetTicker), function(msg)
-	initialize.setTicker(msg)
+	balances.setTicker(msg)
 end)
 
 Handlers.add(ActionMap.InitializeState, utils.hasMatchingTag("Action", ActionMap.InitializeState), function(msg)

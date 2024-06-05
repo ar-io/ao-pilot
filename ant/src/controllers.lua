@@ -11,11 +11,15 @@ function controllers.setController(msg)
 	local controller = msg.Tags.Controller
 
 	local hasPermission, permissionErr = utils.hasPermission(msg)
-	if not hasPermission then
+	if hasPermission == false then
+		print("permissionErr", permissionErr)
 		return utils.reply(permissionErr)
 	end
-	local controllerValidity, controllerValidityError = utils.validateArweaveId(controllers)
+
+	local controllerValidity, controllerValidityError = utils.validateArweaveId(controller)
 	if controllerValidity == false then
+		print("id length" .. #controller)
+		print("controllerValidityError", controllerValidityError)
 		return utils.reply(controllerValidityError)
 	end
 

@@ -4,7 +4,7 @@ local utils = require(".utils")
 local initialize = {}
 
 function initialize.initialize(msg)
-	local state = json.decode(msg.Data)
+	local state = msg.Data and json.decode(msg.Data)
 	if not state then
 		return utils.reply("State not provided")
 	end

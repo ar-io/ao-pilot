@@ -18,7 +18,7 @@ function balances.info(msg)
 end
 
 function balances.transfer(msg)
-	local from = msg.Tags.From
+	local from = msg.From
 	local to = msg.Tags.Recipient
 
 	local transferValidty, transferValidityError = utils.validateTransfer(msg)
@@ -45,6 +45,16 @@ end
 
 function balances.mint(msg)
 	utils.reply("Minting not supported")
+end
+
+function balances.setName(msg)
+	local name = msg.Tags.Name
+	Name = name
+end
+
+function balances.setTicker(msg)
+	local ticker = msg.Tags.Ticker
+	Ticker = ticker
 end
 
 return balances

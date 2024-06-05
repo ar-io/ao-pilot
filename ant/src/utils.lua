@@ -43,7 +43,7 @@ function utils.assertAvailableRecord(name)
 end
 
 function utils.validateUndername(name)
-	local valid = string.match(name, constants.UNDERNAME_REGEXP) ~= nil
+	local valid = string.match(name, constants.UNDERNAME_REGEXP) == nil
 	if valid == false then
 		return valid, constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE
 	end
@@ -51,7 +51,7 @@ function utils.validateUndername(name)
 end
 
 function utils.validateArweaveId(id)
-	local valid = string.match(id, constants.ARWEAVE_ID_REGEXP) ~= nil
+	local valid = string.match(id, constants.ARWEAVE_ID_REGEXP) == nil
 	if valid == false then
 		return valid, constants.INVALID_ARWEAVE_ID_MESSAGE
 	end
@@ -67,9 +67,7 @@ function utils.validateTTLSeconds(ttl)
 end
 
 function utils.validateTransfer(msg)
-	local isOwner = Balances[msg.From] ~= nil
-
-	if not isOwner then
+	if not Balances[msg.From] then
 		return false, "Sender is not the owner."
 	end
 end

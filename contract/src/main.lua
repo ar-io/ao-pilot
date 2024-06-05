@@ -379,38 +379,22 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.JoinNetwork), function(msg)
-	-- assert stake is a positive number
-	assert(tonumber(msg.Tags.Stake) > 0, "Invalid stake")
-	-- assert settings is a valid table
-	assert(type(msg.Tags.Settings) == "table", "Invalid settings")
-	-- assert observer address is a valid arweave address
-	assert(utils.isValidArweaveAddress(msg.Tags.ObserverAddress), "Invalid observer address")
+	local updatedSettings = {
+		label = msg.Tags.Label,
+		note = msg.Tags.Note,
+		fqdn = msg.Tags.FQDN,
+		port = tonumber(msg.Tags.Port) or 443,
+		protocol = msg.Tags.Protocol or "https",
+		allowDelegatedStaking = msg.Tags.AllowDelegatedStaking == "true",
+		minDelegatedStake = tonumber(msg.Tags.MinDelegatedStake),
+		delegateRewardShareRatio = tonumber(msg.Tags.DelegateRewardShareRatio) or 0,
+		properties = msg.Tags.Properties or "FH1aVetOoulPGqgYukj0VE0wIhDy90WiQoV3U2PeY44",
+		autoStake = msg.Tags.AutoStake == "true",
+	}
+	local observerAddress = msg.Tags.ObserverAddress or msg.Tags.From
 
-	local checkAssertions = function()
-		assert(tonumber(msg.Tags.Stake) > 0, "Invalid stake")
-		assert(type(msg.Tags.Settings) == "table", "Invalid settings")
-		assert(utils.isValidArweaveAddress(msg.Tags.ObserverAddress), "Invalid observer address")
-	end
-
-	local inputStatus, inputResult = pcall(checkAssertions)
-
-	if not inputStatus then
-		ao.send({
-			Target = msg.From,
-			Tags = { Action = "GAR-Invalid-Network-Join" },
-			Data = tostring(inputResult),
-		})
-		return
-	end
-
-	local status, result = pcall(
-		gar.joinNetwork,
-		msg.From,
-		tonumber(msg.Tags.Stake),
-		msg.Tags.Settings,
-		msg.Tags.ObserverAddresss or msg.Tags.From,
-		msg.Timestamp
-	)
+	local status, result =
+		pcall(gar.joinNetwork, msg.From, tonumber(msg.Tags.Stake), updatedSettings, observerAddress, msg.Timestamp)
 	if not status then
 		ao.send({
 			Target = msg.From,

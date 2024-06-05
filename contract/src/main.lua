@@ -597,29 +597,35 @@ Handlers.add(
 	ActionMap.UpdateGatewaySettings,
 	utils.hasMatchingTag("Action", ActionMap.UpdateGatewaySettings),
 	function(msg)
-		local checkAssertions = function()
-			assert(type(msg.Tags.UpdatedSettings) == "table", "Invalid updated settings")
-			if msg.Tags.ObserverAddress then
-				assert(utils.isValidArweaveAddress(msg.Tags.ObserverWallet), "Invalid observer wallet")
-			end
-		end
 
-		local inputStatus, inputResult = pcall(checkAssertions)
-
-		if not inputStatus then
+		local gateway = gar.getGateway(msg.From)
+		if not gateway then
 			ao.send({
 				Target = msg.From,
 				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
-				Data = tostring(inputResult),
+				Data = "Gateway not found",
 			})
 			return
 		end
 
+		-- keep defaults, but update any new ones
+		local updatedSettings = {
+			label= msg.Tags.Label or gateway.settings.label,
+			note = msg.Tags.Note or gateway.settings.note,
+			fqdn = msg.Tags.FQDN or gateway.settings.fqdn,
+			port = msg.Tags.Port or gateway.settings.port,
+			protocol = msg.Tags.Protocol or gateway.settings.protocol,
+			allowDelegatedStaking = msg.Tags.AllowDelegatedStaking or gateway.settings.allowDelegatedStaking,
+			minDelegatedStake = msg.Tags.MinDelegatedStake or gateway.settings.minDelegatedStake,
+			delegateRewardShareRatio = msg.Tags.DelegateRewardShareRatio or gateway.settings.delegateRewardShareRatio,
+			autoStake = msg.Tags.AutoStake or gateway.settings.autoStake,
+		}
+		local observerAddress = msg.Tags.ObserverAddress or gateway.observerAddress
 		local status, result = pcall(
 			gar.updateGatewaySettings,
 			msg.From,
-			msg.Tags.UpdatedSettings,
-			msg.Tags.ObserverAddress,
+			updatedSettings,
+			observerAddress,
 			msg.Timestamp,
 			msg.Id
 		)

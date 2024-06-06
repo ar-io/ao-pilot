@@ -115,4 +115,12 @@ function utils.getHashFromBase64URL(str)
 	return crypto.digest.sha2_256(hashStream).asBytes()
 end
 
+function utils.splitString(str, delimiter)
+    local result = {}
+    for match in (str..delimiter):gmatch("(.-)"..delimiter) do
+        result[#result + 1] = match
+    end
+    return result
+end
+
 return utils

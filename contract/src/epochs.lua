@@ -66,6 +66,14 @@ function epochs.getPrescribedObserversForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).prescribedObservers or {}
 end
 
+function epochs.getObservationsForEpoch(epochNumber)
+	return epochs.getEpoch(epochNumber).observations or {}
+end
+
+function epochs.getPrescribedNamesForEpoch(epochNumber)
+	return epochs.getEpoch(epochNumber).prescribedNames or {}
+end	
+
 function epochs.getReportsForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).observations.reports or {}
 end
@@ -268,6 +276,7 @@ function epochs.createEpoch(timestamp, blockHeight, hashchain)
 		epochIndex = epochIndex,
 		startTimestamp = epochStartTimestamp,
 		endTimestamp = epochEndTimestamp,
+		startHeight = blockHeight,
 		distributionTimestamp = epochDistributionTimestamp,
 		prescribedObservers = prescribedObservers,
 		prescribedNames = prescribedNames,
@@ -281,6 +290,17 @@ function epochs.createEpoch(timestamp, blockHeight, hashchain)
 end
 
 function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddresses, timestamp)
+	-- assert report tx id is valid arweave address
+	assert(utils.isValidArweaveAddress(reportTxId), "Report transaction ID is not a valid Arweave address")
+	-- assert observer address is valid arweave address
+	assert(utils.isValidArweaveAddress(observerAddress), "Observer address is not a valid Arweave address")
+	assert(type(failedGatewayAddresses) == "table", "Failed gateway addresses is required")
+	-- assert each address in failedGatewayAddresses is a valid arweave address
+	for _, address in ipairs(failedGatewayAddresses) do
+		assert(utils.isValidArweaveAddress(address), "Failed gateway address is not a valid Arweave address")
+	end
+	assert(type(timestamp) == "number", "Timestamp is required")
+
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
@@ -323,26 +343,29 @@ function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddre
 	-- use ipairs as failedGatewayAddresses is an array
 	for _, failedGatewayAddress in ipairs(failedGatewayAddresses) do
 		local gateway = gar.getGateway(failedGatewayAddress)
-		local gatewayPresentDuringEpoch =
-			gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, gateway)
-		if gatewayPresentDuringEpoch then
-			-- if there are none, create an array
-			if epoch.observations.failureSummaries == nil then
-				epoch.observations.failureSummaries = {}
+
+		if gateway then
+			local gatewayPresentDuringEpoch =
+				gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, gateway)
+			if gatewayPresentDuringEpoch then
+				-- if there are none, create an array
+				if epoch.observations.failureSummaries == nil then
+					epoch.observations.failureSummaries = {}
+				end
+				-- Get the existing set of failed gateways for this observer
+				local observersMarkedFailed = epoch.observations.failureSummaries[failedGatewayAddress] or {}
+
+				-- if list of observers who marked failed does not continue current observer than add it
+				local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(address)
+					return address == observingGateway.observerAddress
+				end)
+
+				if not alreadyObservedIndex then
+					table.insert(observersMarkedFailed, observingGateway.observerAddress)
+				end
+
+				epoch.observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
 			end
-			-- Get the existing set of failed gateways for this observer
-			local observersMarkedFailed = epoch.observations.failureSummaries[failedGatewayAddress] or {}
-
-			-- if list of observers who marked failed does not continue current observer than add it
-			local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(address)
-				return address == observingGateway.observerAddress
-			end)
-
-			if not alreadyObservedIndex then
-				table.insert(observersMarkedFailed, observingGateway.observerAddress)
-			end
-
-			epoch.observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
 		end
 	end
 
@@ -391,7 +414,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 	local observerReward = math.floor(totalEligibleRewards * 0.05 / #prescribedObservers)
 
 	-- check if already distributed rewards for epoch
-	if epoch.distributions.distributionTimestamp then
+	if epoch.distributions.distributedTimestamp then
 		print("Rewards already distributed for epoch: " .. epochIndex)
 		return -- silently return
 	end
@@ -454,10 +477,12 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 						local delegateReward = math.floor(
 							(delegate.delegatedStake / gateway.totalDelegatedStake) * eligbibleDelegateRewards
 						)
-						balances.transfer(delegateAddress, ao.id, delegateReward)
-						distributedToDelegates = distributedToDelegates + delegateReward
-						epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0)
-							+ delegateReward
+						if delegateReward > 0 then
+							balances.transfer(delegateAddress, ao.id, delegateReward)
+							distributedToDelegates = distributedToDelegates + delegateReward
+							epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0)
+								+ delegateReward
+						end
 					end
 				end
 				local remaingOperatorReward = math.floor(reward - distributedToDelegates)
@@ -483,7 +508,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 	epoch.distributions = {
 		totalEligibleRewards = totalEligibleRewards,
 		totalDistributedRewards = totalDistribution,
-		distributionTimestamp = currentTimestamp,
+		distributedTimestamp = currentTimestamp,
 		rewards = epochDistributions,
 	}
 

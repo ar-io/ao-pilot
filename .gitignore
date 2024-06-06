@@ -13,3 +13,4 @@ wallet.json
 luacov-html
 .luacov
 *.gz
+luacov.stats.out

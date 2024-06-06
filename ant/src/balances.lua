@@ -1,9 +1,8 @@
 local utils = require(".utils")
 local json = require(".json")
 
-if not Balances then
-	Balances = {}
-end
+	Balances = Balances or {}
+
 
 local balances = {}
 
@@ -21,13 +20,18 @@ function balances.transfer(msg)
 	local from = msg.From
 	local to = msg.Tags.Recipient
 
-	local transferValidty, transferValidityError = utils.validateTransfer(msg)
-	if transferValidty == false then
-		return utils.reply(transferValidityError)
-	end
+	local ownerStatus, ownerResult = pcall(utils.validateOwner, from)
+	local recipientStatus, recipientResult = pcall(utils.validateArweaveId, to)
 
-	Balances[from] = nil
-	Balances[to] = 1
+		if not ownerStatus then
+			return utils.reply(ownerResult)
+		else if not recipientStatus then
+			return utils.reply(recipientResult)
+		else
+			Balances[from] = nil
+			Balances[to] = 1
+		end
+	end
 end
 
 function balances.balance(msg)

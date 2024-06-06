@@ -1,25 +1,17 @@
 -- Adjust package.path to include the current directory
+local json = require("json")
 local balances = require("ant.srcb.balances")
 local utils = require("ant.srcb.utils")
 local initialize = require("ant.srcb.initialize")
 local records = require("ant.srcb.records")
 local controllers = require("ant.srcb.controllers")
 
-if not Name then
-	Name = "Arweave Name Token"
-end
 
-if not Ticker then
-	Ticker = "ANT"
-end
+	Name = Name or "Arweave Name Token"
+	Ticker = Ticker or "ANT"
+	Logo = Logo or "LOGO"
+	Denomination = Denomination or 1
 
-if not Logo then
-	Logo = "LOGO"
-end
-
-if not Denomination then
-	Denomination = 1
-end
 
 local ActionMap = {
 	-- write
@@ -46,7 +38,6 @@ local TokenSpecActionMap = {
 }
 
 -- Handlers for contract functions
-
 -- TokenSpecActionMap
 Handlers.add(TokenSpecActionMap.Transfer, utils.hasMatchingTag("Action", TokenSpecActionMap.Transfer), function(msg)
 	balances.transfer(msg)
@@ -103,5 +94,7 @@ Handlers.add(ActionMap.SetTicker, utils.hasMatchingTag("Action", ActionMap.SetTi
 end)
 
 Handlers.add(ActionMap.InitializeState, utils.hasMatchingTag("Action", ActionMap.InitializeState), function(msg)
-	initialize.initializeState(msg)
+	local status, state = pcall(json.decode(msg.Data))
+	assert(status, "Invalid state provided")
+	initialize.initializeState(state.Data)
 end)

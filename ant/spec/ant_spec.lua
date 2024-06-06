@@ -47,11 +47,7 @@ describe("Arweave Name Token", function()
 	teardown(function() end)
 
 	it("Initializes the state of the process", function()
-		local encodedState = json.encode(originalState)
-		local initMsg = {
-			Data = encodedState,
-		}
-		initialize.initialize(initMsg) -- happy
+		initialize.initialize(originalState) -- happy
 
 		assert.are.same(_G.Balances, originalState.balances)
 		assert.are.same(_G.Records, originalState.records)

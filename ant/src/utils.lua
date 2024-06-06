@@ -66,10 +66,11 @@ function utils.validateTTLSeconds(ttl)
 	return valid
 end
 
-function utils.validateTransfer(msg)
-	if not Balances[msg.From] then
-		return false, "Sender is not the owner."
+function utils.validateOwner(caller)
+	if not Balances[caller] then
+		return error("Sender is not the owner.")
 	end
+	return true
 end
 
 function utils.hasPermission(msg)

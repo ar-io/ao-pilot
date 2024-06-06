@@ -1,9 +1,8 @@
 local json = require(".json")
 local utils = require(".utils")
 
-if not Controllers then
-	Controllers = {}
-end
+	Controllers = Controllers or {}
+
 
 local controllers = {}
 

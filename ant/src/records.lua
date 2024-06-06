@@ -2,9 +2,9 @@ local utils = require(".utils")
 local json = require(".json")
 local records = {}
 
-if not Records then
-	Records = {}
-end
+
+	Records = Records or {}
+
 
 function records.setRecord(msg)
 	local hasPermission, permissionErr = utils.hasPermission(msg)

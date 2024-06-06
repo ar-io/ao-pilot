@@ -1,20 +1,16 @@
-local json = require(".json")
-local utils = require(".utils")
 
 local initialize = {}
 
-function initialize.initialize(msg)
-	local state = msg.Data and json.decode(msg.Data)
-	if not state then
-		return utils.reply("State not provided")
-	end
+function initialize.initialize(state)
 
 	local name, ticker, balances, controllers, records =
 		state.name, state.ticker, state.balances, state.controllers, state.records
 
-	if not name or not ticker or not balances or not controllers or not records then
-		return utils.reply("Invalid State: state is missing required fields")
-	end
+		assert(type(name) == "string", "name must be a string")
+		assert(type(ticker) == "string", "ticker must be a string")
+		assert(type(balances) == "table", "balances must be a table")
+		assert(type(controllers) == "table", "controllers must be a table")
+		assert(type(records) == "table", "records must be a table")
 
 	Name = name
 	Ticker = ticker

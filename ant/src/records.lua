@@ -2,9 +2,7 @@ local utils = require("ant.src.utils")
 local json = require("ant.src.json")
 local records = {}
 
-
-	Records = Records or {}
-
+Records = Records or {}
 
 function records.setRecord(msg)
 	local hasPermission, permissionErr = utils.hasPermission(msg)

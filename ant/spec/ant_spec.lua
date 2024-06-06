@@ -26,13 +26,12 @@ end
 local originalState = {
 	name = "Arweave Name Token",
 	ticker = "ANT",
-	controllers = { fake_address},
+	controllers = { fake_address },
 	records = { ["@"] = { transactionId = "test", ttlSeconds = 900 } },
 	balances = { [fake_address] = 1 },
 }
 
 describe("Arweave Name Token", function()
-
 	before_each(function()
 		_G.Balances = { [fake_address] = 1 }
 		_G.Records = {}
@@ -105,8 +104,7 @@ describe("Arweave Name Token", function()
 			end
 		end
 		assert.is_false(hasController)
-	end
-	)
+	end)
 
 	it("sets a record", function()
 		-- TODO: not sure why failing,
@@ -161,6 +159,4 @@ describe("Arweave Name Token", function()
 
 		assert.are.same(_G.Ticker, newTicker)
 	end)
-
-
 end)

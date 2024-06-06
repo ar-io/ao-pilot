@@ -1,8 +1,7 @@
 local json = require("ant.src.json")
 local utils = require("ant.src.utils")
 
-	Controllers = Controllers or {}
-
+Controllers = Controllers or {}
 
 local controllers = {}
 

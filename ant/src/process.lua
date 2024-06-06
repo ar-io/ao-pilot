@@ -6,12 +6,10 @@ local initialize = require("ant.src.initialize")
 local records = require("ant.src.records")
 local controllers = require("ant.src.controllers")
 
-
-	Name = Name or "Arweave Name Token"
-	Ticker = Ticker or "ANT"
-	Logo = Logo or "LOGO"
-	Denomination = Denomination or 1
-
+Name = Name or "Arweave Name Token"
+Ticker = Ticker or "ANT"
+Logo = Logo or "LOGO"
+Denomination = Denomination or 1
 
 local ActionMap = {
 	-- write

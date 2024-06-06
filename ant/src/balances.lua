@@ -1,8 +1,7 @@
 local utils = require("ant.src.utils")
 local json = require("ant.src.json")
 
-	Balances = Balances or {}
-
+Balances = Balances or {}
 
 local balances = {}
 
@@ -23,9 +22,10 @@ function balances.transfer(msg)
 	local ownerStatus, ownerResult = pcall(utils.validateOwner, from)
 	local recipientStatus, recipientResult = pcall(utils.validateArweaveId, to)
 
-		if not ownerStatus then
-			return utils.reply(ownerResult)
-		else if not recipientStatus then
+	if not ownerStatus then
+		return utils.reply(ownerResult)
+	else
+		if not recipientStatus then
 			return utils.reply(recipientResult)
 		else
 			Balances[from] = nil

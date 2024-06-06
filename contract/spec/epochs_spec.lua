@@ -1,7 +1,7 @@
-local epochs = require("epochs")
-local gar = require("gar")
-local balances = require("balances")
-local json = require("json")
+local epochs = require("contract.src.epochs")
+local gar = require("contract.src.gar")
+local balances = require("contract.src.balances")
+
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",

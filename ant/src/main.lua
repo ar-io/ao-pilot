@@ -1,10 +1,10 @@
 -- Adjust package.path to include the current directory
-local json = require("json")
-local balances = require("ant.srcb.balances")
-local utils = require("ant.srcb.utils")
-local initialize = require("ant.srcb.initialize")
-local records = require("ant.srcb.records")
-local controllers = require("ant.srcb.controllers")
+local json = require("ant.src.json")
+local balances = require("ant.src.balances")
+local utils = require("ant.src.utils")
+local initialize = require("ant.src.initialize")
+local records = require("ant.src.records")
+local controllers = require("ant.src.controllers")
 
 
 	Name = Name or "Arweave Name Token"

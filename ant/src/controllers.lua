@@ -1,5 +1,5 @@
-local json = require(".json")
-local utils = require(".utils")
+local json = require("ant.src.json")
+local utils = require("ant.src.utils")
 
 	Controllers = Controllers or {}
 

@@ -1,5 +1,5 @@
-local vaults = require("vaults")
-local constants = require("constants")
+local vaults = require("contract.src.vaults")
+local constants = require("contract.src.constants")
 local startTimestamp = 0
 
 describe("vaults", function()

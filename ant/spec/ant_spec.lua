@@ -1,8 +1,7 @@
-local balances = require("src.balances")
-local controllers = require("src.controllers")
-local initialize = require("src.initialize")
-local records = require("src.records")
-local json = require("src.json")
+local balances = require("ant.src.balances")
+local controllers = require("ant.src.controllers")
+local initialize = require("ant.src.initialize")
+local records = require("ant.src.records")
 
 local fake_address = "1111111111111111111111111111111111111111111"
 

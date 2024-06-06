@@ -1,4 +1,4 @@
-local gar = require("gar")
+local gar = require("contract.src.gar")
 local testSettings = {
 	fqdn = "test.com",
 	protocol = "https",

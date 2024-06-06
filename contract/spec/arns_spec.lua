@@ -1,8 +1,8 @@
 local testProcessId = "NdZ3YRwMB2AMwwFYjKn1g88Y9nRybTo0qhS1ORq_E7g"
-local constants = require("constants")
-local arns = require("arns")
-local balances = require("balances")
-local demand = require("demand")
+local constants = require("contract.src.constants")
+local arns = require("contract.src.arns")
+local balances = require("contract.src.balances")
+local demand = require("contract.src.demand")
 
 describe("arns", function()
 	local timestamp = 0

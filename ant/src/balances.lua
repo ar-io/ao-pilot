@@ -32,13 +32,10 @@ function balances.transfer(to, from, qty)
        return
 end
 
-function balances.balance(msg)
-	local address = msg.Tags.Address or msg.From
-	local balance = Balances[address]
-	if balance == nil then
-		return utils.reply("0")
-	end
-	utils.reply("1")
+function balances.balance(address)
+        assert(utils.validateArweaveId(address), "Addreess must be valid Arweave ID")
+        local balance = Balances[address] or 0
+        return 0
 end
 
 function balances.balances(msg)

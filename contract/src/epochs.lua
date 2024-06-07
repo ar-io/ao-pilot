@@ -263,7 +263,7 @@ function epochs.createEpoch(timestamp, blockHeight, hashchain)
 	-- TODO: we may not want to create the epoch until after rewards are distributed and weights are updated
 	local prevEpochIndex = epochIndex - 1
 	local prevEpoch = epochs.getEpoch(prevEpochIndex)
-	if prevEpochIndex >= 0 and timestamp < prevEpoch.distributions.distributionTimestamp then
+	if prevEpochIndex >= 0 and timestamp < prevEpoch.distributions.distributedTimestamp then
 		-- silently return
 		print(
 			"Distributions have not occured for the previous epoch. A new epoch will not be created until those are complete: "
@@ -435,7 +435,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			local observersMarkedFailed = epoch.observations.failureSummaries
 					and epoch.observations.failureSummaries[gatewayAddress]
 				or {}
-			local failed = #observersMarkedFailed > (#prescribedObservers / 2)
+			local failed = #observersMarkedFailed > (#prescribedObservers / 2) -- more than 50% of observers marked as failed
 
 			-- if prescribed, we'll update the prescribed stats as well - find if the observer address is in prescribed observers
 			local observerIndex = utils.findInArray(prescribedObservers, function(prescribedObserver)
@@ -443,6 +443,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			end)
 
 			local observationSubmitted = observerIndex and epoch.observations.reports[gateway.observerAddress] ~= nil
+
 			local updatedStats = {
 				totalEpochCount = gateway.stats.totalEpochCount + 1,
 				failedEpochCount = failed and gateway.stats.failedEpochCount + 1 or gateway.stats.failedEpochCount,
@@ -472,6 +473,8 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			end
 
 			if reward > 0 then
+				-- first transfer it all to the gateway
+				balances.transfer(gatewayAddress, ao.id, reward)
 				-- if any delegates are present, distribute the rewards to the delegates
 				local distributedToDelegates = 0
 				local eligbibleDelegateRewards = math.floor(reward * (gateway.settings.delegateRewardShareRatio / 100))
@@ -482,7 +485,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 							(delegate.delegatedStake / gateway.totalDelegatedStake) * eligbibleDelegateRewards
 						)
 						if delegateReward > 0 then
-							balances.transfer(delegateAddress, ao.id, delegateReward)
+							balances.transfer(delegateAddress, gatewayAddress, delegateReward)
 							distributedToDelegates = distributedToDelegates + delegateReward
 							epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0)
 								+ delegateReward
@@ -490,15 +493,10 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 					end
 				end
 				local remaingOperatorReward = math.floor(reward - distributedToDelegates)
-				if remaingOperatorReward > 0 then
-					balances.transfer(gatewayAddress, ao.id, remaingOperatorReward)
-					-- transfer the rewards to the operator
-					if gateway.settings.autoStake then
-						gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
-					end
-					-- update the total distributions for the epoch
-					epochDistributions[gatewayAddress] = remaingOperatorReward
+				if remaingOperatorReward > 0 and gateway.settings.autoStake then
+					gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
 				end
+				epochDistributions[gatewayAddress] = remaingOperatorReward
 			end
 
 			-- increment the total distributed

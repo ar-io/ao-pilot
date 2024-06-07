@@ -669,11 +669,11 @@ Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 		DemandFactor = utils.deepCopy(DemandFactor),
 	}
 	local function tickState(timestamp)
-		arns.pruneRecords(timestamp)
-		arns.pruneReservedNames(timestamp)
-		vaults.pruneVaults(timestamp)
-		gar.pruneGateways(timestamp)
-		demand.updateDemandFactor(timestamp)
+		-- arns.pruneRecords(timestamp)
+		-- arns.pruneReservedNames(timestamp)
+		-- vaults.pruneVaults(timestamp)
+		-- gar.pruneGateways(timestamp)
+		-- demand.updateDemandFactor(timestamp)
 		epochs.distributeRewardsForEpoch(timestamp)
 		epochs.createEpoch(timestamp, tonumber(msg["Block-Height"]), msg["Hash-Chain"])
 	end

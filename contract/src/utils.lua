@@ -25,7 +25,7 @@ function utils.isValidArweaveAddress(address)
 	local isValidArweaveAddress = #address == 43 and string.match(address, "^[%w-_]+$") ~= nil
 
 	if not isValidArweaveAddress then
-		error("String pattern is invalid.")
+		error("Inavlid arweave address.")
 	end
 	return address
 end

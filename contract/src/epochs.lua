@@ -70,6 +70,10 @@ function epochs.getObservationsForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).observations or {}
 end
 
+function epochs.getDistributionsForEpoch(epochNumber)
+	return epochs.getEpoch(epochNumber).distributions or {}
+end
+
 function epochs.getPrescribedNamesForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).prescribedNames or {}
 end	

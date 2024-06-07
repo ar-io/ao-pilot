@@ -1,4 +1,4 @@
-local balances = require("contract.src.balances")
+local balances = require("src.balances")
 
 describe("balances", function()
 	before_each(function()

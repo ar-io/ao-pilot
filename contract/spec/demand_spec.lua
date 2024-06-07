@@ -1,5 +1,5 @@
-local constants = require("contract.src.constants")
-local demand = require("contract.src.demand")
+local constants = require("src.constants")
+local demand = require("src.demand")
 
 describe("demand", function()
 	before_each(function()

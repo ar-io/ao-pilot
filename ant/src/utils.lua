@@ -1,4 +1,4 @@
-local constants = require("ant.src.constants")
+local constants = require(".constants")
 local utils = {}
 
 function utils.hasMatchingTag(tag, value)

@@ -1,6 +1,6 @@
-local epochs = require("contract.src.epochs")
-local gar = require("contract.src.gar")
-local balances = require("contract.src.balances")
+local epochs = require("src.epochs")
+local gar = require("src.gar")
+local balances = require("src.balances")
 
 local testSettings = {
 	fqdn = "test.com",

@@ -1,0 +1,55 @@
+name: Test / Deploy
+
+on: [push, workflow_dispatch]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      name: Check out repository code
+
+    - name: Setup Lua
+      uses: leafo/gh-actions-lua@v10
+      with:
+        luaVersion: '5.3'  # Specify the Lua version you need
+
+    - name: Setup LuaRocks
+        
+      uses: leafo/gh-actions-luarocks@v4.3.0
+
+    - name: Install Busted
+      run: luarocks install ar-io-ao-0.1-1.rockspec
+
+    - name: Run Busted Tests
+      run: cd contract && busted .
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+    - uses: actions/checkout@v4
+      name: Check out repository code
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4.0.2
+      with:
+        node-version: '20'
+      
+    - name: Install aos
+      run: npm i -g https://get_ao.g8way.io
+
+    - name: Setup wallet
+      run: echo '${{ secrets.WALLET }}' > wallet.json
+
+    # TODO: should we deploy this way or use ao cli to deploy the module?
+    # - name: Deploy to AOS
+    #   run: aos --load contract/src/main.lua --wallet wallet.json devnet

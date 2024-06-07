@@ -1,0 +1,14 @@
+print("Loading .busted configuration...")
+return {
+    _all = {
+        verbose = true,
+        coverage = true,
+        output = "utfTerminal",
+        jobs = 4,
+    },
+    default = {
+        ROOT = {"ant"},
+        pattern = "**/*_spec.lua$",
+        helper =  "spec/setup.lua",
+    }
+}

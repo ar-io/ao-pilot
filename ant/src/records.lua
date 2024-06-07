@@ -1,5 +1,5 @@
-local utils = require("ant.src.utils")
-local json = require("ant.src.json")
+local utils = require(".utils")
+local json = require(".json")
 local records = {}
 
 Records = Records or {}

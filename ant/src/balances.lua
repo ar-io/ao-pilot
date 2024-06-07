@@ -15,23 +15,21 @@ function balances.info(msg)
 	}))
 end
 
-function balances.transfer(msg)
-	local from = msg.From
-	local to = msg.Tags.Recipient
-
-	local ownerStatus, ownerResult = pcall(utils.validateOwner, from)
-	local recipientStatus, recipientResult = pcall(utils.validateArweaveId, to)
-
-	if not ownerStatus then
-		return utils.reply(ownerResult)
-	else
-		if not recipientStatus then
-			return utils.reply(recipientResult)
-		else
-			Balances[from] = nil
-			Balances[to] = 1
-		end
-	end
+function balances.transfer(to, from, qty)
+       assert(utils.validateArweaveId, to, "Receipent must be a valid arweave address")
+       assert(utils.validateArweaveId, from, "Sender must be a valid arweave address")
+       assert(type(qty) == "number and qty > 0 and qty % 0 == 0, "Quantity must be an integer greater than 0")
+       
+       local fromBalance = Balances[from] or 0
+       local receipentBalance = Balances[recipient] or 0
+       
+       if fromBalance < qty then
+           error("Insufficient balance")
+       end
+       
+       Balances[from] = fromBalance - qty
+       Balances[recipient] = repipentBalance + qty
+       return
 end
 
 function balances.balance(msg)

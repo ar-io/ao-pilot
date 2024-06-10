@@ -13,6 +13,7 @@ Vaults = Vaults or {}
 GatewayRegistry = GatewayRegistry or {}
 NameRegistry = NameRegistry or {}
 Epochs = Epochs or {}
+LastTickedEpoch = LastTickedEpoch or 0
 
 local utils = require("utils")
 local json = require("json")
@@ -660,37 +661,44 @@ end)
 Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 	local timestamp = tonumber(msg.Timestamp)
 	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
-	local previousState = {
-		Balances = utils.deepCopy(Balances),
-		Vaults = utils.deepCopy(Vaults),
-		GatewayRegistry = utils.deepCopy(GatewayRegistry),
-		NameRegistry = utils.deepCopy(NameRegistry),
-		Epochs = utils.deepCopy(Epochs),
-		DemandFactor = utils.deepCopy(DemandFactor),
-	}
-	local function tickState(timestamp)
-		-- arns.pruneRecords(timestamp)
-		-- arns.pruneReservedNames(timestamp)
-		-- vaults.pruneVaults(timestamp)
-		-- gar.pruneGateways(timestamp)
-		-- demand.updateDemandFactor(timestamp)
+	local lastTickedEpochIndex = LastTickedEpoch
+	local currentEpochIndex = epochs.getEpochIndexForTimestamp(timestamp)
+	local function tickState(timestamp, blockHeight, hashchain)
+		arns.pruneRecords(timestamp)
+		arns.pruneReservedNames(timestamp)
+		vaults.pruneVaults(timestamp)
+		gar.pruneGateways(timestamp)
+		demand.updateDemandFactor(timestamp)
 		epochs.distributeRewardsForEpoch(timestamp)
-		epochs.createEpoch(timestamp, tonumber(msg["Block-Height"]), msg["Hash-Chain"])
+		epochs.createEpoch(timestamp, tonumber(blockHeight), hashchain)
 	end
 
-	local status, result = pcall(tickState, timestamp)
-	if status then
-		ao.send({ Target = msg.From, Data = json.encode(result) })
-	else
-		-- reset the state to previous state
-		Balances = previousState.Balances
-		Vaults = previousState.Vaults
-		GatewayRegistry = previousState.GatewayRegistry
-		NameRegistry = previousState.NameRegistry
-		Epochs = previousState.Epochs
-		DemandFactor = previousState.DemandFactor
-
-		ao.send({ Target = msg.From, Data = json.encode(result) })
+	-- tick and distribute rewards for every index between the last ticked epoch and the current epoch
+	for i = lastTickedEpochIndex + 1, currentEpochIndex do
+		local previousState = {
+			Balances = utils.deepCopy(Balances),
+			Vaults = utils.deepCopy(Vaults),
+			GatewayRegistry = utils.deepCopy(GatewayRegistry),
+			NameRegistry = utils.deepCopy(NameRegistry),
+			Epochs = utils.deepCopy(Epochs),
+			DemandFactor = utils.deepCopy(DemandFactor),
+		}
+		local _, _, epochDistributionTimestamp = epochs.getEpochTimestampsForIndex(i)
+		-- TODO: if we need to "recover" epochs, we can't rely on just the current message hashchain and block height
+		local status, result = pcall(tickState, epochDistributionTimestamp, msg["Block-Height"], msg["Hash-Chain"])
+		if status then
+			ao.send({ Target = msg.From, Data = json.encode(result) })
+			LastTickedEpoch = i -- update the last ticked state
+		else
+			-- reset the state to previous state
+			Balances = previousState.Balances
+			Vaults = previousState.Vaults
+			GatewayRegistry = previousState.GatewayRegistry
+			NameRegistry = previousState.NameRegistry
+			Epochs = previousState.Epochs
+			DemandFactor = previousState.DemandFactor
+			ao.send({ Target = msg.From, Data = json.encode(result) })
+		end
 	end
 end)
 

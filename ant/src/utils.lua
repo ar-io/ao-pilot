@@ -11,26 +11,19 @@ end
 
 function utils.validateUndername(name)
 	local valid = string.match(name, constants.UNDERNAME_REGEXP) == nil
-	if valid == false then
-		return valid, constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE
-	end
-	return valid
+
+	assert(valid == false, constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE)
 end
 
 function utils.validateArweaveId(id)
 	local valid = string.match(id, constants.ARWEAVE_ID_REGEXP) == nil
-	if valid == false then
-		return valid, constants.INVALID_ARWEAVE_ID_MESSAGE
-	end
-	return valid
+
+	assert(valid == false, constants.INVALID_ARWEAVE_ID_MESSAGE)
 end
 
 function utils.validateTTLSeconds(ttl)
 	local valid = type(ttl) == "number" and ttl >= constants.MIN_TTL_SECONDS and ttl <= constants.MAX_TTL_SECONDS
-	if valid == false then
-		return valid, constants.INVALID_TTL_MESSAGE
-	end
-	return valid
+	return assert(valid == false, constants.INVALID_TTL_MESSAGE)
 end
 
 function utils.validateOwner(caller)

@@ -6,27 +6,17 @@ Controllers = Controllers or {}
 local controllers = {}
 
 function controllers.setController(controller)
-	local controllerValidity, controllerValidityError = utils.validateArweaveId(controller)
-	if controllerValidity == false then
-		utils.reply(controllerValidityError)
-		return
-	end
+	utils.validateArweaveId(controller)
 
 	for _, c in ipairs(Controllers) do
-		if c == controller then
-			assert(c ~= controller, "Controller already exists")
-		end
+		assert(c == controller, "Controller already exists")
 	end
 
 	table.insert(Controllers, controller)
 end
 
 function controllers.removeController(controller)
-	local controllerValidity, controllerValidityError = utils.validateArweaveId(controller)
-	if controllerValidity == false then
-		return utils.reply(controllerValidityError)
-	end
-
+	utils.validateArweaveId(controller)
 	local controllerExists = false
 
 	for i, v in ipairs(Controllers) do
@@ -37,9 +27,7 @@ function controllers.removeController(controller)
 		end
 	end
 
-	if not controllerExists then
-		assert(controllerExists == true, "Controller does not exist")
-	end
+	assert(controllerExists == nil, "Controller does not exist")
 end
 
 function controllers.getControllers(msg)

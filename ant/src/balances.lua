@@ -24,7 +24,7 @@ function balances.transfer(to)
 end
 
 function balances.balance(address)
-	assert(utils.validateArweaveId(address), "Addreess must be valid Arweave ID")
+	utils.validateArweaveId(address)
 	local balance = Balances[address] or 0
 	utils.reply(tostring(balance))
 end

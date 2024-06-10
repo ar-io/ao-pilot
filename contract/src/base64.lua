@@ -132,8 +132,15 @@ function base64.makedecoder(s62, s63, spad)
 	return decoder
 end
 
-local DEFAULT_ENCODER = base64.makeencoder()
-local DEFAULT_DECODER = base64.makedecoder()
+local DEFAULT_ENCODER = base64.makeencoder("+", "/", "=")
+local URL_ENCODER = base64.makeencoder("-", "_", "=")
+local DEFAULT_DECODER = base64.makedecoder("+", "/", "=")
+local URL_DECODER = base64.makedecoder("-", "_", "=")
+
+base64.URL_ENCODER = URL_ENCODER
+base64.DEFAULT_ENCODER = base64.DEFAULT_ENCODER
+base64.URL_DECODER = URL_DECODER
+base64.DEFAULT_DECODER = DEFAULT_DECODER
 
 local char, concat = string.char, table.concat
 
@@ -198,6 +205,13 @@ function base64.decode(b64, decoder, usecaching)
 	local t, k = {}, 1
 	local n = #b64
 	local padding = b64:sub(-2) == "==" and 2 or b64:sub(-1) == "=" and 1 or 0
+
+	-- Adjust length to be a multiple of 4
+	if n % 4 ~= 0 then
+		b64 = b64 .. string.rep("=", 4 - (n % 4))
+		n = #b64
+	end
+
 	for i = 1, padding > 0 and n - 4 or n, 4 do
 		local a, b, c, d = b64:byte(i, i + 3)
 		local s

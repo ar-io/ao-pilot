@@ -25,7 +25,7 @@ function utils.isValidArweaveAddress(address)
 	local isValidArweaveAddress = #address == 43 and string.match(address, "^[%w-_]+$") ~= nil
 
 	if not isValidArweaveAddress then
-		error("String pattern is invalid.")
+		error("Inavlid arweave address.")
 	end
 	return address
 end
@@ -109,10 +109,18 @@ function utils.lengthOfTable(table)
 	end
 	return count
 end
-function utils.getHashFromBase64(str)
-	local decodedHash = base64.decode(str)
+function utils.getHashFromBase64URL(str)
+	local decodedHash = base64.decode(str, base64.URL_DECODER)
 	local hashStream = crypto.utils.stream.fromString(decodedHash)
 	return crypto.digest.sha2_256(hashStream).asBytes()
+end
+
+function utils.splitString(str, delimiter)
+    local result = {}
+    for match in (str..delimiter):gmatch("(.-)"..delimiter) do
+        result[#result + 1] = match
+    end
+    return result
 end
 
 return utils

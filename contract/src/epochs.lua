@@ -2,6 +2,8 @@ local gar = require("gar")
 local crypto = require("crypto.init")
 local utils = require("utils")
 local balances = require("balances")
+local arns = require("arns")
+local json = require("json")
 local epochs = {}
 
 Epochs = Epochs
@@ -22,6 +24,7 @@ Epochs = Epochs
 
 local epochSettings = {
 	-- TODO: make these configurable
+	prescribedNameCount = 5,
 	rewardPercentage = 0.0025, -- 0.25%
 	maxObservers = 50,
 	epochZeroStartTimestamp = 0,
@@ -63,6 +66,18 @@ function epochs.getPrescribedObserversForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).prescribedObservers or {}
 end
 
+function epochs.getObservationsForEpoch(epochNumber)
+	return epochs.getEpoch(epochNumber).observations or {}
+end
+
+function epochs.getDistributionsForEpoch(epochNumber)
+	return epochs.getEpoch(epochNumber).distributions or {}
+end
+
+function epochs.getPrescribedNamesForEpoch(epochNumber)
+	return epochs.getEpoch(epochNumber).prescribedNames or {}
+end	
+
 function epochs.getReportsForEpoch(epochNumber)
 	return epochs.getEpoch(epochNumber).observations.reports or {}
 end
@@ -81,6 +96,61 @@ function epochs.setPrescribedObserversForEpoch(epochNumber, hashchain)
 	-- assign the prescribed observers and update the epoch
 	epoch.prescribedObservers = prescribedObservers
 	Epochs[epochNumber] = epoch
+end
+
+function epochs.setPrescribedNamesForEpoch(epochNumber, hashchain)
+	local prescribedNames = epochs.computePrescribedNamesForEpoch(epochNumber, hashchain)
+	local epoch = epochs.getEpoch(epochNumber)
+	-- assign the prescribed names and update the epoch
+	epoch.prescribedNames = prescribedNames
+	Epochs[epochNumber] = epoch
+end
+
+function epochs.computePrescribedNamesForEpoch(epochIndex, hashchain)
+	local epochStartTimestamp, epochEndTimestamp = epochs.getEpochTimestampsForIndex(epochIndex)
+	local activeArNSNames = arns.getActiveArNSNamesBetweenTimestamps(epochStartTimestamp, epochEndTimestamp)
+
+	-- sort active records by name and hashchain
+	table.sort(activeArNSNames, function(nameA, nameB)
+		local nameAHash = utils.getHashFromBase64URL(nameA)
+		local nameBHash = utils.getHashFromBase64URL(nameB)
+		local nameAString = crypto.utils.array.toString(nameAHash)
+		local nameBString = crypto.utils.array.toString(nameBHash)
+		return nameAString < nameBString
+	end)
+
+	if #activeArNSNames < epochSettings.prescribedNameCount then
+		return activeArNSNames
+	end
+
+	local epochHash = utils.getHashFromBase64URL(hashchain)
+	local prescribedNames = {}
+	local hash = epochHash
+	while #prescribedNames < epochSettings.prescribedNameCount do
+		local hashString = crypto.utils.array.toString(hash)
+		local random = crypto.random(nil, nil, hashString) % #activeArNSNames
+
+		for i = 0, #activeArNSNames do
+			local index = (random + i) % #activeArNSNames
+			local alreadyPrescribed = utils.findInArray(prescribedNames, function(name)
+				return name == activeArNSNames[index]
+			end)
+			if not alreadyPrescribed then
+				table.insert(prescribedNames, activeArNSNames[index])
+				break
+			end
+		end
+
+		-- hash the hash to get a new hash
+		local newHash = crypto.utils.stream.fromArray(hash)
+		hash = crypto.digest.sha2_256(newHash).asBytes()
+	end
+
+	-- sort them by name
+	table.sort(prescribedNames, function(a, b)
+		return a < b
+	end)
+	return prescribedNames
 end
 
 function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
@@ -104,12 +174,12 @@ function epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
 	end
 
 	-- the hash we will use to create entropy for prescribed observers
-	local epochHash = utils.getHashFromBase64(hashchain)
+	local epochHash = utils.getHashFromBase64URL(hashchain)
 
 	-- sort the observers using entropy from the hash chain, this will ensure that the same observers are selected for the same epoch
 	table.sort(filteredObservers, function(observerA, observerB)
-		local addressAHash = utils.getHashFromBase64(observerA.gatewayAddress .. hashchain)
-		local addressBHash = utils.getHashFromBase64(observerB.gatewayAddress .. hashchain)
+		local addressAHash = utils.getHashFromBase64URL(observerA.gatewayAddress .. hashchain)
+		local addressBHash = utils.getHashFromBase64URL(observerB.gatewayAddress .. hashchain)
 		local addressAString = crypto.utils.array.toString(addressAHash)
 		local addressBString = crypto.utils.array.toString(addressBHash)
 		return addressAString < addressBString
@@ -186,17 +256,34 @@ function epochs.createEpoch(timestamp, blockHeight, hashchain)
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
 	if next(epochs.getEpoch(epochIndex)) then
 		-- silently return
+		print("Epoch already exists for index: " .. epochIndex)
 		return
 	end
+
+	-- TODO: we may not want to create the epoch until after rewards are distributed and weights are updated
+	local prevEpochIndex = epochIndex - 1
+	local prevEpoch = epochs.getEpoch(prevEpochIndex)
+	if prevEpochIndex >= 0 and timestamp < prevEpoch.distributions.distributedTimestamp then
+		-- silently return
+		print(
+			"Distributions have not occured for the previous epoch. A new epoch will not be created until those are complete: "
+				.. prevEpochIndex
+		)
+		return
+	end
+
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
 	local prescribedObservers = epochs.computePrescribedObserversForEpoch(epochIndex, hashchain)
+	local prescribedNames = epochs.computePrescribedNamesForEpoch(epochIndex, hashchain)
 	local epoch = {
 		epochIndex = epochIndex,
 		startTimestamp = epochStartTimestamp,
 		endTimestamp = epochEndTimestamp,
+		startHeight = blockHeight,
 		distributionTimestamp = epochDistributionTimestamp,
 		prescribedObservers = prescribedObservers,
+		prescribedNames = prescribedNames,
 		observations = {
 			failureSummaries = {},
 			reports = {},
@@ -207,6 +294,17 @@ function epochs.createEpoch(timestamp, blockHeight, hashchain)
 end
 
 function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddresses, timestamp)
+	-- assert report tx id is valid arweave address
+	assert(utils.isValidArweaveAddress(reportTxId), "Report transaction ID is not a valid Arweave address")
+	-- assert observer address is valid arweave address
+	assert(utils.isValidArweaveAddress(observerAddress), "Observer address is not a valid Arweave address")
+	assert(type(failedGatewayAddresses) == "table", "Failed gateway addresses is required")
+	-- assert each address in failedGatewayAddresses is a valid arweave address
+	for _, address in ipairs(failedGatewayAddresses) do
+		assert(utils.isValidArweaveAddress(address), "Failed gateway address is not a valid Arweave address")
+	end
+	assert(type(timestamp) == "number", "Timestamp is required")
+
 	local epochIndex = epochs.getEpochIndexForTimestamp(timestamp)
 	local epochStartTimestamp, epochEndTimestamp, epochDistributionTimestamp =
 		epochs.getEpochTimestampsForIndex(epochIndex)
@@ -249,26 +347,29 @@ function epochs.saveObservations(observerAddress, reportTxId, failedGatewayAddre
 	-- use ipairs as failedGatewayAddresses is an array
 	for _, failedGatewayAddress in ipairs(failedGatewayAddresses) do
 		local gateway = gar.getGateway(failedGatewayAddress)
-		local gatewayPresentDuringEpoch =
-			gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, gateway)
-		if gatewayPresentDuringEpoch then
-			-- if there are none, create an array
-			if epoch.observations.failureSummaries == nil then
-				epoch.observations.failureSummaries = {}
+
+		if gateway then
+			local gatewayPresentDuringEpoch =
+				gar.isGatewayActiveBetweenTimestamps(epochStartTimestamp, epochEndTimestamp, gateway)
+			if gatewayPresentDuringEpoch then
+				-- if there are none, create an array
+				if epoch.observations.failureSummaries == nil then
+					epoch.observations.failureSummaries = {}
+				end
+				-- Get the existing set of failed gateways for this observer
+				local observersMarkedFailed = epoch.observations.failureSummaries[failedGatewayAddress] or {}
+
+				-- if list of observers who marked failed does not continue current observer than add it
+				local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(address)
+					return address == observingGateway.observerAddress
+				end)
+
+				if not alreadyObservedIndex then
+					table.insert(observersMarkedFailed, observingGateway.observerAddress)
+				end
+
+				epoch.observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
 			end
-			-- Get the existing set of failed gateways for this observer
-			local observersMarkedFailed = epoch.observations.failureSummaries[failedGatewayAddress] or {}
-
-			-- if list of observers who marked failed does not continue current observer than add it
-			local alreadyObservedIndex = utils.findInArray(observersMarkedFailed, function(address)
-				return address == observingGateway.observerAddress
-			end)
-
-			if not alreadyObservedIndex then
-				table.insert(observersMarkedFailed, observingGateway.observerAddress)
-			end
-
-			epoch.observations.failureSummaries[failedGatewayAddress] = observersMarkedFailed
 		end
 	end
 
@@ -317,7 +418,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 	local observerReward = math.floor(totalEligibleRewards * 0.05 / #prescribedObservers)
 
 	-- check if already distributed rewards for epoch
-	if epoch.distributions.distributionTimestamp then
+	if epoch.distributions.distributedTimestamp then
 		print("Rewards already distributed for epoch: " .. epochIndex)
 		return -- silently return
 	end
@@ -334,7 +435,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			local observersMarkedFailed = epoch.observations.failureSummaries
 					and epoch.observations.failureSummaries[gatewayAddress]
 				or {}
-			local failed = #observersMarkedFailed > (#prescribedObservers / 2)
+			local failed = #observersMarkedFailed > (#prescribedObservers / 2) -- more than 50% of observers marked as failed
 
 			-- if prescribed, we'll update the prescribed stats as well - find if the observer address is in prescribed observers
 			local observerIndex = utils.findInArray(prescribedObservers, function(prescribedObserver)
@@ -342,6 +443,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			end)
 
 			local observationSubmitted = observerIndex and epoch.observations.reports[gateway.observerAddress] ~= nil
+
 			local updatedStats = {
 				totalEpochCount = gateway.stats.totalEpochCount + 1,
 				failedEpochCount = failed and gateway.stats.failedEpochCount + 1 or gateway.stats.failedEpochCount,
@@ -371,6 +473,8 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 			end
 
 			if reward > 0 then
+				-- first transfer it all to the gateway
+				balances.transfer(gatewayAddress, ao.id, reward)
 				-- if any delegates are present, distribute the rewards to the delegates
 				local distributedToDelegates = 0
 				local eligbibleDelegateRewards = math.floor(reward * (gateway.settings.delegateRewardShareRatio / 100))
@@ -380,22 +484,19 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 						local delegateReward = math.floor(
 							(delegate.delegatedStake / gateway.totalDelegatedStake) * eligbibleDelegateRewards
 						)
-						balances.transfer(delegateAddress, ao.id, delegateReward)
-						distributedToDelegates = distributedToDelegates + delegateReward
-						epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0)
-							+ delegateReward
+						if delegateReward > 0 then
+							balances.transfer(delegateAddress, gatewayAddress, delegateReward)
+							distributedToDelegates = distributedToDelegates + delegateReward
+							epochDistributions[delegateAddress] = (epochDistributions[delegateAddress] or 0)
+								+ delegateReward
+						end
 					end
 				end
 				local remaingOperatorReward = math.floor(reward - distributedToDelegates)
-				if remaingOperatorReward > 0 then
-					balances.transfer(gatewayAddress, ao.id, remaingOperatorReward)
-					-- transfer the rewards to the operator
-					if gateway.settings.autoStake then
-						gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
-					end
-					-- update the total distributions for the epoch
-					epochDistributions[gatewayAddress] = remaingOperatorReward
+				if remaingOperatorReward > 0 and gateway.settings.autoStake then
+					gar.increaseOperatorStake(gatewayAddress, remaingOperatorReward)
 				end
+				epochDistributions[gatewayAddress] = remaingOperatorReward
 			end
 
 			-- increment the total distributed
@@ -409,7 +510,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 	epoch.distributions = {
 		totalEligibleRewards = totalEligibleRewards,
 		totalDistributedRewards = totalDistribution,
-		distributionTimestamp = currentTimestamp,
+		distributedTimestamp = currentTimestamp,
 		rewards = epochDistributions,
 	}
 

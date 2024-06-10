@@ -14,11 +14,13 @@ local testSettings = {
 }
 local startTimestamp = 0
 local protocolBalance = 500000000 * 1000000
+local hashchain = "NGU1fq_ssL9m6kRbRU1bqiIDBht79ckvAwRMGElkSOg" -- base64 of "some sample hash"
+
 describe("epochs", function()
 	before_each(function()
 		_G.Balances = {
 			[ao.id] = protocolBalance,
-			["test-wallet-address-1"] = 500000000,
+			["test-this-is-valid-arweave-wallet-address-1"] = 500000000,
 		}
 		_G.Epochs = {
 			[0] = {
@@ -34,7 +36,12 @@ describe("epochs", function()
 			},
 		}
 		_G.GatewayRegistry = {}
+		_G.NameRegistry = {
+			records = {},
+			reserved = {},
+		}
 		epochs.updateEpochSettings({
+			prescribedNameCount = 5,
 			maxObservers = 3,
 			epochZeroStartTimestamp = 0,
 			durationMs = 100,
@@ -45,7 +52,7 @@ describe("epochs", function()
 
 	describe("computePrescribedObserversForEpoch", function()
 		it("should return all eligible gateways if fewer than the maximum in network", function()
-			GatewayRegistry["test-wallet-address-1"] = {
+			GatewayRegistry["test-this-is-valid-arweave-wallet-address-1"] = {
 				operatorStake = gar.getSettings().operators.minStake,
 				totalDelegatedStake = 0,
 				vaults = {},
@@ -66,7 +73,7 @@ describe("epochs", function()
 			}
 			local expectation = {
 				{
-					gatewayAddress = "test-wallet-address-1",
+					gatewayAddress = "test-this-is-valid-arweave-wallet-address-1",
 					observerAddress = "observerAddress",
 					stake = gar.getSettings().operators.minStake,
 					startTimestamp = startTimestamp,
@@ -78,7 +85,7 @@ describe("epochs", function()
 					normalizedCompositeWeight = 1,
 				},
 			}
-			local status, result = pcall(epochs.computePrescribedObserversForEpoch, 0, "stubbed-hash-chain")
+			local status, result = pcall(epochs.computePrescribedObserversForEpoch, 0, hashchain)
 			assert.is_true(status)
 			assert.are.equal(1, #result)
 			assert.are.same(expectation, result)
@@ -149,29 +156,103 @@ describe("epochs", function()
 		end)
 	end)
 
+	describe("computePrescrbiedNamesForEpoch", function()
+		it("should return all eligible names if fewer than the maximum in name registry", function()
+			_G.NameRegistry.records = {
+				["arns-name-1"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-2"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+			}
+			local expectation = { "arns-name-1", "arns-name-2" }
+			local status, result = pcall(epochs.computePrescribedNamesForEpoch, 0, hashchain)
+			assert.is_true(status)
+			assert.are.equal(2, #result)
+			assert.are.same(expectation, result)
+		end)
+
+		it("should return a subset of eligible names if more than the maximum in the name registry", function()
+			_G.NameRegistry.records = {
+				["arns-name-1"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-2"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-3"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-4"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-5"] = {
+					startTimestamp = startTimestamp,
+					type = "permabuy",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+				["arns-name-6"] = {
+					startTimestamp = startTimestamp,
+					endTimestamp = startTimestamp + 60 * 1000 * 60 * 24 * 365, -- add a year
+					type = "lease",
+					purchasePrice = 0,
+					undernameLimit = 10,
+				},
+			}
+			local expectation = { "arns-name-1", "arns-name-2", "arns-name-4", "arns-name-5", "arns-name-6" }
+			local status, result = pcall(epochs.computePrescribedNamesForEpoch, 0, hashchain)
+			assert.is_true(status)
+			assert.are.equal(5, #result)
+			assert.are.same(expectation, result)
+		end)
+	end)
+
 	describe("saveObservations", function()
 		it("should throw an error when saving observation too early in the epoch", function()
-			local observer = "test-wallet-address-2"
-			local reportTxId = "reportTxId"
+			local observer = "test-this-is-valid-arweave-wallet-address-2"
+			local reportTxId = "test-this-very-valid-observations-report-tx"
 			local timestamp = 1
 			local failedGateways = {
-				"test-wallet-address-1",
+				"test-this-is-valid-arweave-wallet-address-1",
 			}
 			local status, error = pcall(epochs.saveObservations, observer, reportTxId, failedGateways, timestamp)
 			assert.is_false(status)
 			assert.match("Observations for the current epoch cannot be submitted before", error)
 		end)
 		it("should throw an error if the caller is not prescribed", function()
-			local observer = "test-wallet-address-2"
-			local reportTxId = "reportTxId"
+			local observer = "test-this-is-valid-arweave-wallet-address-2"
+			local reportTxId = "test-this-very-valid-observations-report-tx"
 			local timestamp = epochs.getSettings().distributionDelayMs + 1
 			local failedGateways = {
-				"test-wallet-address-1",
+				"test-this-is-valid-arweave-wallet-address-1",
 			}
 			Epochs[0].prescribedObservers = {
 				{
-					gatewayAddress = "test-wallet-address-1",
-					observerAddress = "test-wallet-address-1",
+					gatewayAddress = "test-this-is-valid-arweave-wallet-address-1",
+					observerAddress = "test-this-is-valid-arweave-wallet-address-1",
 					stake = gar.getSettings().operators.minStake,
 					startTimestamp = startTimestamp,
 					stakeWeight = 1,
@@ -189,11 +270,11 @@ describe("epochs", function()
 		it(
 			"should save observation when the timestamp is after the distribution delay and only mark gateways around during the full epoch as failed",
 			function()
-				local observer = "test-wallet-address-2"
-				local reportTxId = "reportTxId"
+				local observer = "test-this-is-valid-arweave-wallet-address-2"
+				local reportTxId = "test-this-very-valid-observations-report-tx"
 				local timestamp = epochs.getSettings().distributionDelayMs + 1
 				_G.GatewayRegistry = {
-					["test-wallet-address-1"] = {
+					["test-this-is-valid-arweave-wallet-address-1"] = {
 						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
@@ -210,9 +291,9 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "joined",
-						observerAddress = "test-wallet-address-1",
+						observerAddress = "test-this-is-valid-arweave-wallet-address-1",
 					},
-					["test-wallet-address-2"] = {
+					["test-this-is-valid-arweave-wallet-address-2"] = {
 						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
@@ -229,9 +310,9 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "joined",
-						observerAddress = "test-wallet-address-2",
+						observerAddress = "test-this-is-valid-arweave-wallet-address-2",
 					},
-					["test-wallet-address-3"] = {
+					["test-this-is-valid-arweave-wallet-address-3"] = {
 						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
@@ -248,9 +329,9 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "joined",
-						observerAddress = "test-wallet-address-3",
+						observerAddress = "test-this-is-valid-arweave-wallet-address-3",
 					},
-					["test-wallet-address-4"] = {
+					["test-this-is-valid-arweave-wallet-address-4"] = {
 						operatorStake = gar.getSettings().operators.minStake,
 						totalDelegatedStake = 0,
 						vaults = {},
@@ -268,13 +349,13 @@ describe("epochs", function()
 						},
 						settings = testSettings,
 						status = "leaving",
-						observerAddress = "test-wallet-address-4",
+						observerAddress = "test-this-is-valid-arweave-wallet-address-4",
 					},
 				}
 				_G.Epochs[0].prescribedObservers = {
 					{
-						gatewayAddress = "test-wallet-address-2",
-						observerAddress = "test-wallet-address-2",
+						gatewayAddress = "test-this-is-valid-arweave-wallet-address-2",
+						observerAddress = "test-this-is-valid-arweave-wallet-address-2",
 						stake = gar.getSettings().operators.minStake,
 						startTimestamp = startTimestamp,
 						stakeWeight = 1,
@@ -286,8 +367,8 @@ describe("epochs", function()
 					},
 				}
 				local failedGateways = {
-					"test-wallet-address-1",
-					"test-wallet-address-3",
+					"test-this-is-valid-arweave-wallet-address-1",
+					"test-this-is-valid-arweave-wallet-address-3",
 				}
 				local status, result = pcall(epochs.saveObservations, observer, reportTxId, failedGateways, timestamp)
 				assert.is_true(status)
@@ -296,7 +377,7 @@ describe("epochs", function()
 						[observer] = reportTxId,
 					},
 					failureSummaries = {
-						["test-wallet-address-1"] = { observer },
+						["test-this-is-valid-arweave-wallet-address-1"] = { observer },
 					},
 				})
 			end
@@ -330,29 +411,40 @@ describe("epochs", function()
 	end)
 
 	describe("createEpoch", function()
-		it("should create a new epoch for the given timestamp", function()
-			local timestamp = 100
-			local epochIndex = 1
-			local epochStartTimestamp = 100
-			local epochEndTimestamp = 200
-			local epochDistributionTimestamp = 215
-			local epochStartBlockHeight = 0
-			local expectation = {
-				startTimestamp = epochStartTimestamp,
-				endTimestamp = epochEndTimestamp,
-				epochIndex = epochIndex,
-				distributionTimestamp = epochDistributionTimestamp,
-				observations = {
-					failureSummaries = {},
-					reports = {},
-				},
-				prescribedObservers = {},
-				distributions = {},
-			}
-			local status, result = pcall(epochs.createEpoch, timestamp, epochStartBlockHeight, "hashchain")
-			assert.is_true(status)
-			assert.are.same(epochs.getEpoch(epochIndex), expectation)
-		end)
+		it(
+			"should create a new epoch for the given timestamp once distributions for the last epoch have occurred",
+			function()
+				local timestamp = 100
+				local epochIndex = 1
+				local epochStartTimestamp = 100
+				local epochEndTimestamp = 200
+				local epochDistributionTimestamp = 215
+				local epochStartBlockHeight = 0
+				local expectation = {
+					startTimestamp = epochStartTimestamp,
+					endTimestamp = epochEndTimestamp,
+					epochIndex = epochIndex,
+					startHeight = 0,
+					distributionTimestamp = epochDistributionTimestamp,
+					observations = {
+						failureSummaries = {},
+						reports = {},
+					},
+					prescribedObservers = {},
+					prescribedNames = {},
+					distributions = {},
+				}
+				_G.Epochs[0].distributions = {
+					totalEligibleRewards = 0,
+					totalDistributedRewards = 0,
+					distributedTimestamp = 0,
+					rewards = {},
+				}
+				local status = pcall(epochs.createEpoch, timestamp, epochStartBlockHeight, hashchain)
+				assert.is_true(status)
+				assert.are.same(epochs.getEpoch(epochIndex), expectation)
+			end
+		)
 	end)
 
 	describe("distributeRewardsForEpoch", function()
@@ -387,14 +479,14 @@ describe("epochs", function()
 						delegateRewardShareRatio = 20,
 					},
 					status = "joined",
-					observerAddress = "test-observer-address-" .. i,
+					observerAddress = "test-this-very-valid-observer-wallet-addr-" .. i,
 				}
-				gar.addGateway("test-wallet-address-" .. i, gateway)
+				gar.addGateway("test-this-is-valid-arweave-wallet-address-" .. i, gateway)
 			end
 			epochs.setPrescribedObserversForEpoch(epochIndex, hashchain)
 			-- save observations using saveObsevations function for each gateway, gateway1 failed, gateway2 and gateway3 passed
 			local failedGateways = {
-				"test-wallet-address-1",
+				"test-this-is-valid-arweave-wallet-address-1",
 			}
 			local epochStartTimetamp, epochEndTimestamp, epochDistributionTimestamp =
 				epochs.getEpochTimestampsForIndex(epochIndex)
@@ -403,8 +495,8 @@ describe("epochs", function()
 			for i = 2, 3 do
 				local status, result = pcall(
 					epochs.saveObservations,
-					"test-observer-address-" .. i,
-					"reportTxId" .. i,
+					"test-this-very-valid-observer-wallet-addr-" .. i,
+					"test-this-very-valid-observations-report-0" .. i,
 					failedGateways,
 					validObservationTimestamp
 				)
@@ -415,7 +507,7 @@ describe("epochs", function()
 			local expectedGatewaryReward = math.floor(totalEligibleRewards * 0.95 / 3)
 			local expectedObserverReward = math.floor(totalEligibleRewards * 0.05 / 3)
 			-- clear the balances for the gateways
-			Balances["test-wallet-address-1"] = 0
+			Balances["test-this-is-valid-arweave-wallet-address-1"] = 0
 
 			-- distribute rewards for the epoch
 			local status = pcall(epochs.distributeRewardsForEpoch, epochDistributionTimestamp)
@@ -423,9 +515,9 @@ describe("epochs", function()
 			-- gateway 1 should only get observer rewards
 			-- gateway 2 should get obesrver and gateway rewards
 			-- gateway 3 should get observer and gateway rewards
-			local gateway1 = gar.getGateway("test-wallet-address-1")
-			local gateway2 = gar.getGateway("test-wallet-address-2")
-			local gateway3 = gar.getGateway("test-wallet-address-3")
+			local gateway1 = gar.getGateway("test-this-is-valid-arweave-wallet-address-1")
+			local gateway2 = gar.getGateway("test-this-is-valid-arweave-wallet-address-2")
+			local gateway3 = gar.getGateway("test-this-is-valid-arweave-wallet-address-3")
 			assert.are.same({
 				prescribedEpochCount = 1,
 				observedEpochCount = 0,
@@ -455,24 +547,24 @@ describe("epochs", function()
 				totalEpochCount = 1,
 			}, gateway3.stats)
 			-- check balances
-			assert.are.equal(0, balances.getBalance("test-wallet-address-1"))
+			assert.are.equal(0, balances.getBalance("test-this-is-valid-arweave-wallet-address-1"))
 			assert.are.equal(
 				expectedGatewaryReward + expectedObserverReward,
-				balances.getBalance("test-wallet-address-2")
+				balances.getBalance("test-this-is-valid-arweave-wallet-address-2")
 			)
 			assert.are.equal(
 				expectedGatewaryReward + expectedObserverReward,
-				balances.getBalance("test-wallet-address-3")
+				balances.getBalance("test-this-is-valid-arweave-wallet-address-3")
 			)
 			-- check the epoch was updated
 			local distributions = epochs.getEpoch(epochIndex).distributions
 			assert.are.same({
 				totalEligibleRewards = totalEligibleRewards,
 				totalDistributedRewards = (expectedGatewaryReward + expectedObserverReward) * 2,
-				distributionTimestamp = epochDistributionTimestamp,
+				distributedTimestamp = epochDistributionTimestamp,
 				rewards = {
-					["test-wallet-address-2"] = expectedGatewaryReward + expectedObserverReward,
-					["test-wallet-address-3"] = expectedGatewaryReward + expectedObserverReward,
+					["test-this-is-valid-arweave-wallet-address-2"] = expectedGatewaryReward + expectedObserverReward,
+					["test-this-is-valid-arweave-wallet-address-3"] = expectedGatewaryReward + expectedObserverReward,
 				},
 			}, distributions)
 		end)

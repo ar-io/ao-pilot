@@ -16,18 +16,18 @@ Denomination = Denomination or 1
 
 local ActionMap = {
 	-- write
-	SetController = "SetController",
-	RemoveController = "RemoveController",
-	SetRecord = "SetRecord",
-	RemoveRecord = "RemoveRecord",
-	SetName = "SetName",
-	SetTicker = "SetTicker",
+	SetController = "Set-Controller",
+	RemoveController = "Remove-Controller",
+	SetRecord = "Set-Record",
+	RemoveRecord = "Remove-Record",
+	SetName = "Se-Name",
+	SetTicker = "Set-Ticker",
 	--- initialization method for bootstrapping the contract from other platforms ---
-	InitializeState = "InitializeState",
+	InitializeState = "Initialize-State",
 	-- read
-	GetControllers = "GetControllers",
-	GetRecord = "GetRecord",
-	GetRecords = "GetRecords",
+	GetControllers = "Get-Controllers",
+	GetRecord = "Get-Record",
+	GetRecords = "Get-Records",
 }
 
 local TokenSpecActionMap = {

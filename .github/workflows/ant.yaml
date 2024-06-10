@@ -5,7 +5,6 @@ on: [push, workflow_dispatch]
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
       name: Check out repository code
@@ -23,7 +22,8 @@ jobs:
       run: luarocks install ar-io-ao-0.1-1.rockspec
 
     - name: Run Busted Tests
-      run: cd ant && busted .
+      working-directory: ant
+      run: busted .
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1

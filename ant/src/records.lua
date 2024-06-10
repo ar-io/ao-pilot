@@ -4,34 +4,13 @@ local records = {}
 
 Records = Records or {}
 
-function records.setRecord(msg)
-	local hasPermission, permissionErr = utils.hasPermission(msg)
-	if hasPermission == false then
-		print("permissionErr", permissionErr)
-		return utils.reply(permissionErr)
-	end
-
-	local name = msg.Tags.Name
-	local transactionId = msg.Tags["Transaction-Id"]
-	local ttlSeconds = msg.Tags["TTL-Seconds"]
-
-	local nameValidity, nameValidityError = utils.validateUndername(name)
-	if nameValidity == false then
-		print("nameValidityError", nameValidityError)
-		return utils.reply(nameValidityError)
-	end
-
-	local targetIdValidity, targetValidityError = utils.validateArweaveId(transactionId)
-	if targetIdValidity == false then
-		print("targetValidityError", targetValidityError)
-		return utils.reply(targetValidityError)
-	end
-
-	local ttlSecondsValidity, ttlValidityError = utils.validateTTLSeconds(ttlSeconds)
-	if ttlSecondsValidity == false then
-		print("ttlValidityError", ttlValidityError)
-		return utils.reply(ttlValidityError)
-	end
+function records.setRecord(name, transactionId, ttlSeconds)
+	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
+	assert(nameValidity == false, nameValidityError)
+	local targetIdValidity, targetValidityError = pcall(utils.validateArweaveId, transactionId)
+	assert(targetIdValidity == false, targetValidityError)
+	local ttlSecondsValidity, ttlValidityError = pcall(utils.validateTTLSeconds, ttlSeconds)
+	assert(ttlSecondsValidity == false, ttlValidityError)
 
 	Records[name] = {
 		transactionId = transactionId,
@@ -39,30 +18,19 @@ function records.setRecord(msg)
 	}
 end
 
-function records.removeRecord(msg)
-	local hasPermission, permissionErr = utils.hasPermission(msg)
-	if not hasPermission then
-		return utils.reply(permissionErr)
-	end
-	local name = msg.Tags.Name
-	local nameValidity, nameValidityError = utils.validateUndername(name)
-	if nameValidity == false then
-		return utils.reply(nameValidityError)
-	end
-
+function records.removeRecord(name)
+	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
+	assert(nameValidity == false, nameValidityError)
 	Records[name] = nil
 end
 
-function records.getRecord(msg)
-	local name = msg.Tags.Name
-	local nameValidity, nameValidityError = utils.validateUndername(name)
+function records.getRecord(name)
+	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
 	if nameValidity == false then
 		return utils.reply(nameValidityError)
 	end
 
-	if Records[name] == nil then
-		return nil
-	end
+	assert(Records[name] ~= nil, "Record does not exist")
 	local parsedRecord = json.encode(Records[name])
 	utils.reply(parsedRecord)
 end

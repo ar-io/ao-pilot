@@ -5,43 +5,40 @@ Controllers = Controllers or {}
 
 local controllers = {}
 
-function controllers.setController(msg)
-	local controller = msg.Tags.Controller
-
-	local hasPermission, permissionErr = utils.hasPermission(msg)
-	if hasPermission == false then
-		print("permissionErr", permissionErr)
-		return utils.reply(permissionErr)
-	end
-
+function controllers.setController(controller)
 	local controllerValidity, controllerValidityError = utils.validateArweaveId(controller)
 	if controllerValidity == false then
-		print("id length" .. #controller)
-		print("controllerValidityError", controllerValidityError)
-		return utils.reply(controllerValidityError)
+		utils.reply(controllerValidityError)
+		return
+	end
+
+	for _, c in ipairs(Controllers) do
+		if c == controller then
+			assert(c ~= controller, "Controller already exists")
+		end
 	end
 
 	table.insert(Controllers, controller)
 end
 
-function controllers.removeController(msg)
-	local controller = msg.Tags.Controller
-
-	local hasPermission, permissionErr = utils.hasPermission(msg)
-	if not hasPermission then
-		return utils.reply(permissionErr)
-	end
-
-	local controllerValidity, controllerValidityError = utils.validateArweaveId(controllers)
+function controllers.removeController(controller)
+	local controllerValidity, controllerValidityError = utils.validateArweaveId(controller)
 	if controllerValidity == false then
 		return utils.reply(controllerValidityError)
 	end
 
+	local controllerExists = false
+
 	for i, v in ipairs(Controllers) do
 		if v == controller then
 			table.remove(Controllers, i)
+			controllerExists = true
 			break
 		end
+	end
+
+	if not controllerExists then
+		assert(controllerExists == true, "Controller does not exist")
 	end
 end
 

@@ -6,11 +6,11 @@ Records = Records or {}
 
 function records.setRecord(name, transactionId, ttlSeconds)
 	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
-	assert(nameValidity == false, nameValidityError)
+	assert(nameValidity ~= false, nameValidityError)
 	local targetIdValidity, targetValidityError = pcall(utils.validateArweaveId, transactionId)
-	assert(targetIdValidity == false, targetValidityError)
+	assert(targetIdValidity ~= false, targetValidityError)
 	local ttlSecondsValidity, ttlValidityError = pcall(utils.validateTTLSeconds, ttlSeconds)
-	assert(ttlSecondsValidity == false, ttlValidityError)
+	assert(ttlSecondsValidity ~= false, ttlValidityError)
 
 	Records[name] = {
 		transactionId = transactionId,
@@ -20,7 +20,7 @@ end
 
 function records.removeRecord(name)
 	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
-	assert(nameValidity == false, nameValidityError)
+	assert(nameValidity ~= false, nameValidityError)
 	Records[name] = nil
 end
 

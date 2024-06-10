@@ -9,7 +9,7 @@ function controllers.setController(controller)
 	utils.validateArweaveId(controller)
 
 	for _, c in ipairs(Controllers) do
-		assert(c == controller, "Controller already exists")
+		assert(c ~= controller, "Controller already exists")
 	end
 
 	table.insert(Controllers, controller)
@@ -27,7 +27,7 @@ function controllers.removeController(controller)
 		end
 	end
 
-	assert(controllerExists == nil, "Controller does not exist")
+	assert(controllerExists ~= nil, "Controller does not exist")
 end
 
 function controllers.getControllers(msg)

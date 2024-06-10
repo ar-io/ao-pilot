@@ -79,10 +79,10 @@ describe("Arweave Name Token", function()
 		local controllerToRemove = fake_address
 		controllers.removeController(fake_address) -- happy path
 
-		local hasController = nil
+		local hasController = false
 		for _, controller in ipairs(_G.Controllers) do
 			if controller == controllerToRemove then
-				hasController = false
+				hasController = true
 			end
 		end
 		assert.is_false(hasController)
@@ -91,7 +91,7 @@ describe("Arweave Name Token", function()
 	it("sets a record", function()
 		local name, transactionId, ttlSeconds = "@", fake_address, 900
 		records.setRecord(name, transactionId, ttlSeconds) -- happy path
-
+		print("Records", _G.Records)
 		assert.are.same(_G.Records["@"].transactionId, fake_address)
 		assert.are.same(_G.Records["@"].ttlSeconds, 900)
 	end)

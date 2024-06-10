@@ -1,4 +1,4 @@
-name: Test / Deploy
+name: Arweave Name Token
 
 on: [push, workflow_dispatch]
 

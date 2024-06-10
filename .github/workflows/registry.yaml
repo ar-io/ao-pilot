@@ -1,4 +1,4 @@
-name: Test / Deploy
+name: ArNS Registry
 
 on: [push, workflow_dispatch]
 

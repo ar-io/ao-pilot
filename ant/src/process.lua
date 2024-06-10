@@ -2,8 +2,6 @@
 -- utils
 local json = require(".json")
 local utils = require(".utils")
-local errors = require(".errors")
-local constants = require(".constants")
 
 -- core modules
 local balances = require(".balances")

@@ -58,7 +58,7 @@ end
 function initialize.initializeProcessState(msg, env)
 	if not Seeded then
 		--math.randomseed(1234)
-		chance.seed(tonumber(msg["Block-Height"] .. stringToSeed(msg.Owner .. msg.Module .. msg.Id)))
+		chance.seed(tonumber(msg["Block-Height"] .. stringToSeed(msg.Owner .. env.Module.Id .. msg.Id)))
 		math.random = function(...)
 			local args = { ... }
 			local n = #args

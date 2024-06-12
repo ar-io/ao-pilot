@@ -8,7 +8,7 @@ Using the ao-dev-cli.
 #### Install
 
 ```sh
-curl -L https://arweave.net/BVhXa-OCcQV6xuhsoS6207uHkXcRz4UmR5xvQct1GXI | bash
+curl -L https://arweave.net/iVthglhSN7G9LuJSU_h5Wy_lcEa0RE4VQmrtoBMj7Bw | bash
 ```
 
 

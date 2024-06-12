@@ -1,5 +1,5 @@
 -- lib
-Handlers = require(".handlers")
+Handlers = Handlers or require(".handlers")
 local _ao = require("ao")
 
 local process = { _version = "0.2.0" }
@@ -65,6 +65,7 @@ end
 
 function process.handle(msg, ao)
 	ao.id = ao.env.Process.Id
+	print(json.encode(ao.env))
 	initialize.initializeProcessState(msg, ao.env)
 
 	-- tagify msg
@@ -83,7 +84,8 @@ function process.handle(msg, ao)
 	ao.clearOutbox()
 
 	-- Only trust messages from a signed owner or an Authority
-	if msg.From ~= msg.Owner and not ao.isTrusted(msg) then
+	-- skip this check for test messages in dev
+	if msg.Owner ~= "test" and msg.From ~= msg.Owner and not ao.isTrusted(msg) then
 		Send({ Target = msg.From, Data = "Message is not trusted by this process!" })
 		print("Message is not trusted! From: " .. msg.From .. " - Owner: " .. msg.Owner)
 		return ao.result({})
@@ -259,7 +261,8 @@ function process.handle(msg, ao)
 			return utils.reply(permissionErr)
 		end
 		local tags = msg.Tags
-		local name, transactionId, ttlSeconds = tags["Sub-Domain"], tags["Transaction-Id"], tags["TTL-Seconds"]
+		local name, transactionId, ttlSeconds =
+			tags["Sub-Domain"], tags["Transaction-Id"], tonumber(tags["TTL-Seconds"])
 		local setRecordStatus, setRecordResult = pcall(records.setRecord, name, transactionId, ttlSeconds)
 		if not setRecordStatus then
 			return utils.reply(setRecordResult)

@@ -1,4 +1,4 @@
-local utils = require(".utils")
+local utils = require(".ant-utils")
 local json = require(".json")
 
 Balances = Balances or {}
@@ -10,23 +10,33 @@ function balances.walletHasSufficientBalance(wallet)
 end
 
 function balances.info()
-	utils.reply(json.encode({
+	utils.reply({
 		Name = Name,
 		Ticker = Ticker,
-		TotalSupply = 1,
+		TotalSupply = tostring(TotalSupply),
 		Logo = Logo,
-		Denomination = Denomination,
-	}))
+		Denomination = tostring(Denomination),
+		Owner = Owner,
+	})
 end
 
 function balances.transfer(to)
+	utils.validateArweaveId(to)
 	Balances = { [to] = 1 }
+	Owner = to
+	Controllers = {}
 end
 
 function balances.balance(address)
 	utils.validateArweaveId(address)
 	local balance = Balances[address] or 0
-	utils.reply(tostring(balance))
+	utils.reply({
+		Target = address,
+		Balance = balance,
+		Ticker = Ticker,
+		Account = address,
+		Data = balance,
+	})
 end
 
 function balances.balances()
@@ -35,6 +45,10 @@ end
 
 function balances.mint()
 	utils.reply("Minting not supported")
+end
+
+function balances.burn()
+	utils.reply("Burning not supported")
 end
 
 function balances.setName(name)

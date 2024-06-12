@@ -674,7 +674,7 @@ Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 	end
 
 	-- tick and distribute rewards for every index between the last ticked epoch and the current epoch
-	for i = lastTickedEpochIndex + 1, currentEpochIndex do
+	for i = lastTickedEpochIndex + 1, currentEpochIndex - 1 do
 		local previousState = {
 			Balances = utils.deepCopy(Balances),
 			Vaults = utils.deepCopy(Vaults),

@@ -468,7 +468,7 @@ function epochs.distributeRewardsForEpoch(currentTimestamp)
 				if observationSubmitted then
 					reward = reward + observerReward
 				else -- if it did not submit observation gets 75% of the gateway reward
-					reward = reward * 0.75
+					reward = math.floor(reward * 0.75)
 				end
 			end
 

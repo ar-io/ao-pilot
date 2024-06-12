@@ -314,7 +314,7 @@ function process.handle(msg, ao)
 		function(msg)
 			local status, state = pcall(json.decode(msg.Data))
 			assert(status, "Invalid state provided")
-			local _, initResult = pcall(initialize.initializeState, state)
+			local _, initResult = pcall(initialize.initializeANTState, state)
 			ao.send({ Target = msg.From, Data = initResult })
 		end
 	)

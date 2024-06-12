@@ -35,6 +35,8 @@ function initialize.initializeANTState(state)
 	Balances = balances
 	Controllers = controllers
 	Records = records
+
+	return "State initialized"
 end
 
 local function findObject(array, key, value)

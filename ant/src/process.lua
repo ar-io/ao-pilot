@@ -105,7 +105,7 @@ function process.handle(msg, ao)
 		RemoveController = "Remove-Controller",
 		SetRecord = "Set-Record",
 		RemoveRecord = "Remove-Record",
-		SetName = "Se-Name",
+		SetName = "Set-Name",
 		SetTicker = "Set-Ticker",
 		--- initialization method for bootstrapping the contract from other platforms ---
 		InitializeState = "Initialize-State",
@@ -162,10 +162,8 @@ function process.handle(msg, ao)
 				})
 				return
 			elseif not msg.Cast then
-				local creditNotice = utils.notices.credit(msg)
-				local debitNotice = utils.notices.debit(msg)
-
-				utils.notices.sendNotices({ creditNotice, debitNotice })
+				ao.send(utils.notices.debit(msg))
+				ao.send(utils.notices.credit(msg))
 			end
 		end
 	)
@@ -176,9 +174,18 @@ function process.handle(msg, ao)
 		function(msg)
 			local balStatus, balRes = pcall(balances.balance, msg.Tags.Recipient or msg.From)
 			if not balStatus then
-				utils.reply({
+				ao.send({
+					Target = msg.From,
 					Tags = { Error = "Balance-Error" },
 					Error = tostring(balRes),
+				})
+			else
+				ao.send({
+					Target = msg.From,
+					Balance = balRes,
+					Ticker = Ticker,
+					Account = msg.Tags.Recipient or msg.From,
+					Data = balRes,
 				})
 			end
 		end
@@ -188,7 +195,10 @@ function process.handle(msg, ao)
 		camel(TokenSpecActionMap.Balances),
 		utils.hasMatchingTag("Action", TokenSpecActionMap.Balances),
 		function(msg)
-			balances.balances()
+			ao.send({
+				Target = msg.From,
+				Data = balances.balances(),
+			})
 		end
 	)
 
@@ -208,15 +218,19 @@ function process.handle(msg, ao)
 	)
 
 	Handlers.add(camel(TokenSpecActionMap.Info), utils.hasMatchingTag("Action", TokenSpecActionMap.Info), function(msg)
-		balances.info()
+		local info = balances.info()
+		ao.send({
+			Target = msg.From,
+			Tags = info,
+		})
 	end)
 
 	Handlers.add(camel(TokenSpecActionMap.Mint), utils.hasMatchingTag("Action", TokenSpecActionMap.Mint), function(msg)
-		balances.mint()
+		ao.send({ Target = msg.From, Data = balances.mint() })
 	end)
 
 	Handlers.add(camel(TokenSpecActionMap.Burn), utils.hasMatchingTag("Action", TokenSpecActionMap.Burn), function(msg)
-		balances.burn()
+		ao.send({ Target = msg.From, Data = balances.burn() })
 	end)
 
 	-- ActionMap (ANT Spec)
@@ -225,9 +239,10 @@ function process.handle(msg, ao)
 		local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
 		if hasPermission == false then
 			print("Permission Error", permissionErr)
-			return utils.reply(permissionErr)
+			return ao.send({ Target = msg.From, Data = permissionErr, Tags = { Error = "Permission Error" } })
 		end
-		controllers.setController(msg.Tags.Controller)
+		local _, controllerRes = pcall(controllers.setController, msg.Tags.Controller)
+		ao.send({ Target = msg.From, Data = controllerRes })
 	end)
 
 	Handlers.add(
@@ -236,14 +251,11 @@ function process.handle(msg, ao)
 		function(msg)
 			local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
 			if hasPermission == false then
-				return utils.reply(permissionErr)
+				return ao.send({ Target = msg.From, Data = permissionErr, Tags = { Error = "Permission Error" } })
 			end
-			local removeControllerValidity, removeControllerStatus =
-				pcall(controllers.removeController, msg.Tags.Controller)
+			local _, removeRes = pcall(controllers.removeController, msg.Tags.Controller)
 
-			if not removeControllerValidity then
-				return utils.reply(removeControllerStatus)
-			end
+			ao.send({ Target = msg.From, Data = removeRes })
 		end
 	)
 
@@ -251,55 +263,50 @@ function process.handle(msg, ao)
 		camel(ActionMap.GetControllers),
 		utils.hasMatchingTag("Action", ActionMap.GetControllers),
 		function(msg)
-			controllers.getControllers()
+			ao.send({ Target = msg.From, Data = controllers.getControllers() })
 		end
 	)
 
 	Handlers.add(camel(ActionMap.SetRecord), utils.hasMatchingTag("Action", ActionMap.SetRecord), function(msg)
 		local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
 		if hasPermission == false then
-			return utils.reply(permissionErr)
+			return ao.send({ Target = msg.From, Data = permissionErr, Tags = { Error = "Permission Error" } })
 		end
 		local tags = msg.Tags
 		local name, transactionId, ttlSeconds =
 			tags["Sub-Domain"], tags["Transaction-Id"], tonumber(tags["TTL-Seconds"])
-		local setRecordStatus, setRecordResult = pcall(records.setRecord, name, transactionId, ttlSeconds)
-		if not setRecordStatus then
-			return utils.reply(setRecordResult)
-		end
+		local _, setRecordResult = pcall(records.setRecord, name, transactionId, ttlSeconds)
+
+		ao.send({ Target = msg.From, Data = setRecordResult })
 	end)
 
 	Handlers.add(camel(ActionMap.RemoveRecord), utils.hasMatchingTag("Action", ActionMap.RemoveRecord), function(msg)
 		local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
 		if hasPermission == false then
-			return utils.reply(permissionErr)
+			return ao.send({ Target = msg.From, Data = permissionErr })
 		end
-		records.removeRecord(msg.Tags.Name)
+		ao.send({ Target = msg.From, Data = records.removeRecord(msg.Tags.Name) })
 	end)
 
 	Handlers.add(camel(ActionMap.GetRecord), utils.hasMatchingTag("Action", ActionMap.GetRecord), function(msg)
-		local nameValidity, nameValidityError = pcall(records.getRecord, msg.Tags.Name)
-		if nameValidity == false then
-			return utils.reply(nameValidityError)
-		end
+		local _, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])
+
+		ao.send({ Target = msg.From, Data = nameRes })
 	end)
 
 	Handlers.add(camel(ActionMap.GetRecords), utils.hasMatchingTag("Action", ActionMap.GetRecords), function(msg)
-		records.getRecords()
+		ao.send({ Target = msg.From, Data = records.getRecords() })
 	end)
 
 	Handlers.add(camel(ActionMap.SetName), utils.hasMatchingTag("Action", ActionMap.SetName), function(msg)
-		local nameValidity, nameStatus = pcall(balances.setName, msg.Tags.Name)
-		if not nameValidity then
-			return utils.reply(nameStatus)
-		end
+		local _, nameStatus = pcall(balances.setName, msg.Tags.Name)
+		ao.send({ Target = msg.From, Data = nameStatus })
 	end)
 
 	Handlers.add(camel(ActionMap.SetTicker), utils.hasMatchingTag("Action", ActionMap.SetTicker), function(msg)
-		local tickerValidity, tickerStatus = pcall(balances.setTicker, msg.Tags.Ticker)
-		if not tickerValidity then
-			return utils.reply(tickerStatus)
-		end
+		local _, tickerStatus = pcall(balances.setTicker, msg.Tags.Ticker)
+
+		ao.send({ Target = msg.From, Data = tickerStatus })
 	end)
 
 	Handlers.add(
@@ -308,7 +315,8 @@ function process.handle(msg, ao)
 		function(msg)
 			local status, state = pcall(json.decode(msg.Data))
 			assert(status, "Invalid state provided")
-			initialize.initializeANTState(state.Data)
+			local _, initResult = pcall(initialize.initializeState, state)
+			ao.send({ Target = msg.From, Data = initResult })
 		end
 	)
 

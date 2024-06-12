@@ -1,8 +1,8 @@
 local utils = require(".ant-utils")
 local json = require(".json")
 local records = {}
-
-Records = Records or {}
+-- defaults to landing page txid
+Records = Records or { ["@"] = { transactionId = "UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk", ttlSeconds = 3600 } }
 
 function records.setRecord(name, transactionId, ttlSeconds)
 	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
@@ -16,28 +16,27 @@ function records.setRecord(name, transactionId, ttlSeconds)
 		transactionId = transactionId,
 		ttlSeconds = ttlSeconds,
 	}
+
+	return "Record set"
 end
 
 function records.removeRecord(name)
 	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
 	assert(nameValidity ~= false, nameValidityError)
 	Records[name] = nil
+
+	return "Record removed"
 end
 
 function records.getRecord(name)
-	local nameValidity, nameValidityError = pcall(utils.validateUndername, name)
-	if nameValidity == false then
-		return utils.reply(nameValidityError)
-	end
-
+	utils.validateUndername(name)
 	assert(Records[name] ~= nil, "Record does not exist")
-	local parsedRecord = json.encode(Records[name])
-	utils.reply(parsedRecord)
+
+	return json.encode(Records[name])
 end
 
 function records.getRecords()
-	local parsedRecords = json.encode(Records)
-	utils.reply(parsedRecords)
+	return json.encode(Records)
 end
 
 return records

@@ -13,7 +13,7 @@ const arweave = Arweave.init({
 const ao = connect({
     GATEWAY_URL: "https://arweave.net",
 })
-const moduleId = "I1ecao-MFgB-0Kqhr83uYmQp9wdb5z-A-GsQmsCAkdk"
+const moduleId = "-QC1Gcu-WqGPMYVF6ToBoBvnq396vICwH1KyYAiR-f0"
 const scheduler = "_GQ33BkPtZrqxA84vM8Zk-N2aO0toNNu_C-l-rawrBA"
 
 async function main() {
@@ -27,10 +27,10 @@ async function main() {
     //     scheduler,
     //     signer
     // })
-    const processId = "0lF7QU7EgNt4t5iiHOu32zEkR4zN1duAKwIzpSJ_bJ0"
+   const processId = "fF6voaWOrCEnVEkMiCNZ45uv8cR8FnCsnVVT-xPgeKU"
     console.log("Process ID:", processId)
     console.log("Waiting 20 seconds to ensure process is readied.")
-    await new Promise((resolve) => setTimeout(resolve, 20_000))
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
     console.log("Continuing...")
 
     const testCases = [
@@ -60,7 +60,7 @@ async function main() {
             signer
         })
 
-        console.log(result)
+        console.log(method, result)
     }
 
 }

@@ -1,7 +1,7 @@
 local json = require(".json")
 local utils = require(".ant-utils")
 
-Controllers = Controllers or {}
+Controllers = Controllers or { Owner }
 
 local controllers = {}
 
@@ -13,6 +13,7 @@ function controllers.setController(controller)
 	end
 
 	table.insert(Controllers, controller)
+	return "Controller added"
 end
 
 function controllers.removeController(controller)
@@ -28,10 +29,11 @@ function controllers.removeController(controller)
 	end
 
 	assert(controllerExists ~= nil, "Controller does not exist")
+	return "Controller removed"
 end
 
-function controllers.getControllers(msg)
-	utils.reply(json.encode(Controllers))
+function controllers.getControllers()
+	return json.encode(Controllers)
 end
 
 return controllers

@@ -34,9 +34,15 @@ function utils.validateOwner(caller)
 end
 
 function utils.hasPermission(from)
-	local hasPermission = Controllers[from] or Balances[from]
-
-	assert(hasPermission ~= nil, "Only controllers and owners can set controllers and records.")
+	local isController = false
+	for _, c in ipairs(Controllers) do
+		if c == from then
+			isController = true
+			break
+		end
+	end
+	local hasPermission = isController or Balances[from] or Owner == from or ao.env.Process.Id == from
+	assert(not hasPermission, "Only controllers and owners can set controllers and records.")
 end
 
 function utils.camelCase(str)

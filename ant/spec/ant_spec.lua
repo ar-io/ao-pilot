@@ -45,7 +45,7 @@ describe("Arweave Name Token", function()
 	teardown(function() end)
 
 	it("Initializes the state of the process", function()
-		initialize.initialize(originalState) -- happy
+		initialize.initializeANTState(originalState) -- happy
 
 		assert.are.same(_G.Balances, originalState.balances)
 		assert.are.same(_G.Records, originalState.records)
@@ -91,7 +91,6 @@ describe("Arweave Name Token", function()
 	it("sets a record", function()
 		local name, transactionId, ttlSeconds = "@", fake_address, 900
 		records.setRecord(name, transactionId, ttlSeconds) -- happy path
-		print("Records", _G.Records)
 		assert.are.same(_G.Records["@"].transactionId, fake_address)
 		assert.are.same(_G.Records["@"].ttlSeconds, 900)
 	end)

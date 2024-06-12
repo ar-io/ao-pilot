@@ -40,8 +40,6 @@ function Assign(assignment)
 	return "assignment added to outbox"
 end
 
-Seeded = Seeded or false
-
 -- utils
 local json = require(".json")
 local utils = require(".ant-utils")
@@ -98,6 +96,7 @@ function process.handle(msg, ao)
 	Logo = Logo or "LOGO"
 	Denomination = Denomination or 1
 	TotalSupply = TotalSupply or 1
+	Initialized = Initialized or false
 
 	local ActionMap = {
 		-- write

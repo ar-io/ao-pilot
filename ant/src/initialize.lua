@@ -1,4 +1,3 @@
-local chance = require(".chance")
 local utils = require(".ant-utils")
 local initialize = {}
 
@@ -35,6 +34,7 @@ function initialize.initializeANTState(state)
 	Balances = balances
 	Controllers = controllers
 	Records = records
+	Initialized = true
 
 	return "State initialized"
 end
@@ -48,35 +48,7 @@ local function findObject(array, key, value)
 	return nil
 end
 
-local function stringToSeed(s)
-	local seed = 0
-	for i = 1, #s do
-		local char = string.byte(s, i)
-		seed = seed + char
-	end
-	return seed
-end
-
 function initialize.initializeProcessState(msg, env)
-	if not Seeded then
-		--math.randomseed(1234)
-		chance.seed(tonumber(msg["Block-Height"] .. stringToSeed(msg.Owner .. env.Module.Id .. msg.Id)))
-		math.random = function(...)
-			local args = { ... }
-			local n = #args
-			if n == 0 then
-				return chance.random()
-			end
-			if n == 1 then
-				return chance.integer(1, args[1])
-			end
-			if n == 2 then
-				return chance.integer(args[1], args[2])
-			end
-			return chance.random()
-		end
-		Seeded = true
-	end
 	Errors = Errors or {}
 	Inbox = Inbox or {}
 
@@ -95,7 +67,7 @@ function initialize.initializeProcessState(msg, env)
 		if taggedName then
 			Name = taggedName.value
 		else
-			Name = "Arweave Name Token"
+			Name = "ANT"
 		end
 	end
 end

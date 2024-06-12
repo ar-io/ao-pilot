@@ -314,8 +314,15 @@ function process.handle(msg, ao)
 		function(msg)
 			local status, state = pcall(json.decode(msg.Data))
 			assert(status, "Invalid state provided")
-			local _, initResult = pcall(initialize.initializeANTState, state)
-			ao.send({ Target = msg.From, Data = initResult })
+			local status, result = pcall(initialize.initializeANTState, state)
+
+			if not status then
+				ao.send({ Target = msg.From, Data = result, Error="Initialize-State-Error" })
+				return
+			else
+				ao.send({ Target = msg.From, Data = result })
+			end
+
 		end
 	)
 

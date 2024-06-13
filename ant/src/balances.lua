@@ -1,7 +1,5 @@
-local utils = require(".ant-utils")
+local utils = require(".utils")
 local json = require(".json")
-
-Balances = Balances or {}
 
 local balances = {}
 
@@ -31,13 +29,7 @@ end
 function balances.balance(address)
 	utils.validateArweaveId(address)
 	local balance = Balances[address] or 0
-	return {
-		Target = address,
-		Balance = balance,
-		Ticker = Ticker,
-		Account = address,
-		Data = balance,
-	}
+	return balance
 end
 
 function balances.balances()

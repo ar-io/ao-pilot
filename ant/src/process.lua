@@ -2,7 +2,7 @@
 Handlers = Handlers or require(".handlers")
 local _ao = require("ao")
 
-local process = { _version = "0.2.0" }
+local process = { _version = "0.0.1" }
 -- wrap ao.send and ao.spawn for magic table
 local aosend = _ao.send
 local aospawn = _ao.spawn
@@ -42,7 +42,7 @@ end
 
 -- utils
 local json = require(".json")
-local utils = require(".ant-utils")
+local utils = require(".utils")
 
 -- core modules
 local balances = require(".balances")
@@ -63,7 +63,6 @@ end
 
 function process.handle(msg, ao)
 	ao.id = ao.env.Process.Id
-	print(json.encode(ao.env))
 	initialize.initializeProcessState(msg, ao.env)
 
 	-- tagify msg
@@ -83,13 +82,15 @@ function process.handle(msg, ao)
 
 	-- Only trust messages from a signed owner or an Authority
 	-- skip this check for test messages in dev
-	if msg.Owner ~= "test" and msg.From ~= msg.Owner and not ao.isTrusted(msg) then
+	if msg.From ~= msg.Owner and not ao.isTrusted(msg) then
 		Send({ Target = msg.From, Data = "Message is not trusted by this process!" })
 		print("Message is not trusted! From: " .. msg.From .. " - Owner: " .. msg.Owner)
 		return ao.result({})
 	end
 
 	Owner = Owner or ao.env.Process.Owner
+	Balances = Balances or { [Owner] = 1 }
+	Controllers = Controllers or { Owner }
 
 	Name = Name or "Arweave Name Token"
 	Ticker = Ticker or "ANT"
@@ -156,8 +157,8 @@ function process.handle(msg, ao)
 				ao.send({
 					Target = msg.From,
 					Action = "Transfer-Error",
-					["Message-Id"] = msg.Id,
 					Error = tostring(transferResult),
+					["Message-Id"] = msg.Id,
 				})
 				return
 			elseif not msg.Cast then
@@ -177,6 +178,7 @@ function process.handle(msg, ao)
 					Target = msg.From,
 					Tags = { Error = "Balance-Error" },
 					Error = tostring(balRes),
+					["Message-Id"] = msg.Id,
 				})
 			else
 				ao.send({
@@ -235,12 +237,25 @@ function process.handle(msg, ao)
 	-- ActionMap (ANT Spec)
 
 	Handlers.add(camel(ActionMap.SetController), utils.hasMatchingTag("Action", ActionMap.SetController), function(msg)
-		local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
-		if hasPermission == false then
-			print("Permission Error", permissionErr)
-			return ao.send({ Target = msg.From, Data = permissionErr, Tags = { Error = "Permission Error" } })
+		local assertHasPermission, permissionErr = pcall(utils.assertHasPermission, msg.From)
+		if assertHasPermission == false then
+			return ao.send({
+				Target = msg.From,
+				Data = permissionErr,
+				Error = "Set-Controller-Error",
+				["Message-Id"] = msg.Id,
+			})
 		end
-		local _, controllerRes = pcall(controllers.setController, msg.Tags.Controller)
+		local controllerStatus, controllerRes = pcall(controllers.setController, msg.Tags.Controller)
+		if not controllerStatus then
+			ao.send({
+				Target = msg.From,
+				Data = controllerRes,
+				Error = "Set-Controller-Error",
+				["Message-Id"] = msg.Id,
+			})
+			return
+		end
 		ao.send({ Target = msg.From, Data = controllerRes })
 	end)
 
@@ -248,11 +263,25 @@ function process.handle(msg, ao)
 		camel(ActionMap.RemoveController),
 		utils.hasMatchingTag("Action", ActionMap.RemoveController),
 		function(msg)
-			local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
-			if hasPermission == false then
-				return ao.send({ Target = msg.From, Data = permissionErr, Tags = { Error = "Permission Error" } })
+			local assertHasPermission, permissionErr = pcall(utils.assertHasPermission, msg.From)
+			if assertHasPermission == false then
+				return ao.send({
+					Target = msg.From,
+					Data = permissionErr,
+					Error = "Remove-Controller-Error",
+					["Message-Id"] = msg.Id,
+				})
 			end
-			local _, removeRes = pcall(controllers.removeController, msg.Tags.Controller)
+			local removeStatus, removeRes = pcall(controllers.removeController, msg.Tags.Controller)
+			if not removeStatus then
+				ao.send({
+					Target = msg.From,
+					Data = removeRes,
+					Error = "Remove-Controller-Error",
+					["Message-Id"] = msg.Id,
+				})
+				return
+			end
 
 			ao.send({ Target = msg.From, Data = removeRes })
 		end
@@ -267,28 +296,52 @@ function process.handle(msg, ao)
 	)
 
 	Handlers.add(camel(ActionMap.SetRecord), utils.hasMatchingTag("Action", ActionMap.SetRecord), function(msg)
-		local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
-		if hasPermission == false then
-			return ao.send({ Target = msg.From, Data = permissionErr, Tags = { Error = "Permission Error" } })
+		local assertHasPermission, permissionErr = pcall(utils.assertHasPermission, msg.From)
+		if assertHasPermission == false then
+			return ao.send({
+				Target = msg.From,
+				Data = permissionErr,
+				Error = "Set-Record-Error",
+				["Message-Id"] = msg.Id,
+			})
 		end
 		local tags = msg.Tags
 		local name, transactionId, ttlSeconds =
 			tags["Sub-Domain"], tags["Transaction-Id"], tonumber(tags["TTL-Seconds"])
-		local _, setRecordResult = pcall(records.setRecord, name, transactionId, ttlSeconds)
+
+		local setRecordStatus, setRecordResult = pcall(records.setRecord, name, transactionId, ttlSeconds)
+		if not setRecordStatus then
+			ao.send({ Target = msg.From, Data = setRecordResult, Error = "Set-Record-Error", ["Message-Id"] = msg.Id })
+			return
+		end
 
 		ao.send({ Target = msg.From, Data = setRecordResult })
 	end)
 
 	Handlers.add(camel(ActionMap.RemoveRecord), utils.hasMatchingTag("Action", ActionMap.RemoveRecord), function(msg)
-		local hasPermission, permissionErr = pcall(utils.hasPermission, msg.From)
-		if hasPermission == false then
+		local assertHasPermission, permissionErr = pcall(utils.assertHasPermission, msg.From)
+		if assertHasPermission == false then
 			return ao.send({ Target = msg.From, Data = permissionErr })
 		end
-		ao.send({ Target = msg.From, Data = records.removeRecord(msg.Tags.Name) })
+		local removeRecordStatus, removeRecordResult = pcall(records.removeRecord, msg.Tags["Sub-Domain"])
+		if not removeRecordStatus then
+			ao.send({
+				Target = msg.From,
+				Data = removeRecordResult,
+				Error = "Remove-Record-Error",
+				["Message-Id"] = msg.Id,
+			})
+		else
+			ao.send({ Target = msg.From, Data = removeRecordResult })
+		end
 	end)
 
 	Handlers.add(camel(ActionMap.GetRecord), utils.hasMatchingTag("Action", ActionMap.GetRecord), function(msg)
-		local _, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])
+		local nameStatus, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])
+		if not nameStatus then
+			ao.send({ Target = msg.From, Data = nameRes, Error = "Get-Record-Error", ["Message-Id"] = msg.Id })
+			return
+		end
 
 		ao.send({ Target = msg.From, Data = nameRes })
 	end)
@@ -298,31 +351,36 @@ function process.handle(msg, ao)
 	end)
 
 	Handlers.add(camel(ActionMap.SetName), utils.hasMatchingTag("Action", ActionMap.SetName), function(msg)
-		local _, nameStatus = pcall(balances.setName, msg.Tags.Name)
-		ao.send({ Target = msg.From, Data = nameStatus })
+		local nameStatus, nameRes = pcall(balances.setName, msg.Tags.Name)
+		if not nameStatus then
+			ao.send({ Target = msg.From, Data = nameRes, Error = "Set-Name-Error", ["Message-Id"] = msg.Id })
+			return
+		end
+		ao.send({ Target = msg.From, Data = nameRes })
 	end)
 
 	Handlers.add(camel(ActionMap.SetTicker), utils.hasMatchingTag("Action", ActionMap.SetTicker), function(msg)
-		local _, tickerStatus = pcall(balances.setTicker, msg.Tags.Ticker)
+		local tickerStatus, tickerRes = pcall(balances.setTicker, msg.Tags.Ticker)
+		if not tickerStatus then
+			ao.send({ Target = msg.From, Data = tickerRes, Error = "Set-Ticker-Error", ["Message-Id"] = msg.Id })
+			return
+		end
 
-		ao.send({ Target = msg.From, Data = tickerStatus })
+		ao.send({ Target = msg.From, Data = tickerRes })
 	end)
 
 	Handlers.add(
 		camel(ActionMap.InitializeState),
 		utils.hasMatchingTag("Action", ActionMap.InitializeState),
 		function(msg)
-			local status, state = pcall(json.decode(msg.Data))
-			assert(status, "Invalid state provided")
-			local status, result = pcall(initialize.initializeANTState, state)
+			local initStatus, result = pcall(initialize.initializeANTState, msg.Data)
 
-			if not status then
-				ao.send({ Target = msg.From, Data = result, Error="Initialize-State-Error" })
+			if not initStatus then
+				ao.send({ Target = msg.From, Data = result, Error = "Initialize-State-Error", ["Message-Id"] = msg.Id })
 				return
 			else
-				ao.send({ Target = msg.From, Data = result })
+				ao.send({ Target = msg.From, Data = json.encode(result) })
 			end
-
 		end
 	)
 

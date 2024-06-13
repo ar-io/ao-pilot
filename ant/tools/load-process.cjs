@@ -30,35 +30,39 @@ async function main() {
 
   const address = '7waR8v4STuwPnTck1zFVkQqJh5K9q9Zik4Y5-5dV7nk';
   const testCases = [
-    // ['Info', {}],
-    // ['Set-Controller', { Controller: ''.padEnd(43, '1') }],
-    //['Remove-Controller', { Controller: ''.padEnd(43, '1') }],
-    // ['Set-Name', { Name: 'Test Name' }],
-    // ['Set-Ticker', { Ticker: 'TEST' }],
-    // [
-    //   'Set-Record',
-    //   {
-    //     'Transaction-Id': ''.padEnd(43, '1'),
-    //     'TTL-Seconds': '1000',
-    //     'Sub-Domain': '@',
-    //   },
-    // ],
-    // [
-    //   'Set-Record',
-    //   {
-    //     'Transaction-Id': ''.padEnd(43, '1'),
-    //     'TTL-Seconds': '1000',
-    //     'Sub-Domain': 'bob',
-    //   },
-    // ],
-    // ['Remove-Record', { 'Sub-Domain': 'bob' }],
-    // ['Balance', {}],
-    // ['Balance', { Recipient: address }],
-    //['Balances', {}],
-    //['Get-Controllers', {}],
-    // ['Get-Records', {}],
-    // ['Get-Record', { 'Sub-Domain': '@' }],
-    // ['Initialize-State', {}],
+    ['Info', {}],
+    ['Set-Controller', { Controller: ''.padEnd(43, '1') }],
+    ['Remove-Controller', { Controller: ''.padEnd(43, '1') }],
+    ['Set-Name', { Name: 'Test Name' }],
+    ['Set-Ticker', { Ticker: 'TEST' }],
+    [
+      'Set-Record',
+      {
+        'Transaction-Id': ''.padEnd(43, '1'),
+        'TTL-Seconds': '1000',
+        'Sub-Domain': '@',
+      },
+    ],
+    [
+      'Set-Record',
+      {
+        'Transaction-Id': ''.padEnd(43, '1'),
+        'TTL-Seconds': '1000',
+        'Sub-Domain': 'bob',
+      },
+    ],
+    ['Remove-Record', { 'Sub-Domain': 'bob' }],
+    ['Balance', {}],
+    ['Balance', { Recipient: address }],
+    ['Balances', {}],
+    ['Get-Controllers', {}],
+    ['Get-Records', {}],
+    ['Get-Record', { 'Sub-Domain': '@' }],
+    ['Initialize-State', {}],
+    ['Transfer', { Recipient: 'iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA' }],
+    ['Total-Supply', {}],
+    ['Mint', {}],
+    ['Burn', {}],
   ];
 
   for (const [method, args] of testCases) {

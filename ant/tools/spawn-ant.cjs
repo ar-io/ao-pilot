@@ -29,7 +29,7 @@ async function main() {
   //const processId = 'AxHXaiKg7c4FAYZ5eo4OPAaEhmB0I0PRxLqzW6ZNHXk';
   console.log('Process ID:', processId);
   console.log('Waiting 20 seconds to ensure process is readied.');
-  await new Promise((resolve) => setTimeout(resolve, 2_000));
+  await new Promise((resolve) => setTimeout(resolve, 20_000));
   console.log('Continuing...');
 
   const testCases = [
@@ -62,7 +62,7 @@ async function main() {
     ['Get-Records', {}],
     ['Get-Record', { 'Sub-Domain': '@' }],
     ['Initialize-State', {}],
-    ['Transfer', { Recipient: 'iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA' }],
+    ['Transfer', { Recipient: 'ZjmB2vEUlHlJ7-rgJkYP09N5IzLPhJyStVrK5u9dDEo' }],
   ];
 
   for (const [method, args] of testCases) {

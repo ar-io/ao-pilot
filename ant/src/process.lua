@@ -94,8 +94,8 @@ function process.handle(msg, ao)
 
 	Name = Name or "Arweave Name Token"
 	Ticker = Ticker or "ANT"
-	Logo = Logo or "LOGO"
-	Denomination = Denomination or 1
+	Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
+	Denomination = Denomination or 0
 	TotalSupply = TotalSupply or 1
 	Initialized = Initialized or false
 

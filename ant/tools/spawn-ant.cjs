@@ -12,20 +12,21 @@ const arweave = Arweave.init({
 const ao = connect({
   GATEWAY_URL: 'https://arweave.net',
 });
-const moduleId = 'QK1G2K9V2a_WKVkQFdjr3hjWcSjutnMTFxIXeg_3LMQ';
+const moduleId = 'ZUEIijxJlV3UgZS9c7to5cgW5EhyPdAndHqVZxig7vE';
 const scheduler = '_GQ33BkPtZrqxA84vM8Zk-N2aO0toNNu_C-l-rawrBA';
+// with logo process: dcodF0DbVdzvRPE5nDTULn4aagHYruKnW3ulFkPkQC0
 
 async function main() {
   const wallet = fs.readFileSync(path.join(__dirname, 'key.json'), 'utf-8');
   const address = await arweave.wallets.jwkToAddress(JSON.parse(wallet));
   const signer = createDataItemSigner(JSON.parse(wallet));
 
-  // const processId = await ao.spawn({
-  //   module: moduleId,
-  //   scheduler,
-  //   signer,
-  // });
-  const processId = 'AxHXaiKg7c4FAYZ5eo4OPAaEhmB0I0PRxLqzW6ZNHXk';
+  const processId = await ao.spawn({
+    module: moduleId,
+    scheduler,
+    signer,
+  });
+  //const processId = 'AxHXaiKg7c4FAYZ5eo4OPAaEhmB0I0PRxLqzW6ZNHXk';
   console.log('Process ID:', processId);
   console.log('Waiting 20 seconds to ensure process is readied.');
   await new Promise((resolve) => setTimeout(resolve, 2_000));
@@ -61,6 +62,7 @@ async function main() {
     ['Get-Records', {}],
     ['Get-Record', { 'Sub-Domain': '@' }],
     ['Initialize-State', {}],
+    ['Transfer', { Recipient: 'iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA' }],
   ];
 
   for (const [method, args] of testCases) {

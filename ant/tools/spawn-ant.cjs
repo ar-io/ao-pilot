@@ -21,15 +21,18 @@ async function main() {
   const address = await arweave.wallets.jwkToAddress(JSON.parse(wallet));
   const signer = createDataItemSigner(JSON.parse(wallet));
 
-  const processId = await ao.spawn({
-    module: moduleId,
-    scheduler,
-    signer,
-  });
+  // const processId = await ao.spawn({
+  //   module: moduleId,
+  //   scheduler,
+  //   signer,
+  // });
   //const processId = 'AxHXaiKg7c4FAYZ5eo4OPAaEhmB0I0PRxLqzW6ZNHXk';
+  // aos process
+  const processId = 'YD1XXiKJq-R-ruODJk7u_c5dMtZEVsV_Nh687ZmSvDQ';
+  //---------------
   console.log('Process ID:', processId);
   console.log('Waiting 20 seconds to ensure process is readied.');
-  await new Promise((resolve) => setTimeout(resolve, 20_000));
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
   console.log('Continuing...');
 
   const testCases = [

@@ -1,5 +1,5 @@
-local utils = require(".utils")
-local json = require(".json")
+local utils = require(".common.utils")
+local json = require(".common.json")
 local records = {}
 -- defaults to landing page txid
 Records = Records or { ["@"] = { transactionId = "UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk", ttlSeconds = 3600 } }

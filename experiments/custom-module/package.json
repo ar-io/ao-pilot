@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "@permaweb/ao-loader": "^0.0.35",
-    "@permaweb/aoconnect": "^0.0.55"
-  },
-  "type": "module"
-}

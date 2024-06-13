@@ -9,6 +9,7 @@
     "build": "cd src && ao build && cd .. && yarn load-process",
     "deploy": "cd src && ao publish process.wasm -w ../tools/key.json --tag=\"Memory-Limit\" --value=\"1-gb\" --tag=\"Compute-Limit\" --value=\"9000000000000\" && cd ..",
     "load-process": "node tools/load-process.cjs",
-    "spawn": "node tools/spawn-ant.cjs"
+    "spawn": "node tools/spawn-ant.cjs",
+    "publish:aos-ant": "node tools/bundle-aos-lua.cjs"
   }
 }

@@ -1,5 +1,6 @@
 -- lib
-Handlers = Handlers or require(".handlers")
+Handlers = Handlers or require(".common.handlers")
+local json = require(".common.json")
 local _ao = require("ao")
 
 local process = { _version = "0.0.1" }
@@ -9,14 +10,14 @@ local aospawn = _ao.spawn
 _ao.send = function(msg)
 	if msg.Data and type(msg.Data) == "table" then
 		msg["Content-Type"] = "application/json"
-		msg.Data = require("json").encode(msg.Data)
+		msg.Data = json.encode(msg.Data)
 	end
 	return aosend(msg)
 end
 _ao.spawn = function(module, msg)
 	if msg.Data and type(msg.Data) == "table" then
 		msg["Content-Type"] = "application/json"
-		msg.Data = require("json").encode(msg.Data)
+		msg.Data = json.encode(msg.Data)
 	end
 	return aospawn(module, msg)
 end
@@ -41,14 +42,13 @@ function Assign(assignment)
 end
 
 -- utils
-local json = require(".json")
-local utils = require(".utils")
+local utils = require(".common.utils")
 
 -- core modules
-local balances = require(".balances")
-local initialize = require(".initialize")
-local records = require(".records")
-local controllers = require(".controllers")
+local balances = require(".common.balances")
+local initialize = require(".common.initialize")
+local records = require(".common.records")
+local controllers = require(".common.controllers")
 
 local camel = utils.camelCase
 function Tab(msg)
@@ -73,7 +73,7 @@ function process.handle(msg, ao)
 	ao.env.Process.Tags = Tab(ao.env.Process)
 	-- magic table - if Content-Type == application/json - decode msg.Data to a Table
 	if msg.Tags["Content-Type"] and msg.Tags["Content-Type"] == "application/json" then
-		msg.Data = require("json").decode(msg.Data or "{}")
+		msg.Data = json.decode(msg.Data or "{}")
 	end
 	-- init Errors
 	Errors = Errors or {}
@@ -148,6 +148,7 @@ function process.handle(msg, ao)
 					Tags = { Error = "Transfer-Error" },
 					Error = tostring(inputResult),
 					["Message-Id"] = msg.Id,
+					Data = inputResult,
 				})
 				return
 			end
@@ -159,6 +160,7 @@ function process.handle(msg, ao)
 					Action = "Transfer-Error",
 					Error = tostring(transferResult),
 					["Message-Id"] = msg.Id,
+					Data = transferResult,
 				})
 				return
 			elseif not msg.Cast then
@@ -179,6 +181,7 @@ function process.handle(msg, ao)
 					Tags = { Error = "Balance-Error" },
 					Error = tostring(balRes),
 					["Message-Id"] = msg.Id,
+					Data = balRes,
 				})
 			else
 				ao.send({
@@ -223,6 +226,7 @@ function process.handle(msg, ao)
 		ao.send({
 			Target = msg.From,
 			Tags = info,
+			Data = json.encode(info),
 		})
 	end)
 
@@ -241,18 +245,18 @@ function process.handle(msg, ao)
 		if assertHasPermission == false then
 			return ao.send({
 				Target = msg.From,
-				Data = permissionErr,
 				Error = "Set-Controller-Error",
 				["Message-Id"] = msg.Id,
+				Data = permissionErr,
 			})
 		end
 		local controllerStatus, controllerRes = pcall(controllers.setController, msg.Tags.Controller)
 		if not controllerStatus then
 			ao.send({
 				Target = msg.From,
-				Data = controllerRes,
 				Error = "Set-Controller-Error",
 				["Message-Id"] = msg.Id,
+				Data = controllerRes,
 			})
 			return
 		end

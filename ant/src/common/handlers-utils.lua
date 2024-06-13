@@ -1,6 +1,6 @@
 local _utils = { _version = "0.0.1" }
 
-local _ = require(".utils")
+local _ = require(".common.utils")
 local ao = ao or require("ao")
 
 function _utils.hasMatchingTag(name, value)

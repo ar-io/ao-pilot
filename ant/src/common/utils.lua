@@ -1,4 +1,4 @@
-local constants = require(".constants")
+local constants = require(".common.constants")
 local utils = { _version = "0.0.1" }
 
 local function isArray(table)

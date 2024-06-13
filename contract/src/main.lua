@@ -737,7 +737,7 @@ Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
-	local gateway = gar.getGateway(msg.Tags.Address)
+	local gateway = gar.getGateway(msg.Tags.Address or msg.Tags.Target or msg.From or msg.Target)
 	ao.send({
 		Target = msg.From,
 		Data = json.encode(gateway),
@@ -752,7 +752,8 @@ Handlers.add(ActionMap.Balances, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Balance, Handlers.utils.hasMatchingTag("Action", ActionMap.Balance), function(msg)
-	local balance = balances.getBalance(msg.Tags.Address)
+	-- TODO: arconnect et. all expect to accept Target
+	local balance = balances.getBalance(msg.Tags.Target or msg.Tags.Address or msg.From)
 	ao.send({
 		Target = msg.From,
 		Data = tostring(balance),

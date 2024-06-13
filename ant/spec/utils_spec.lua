@@ -1,5 +1,5 @@
 -- spec/utils_spec.lua
-local utils = require("src.utils")
+local utils = require("src.common.utils")
 
 describe("utils.camelCase", function()
 	it("should convert snake_case to camelCase", function()

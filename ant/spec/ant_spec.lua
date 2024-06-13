@@ -1,8 +1,8 @@
-local balances = require("src.balances")
-local controllers = require("src.controllers")
-local initialize = require("src.initialize")
-local records = require("src.records")
-local json = require("src.json")
+local balances = require("src.common.balances")
+local controllers = require("src.common.controllers")
+local initialize = require("src.common.initialize")
+local records = require("src.common.records")
+local json = require("src.common.json")
 
 local fake_address = "1111111111111111111111111111111111111111111"
 

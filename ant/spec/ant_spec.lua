@@ -2,6 +2,7 @@ local balances = require("src.balances")
 local controllers = require("src.controllers")
 local initialize = require("src.initialize")
 local records = require("src.records")
+local json = require("src.json")
 
 local fake_address = "1111111111111111111111111111111111111111111"
 
@@ -45,7 +46,7 @@ describe("Arweave Name Token", function()
 	teardown(function() end)
 
 	it("Initializes the state of the process", function()
-		initialize.initializeANTState(originalState) -- happy
+		initialize.initializeANTState(json.encode(originalState)) -- happy
 
 		assert.are.same(_G.Balances, originalState.balances)
 		assert.are.same(_G.Records, originalState.records)

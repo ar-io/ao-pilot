@@ -40,7 +40,7 @@ function Trusted(msg)
 	if msg.Owner == mu then
 		return false
 	end
-	if msg.From == msg.Owner then
+	if msg.From == msg.Owner or Controllers[msg.From] ~= nil then
 		return false
 	end
 	return true

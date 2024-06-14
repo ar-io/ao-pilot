@@ -89,8 +89,7 @@ async function main() {
     );
 
     programState = result.Memory;
-    console.log(method);
-    console.dir(result.Messages[0]?.Data, { depth: null });
+    console.dir({ method, result }, { depth: null });
   }
 }
 main();

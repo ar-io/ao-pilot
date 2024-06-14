@@ -61,8 +61,6 @@ async function main() {
     ['Initialize-State', {}],
     ['Transfer', { Recipient: 'iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA' }],
     ['Total-Supply', {}],
-    ['Mint', {}],
-    ['Burn', {}],
   ];
 
   for (const [method, args] of testCases) {

@@ -1,7 +1,7 @@
 {
   "type": "module",
   "scripts": {
-    "build:module": "cd src && ao build && cd .. && yarn load-process",
+    "build:module": "cd src && ao build && cd .. && yarn load:module",
     "publish:module": "cd src && ao publish process.wasm -w ../tools/key.json --tag=\"Memory-Limit\" --value=\"1-gb\" --tag=\"Compute-Limit\" --value=\"9000000000000\" && cd ..",
     "load:module": "node tools/load-module.cjs",
     "spawn:module": "node tools/spawn-module.cjs",

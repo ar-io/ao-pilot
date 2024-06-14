@@ -7,17 +7,6 @@ function balances.walletHasSufficientBalance(wallet)
 	return Balances[wallet] ~= nil and Balances[wallet] > 0
 end
 
-function balances.info()
-	return {
-		Name = Name,
-		Ticker = Ticker,
-		TotalSupply = tostring(TotalSupply),
-		Logo = Logo,
-		Denomination = tostring(Denomination),
-		Owner = Owner,
-	}
-end
-
 function balances.transfer(to)
 	utils.validateArweaveId(to)
 	Balances = { [to] = 1 }
@@ -34,14 +23,6 @@ end
 
 function balances.balances()
 	return json.encode(Balances)
-end
-
-function balances.mint()
-	return "Minting not supported"
-end
-
-function balances.burn()
-	return "Burning not supported"
 end
 
 function balances.setName(name)

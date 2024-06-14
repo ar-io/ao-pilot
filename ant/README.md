@@ -1,28 +1,45 @@
 # Arweave Name Token process on AO
 
-### Building
+This repository provides two flavours of ANT process module, AOS and a custom module.
 
-Using the ao-dev-cli.
+## Setup
 
-#### Install
+### Install
+
+First install the npm dependencies
+
+```bash
+yarn
+```
+
+Then install the ao cli - read the docs [here](https://github.com/permaweb/ao/tree/main/dev-cli)
+Below is latest version as of writing, refer to the docs for the latest version.
 
 ```sh
 curl -L https://arweave.net/iVthglhSN7G9LuJSU_h5Wy_lcEa0RE4VQmrtoBMj7Bw | bash
 ```
 
+You may need to follow the instructions in the cli to add the program to your PATH.
+
 ### Testing
 
-To test the module, you can use the following command:
+To test the module, you can use the following command to run [busted](https://lunarmodules.github.io/busted/)
 
 ```sh
 busted .
 ```
 
+### Building the AOS code
+
+### Building the custom module
+
+Using the ao-dev-cli.
+
 #### Build
 
-After install, navigate to the working directory, name the entry lua file to 'process.lua', and execute `ao build`
-
-You should recieve a 'process.wasm' file as the output in the working directory.
+```bash
+yarn build
+```
 
 #### Publish
 

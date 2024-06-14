@@ -1,8 +1,8 @@
 -- Adjust package.path to include the current directory
 local process = { _version = "0.0.1" }
 
-Name = "Test IO"
-Ticker = "tIO"
+Name = "Devnet IO"
+Ticker = "dIO"
 Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
 Denomination = 6
 DemandFactor = DemandFactor or {}
@@ -737,7 +737,7 @@ Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
-	local gateway = gar.getGateway(msg.Tags.Address or msg.Tags.Target or msg.From or msg.Target)
+	local gateway = gar.getGateway(msg.Tags.Address or msg.Tags.Target or msg.From)
 	ao.send({
 		Target = msg.From,
 		Data = json.encode(gateway),
@@ -754,9 +754,12 @@ end)
 Handlers.add(ActionMap.Balance, Handlers.utils.hasMatchingTag("Action", ActionMap.Balance), function(msg)
 	-- TODO: arconnect et. all expect to accept Target
 	local balance = balances.getBalance(msg.Tags.Target or msg.Tags.Address or msg.From)
+	-- must adhere to token.lua spec for arconnect compatibility
 	ao.send({
 		Target = msg.From,
-		Data = tostring(balance),
+		Data = balance,
+		Balance = balance, 
+		Ticker = Ticker, 
 	})
 end)
 

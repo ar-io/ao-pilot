@@ -1,15 +1,21 @@
 {
+  "type": "module",
+  "scripts": {
+    "build:module": "cd src && ao build && cd .. && yarn load-process",
+    "publish:module": "cd src && ao publish process.wasm -w ../tools/key.json --tag=\"Memory-Limit\" --value=\"1-gb\" --tag=\"Compute-Limit\" --value=\"9000000000000\" && cd ..",
+    "load:module": "node tools/load-module.cjs",
+    "spawn:module": "node tools/spawn-module.cjs",
+    "build:aos-ant": "node tools/bundle-aos-ant.cjs",
+    "publish:aos-ant": "node tools/bundle-aos-ant.cjs && node tools/publish-aos-ant.cjs",
+    "load:aos-ant": "node tools/bundle-aos-ant.cjs && node tools/load-aos-ant.cjs",
+    "spawn:aos-ant": "node tools/spawn-aos-ant.cjs"
+  },
   "dependencies": {
     "@permaweb/ao-loader": "^0.0.35",
     "@permaweb/aoconnect": "^0.0.55",
     "arweave": "^1.15.1"
   },
-  "type": "module",
-  "scripts": {
-    "build": "cd src && ao build && cd .. && yarn load-process",
-    "deploy": "cd src && ao publish process.wasm -w ../tools/key.json --tag=\"Memory-Limit\" --value=\"1-gb\" --tag=\"Compute-Limit\" --value=\"9000000000000\" && cd ..",
-    "load-process": "node tools/load-process.cjs",
-    "spawn": "node tools/spawn-ant.cjs",
-    "publish:aos-ant": "node tools/bundle-aos-lua.cjs"
+  "devDependencies": {
+    "prettier": "^3.3.2"
   }
 }

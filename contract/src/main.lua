@@ -586,7 +586,7 @@ Handlers.add(
 		if not gateway then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
+				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings", Error="Failed-Update-Gateway-Settings"  },
 				Data = "Gateway not found",
 			})
 			return
@@ -599,7 +599,7 @@ Handlers.add(
 			fqdn = msg.Tags.FQDN or gateway.settings.fqdn,
 			port = tonumber(msg.Tags.Port) or gateway.settings.port,
 			protocol = msg.Tags.Protocol or gateway.settings.protocol,
-			allowDelegatedStaking = msg.Tags.AllowDelegatedStaking == "true" or gateway.settings.allowDelegatedStaking,
+			allowDelegatedStaking = not msg.Tags.AllowDelegatedStaking and gateway.settings.allowDelegatedStaking or msg.Tags.AllowDelegatedStaking == "true",
 			minDelegatedStake = tonumber(msg.Tags.MinDelegatedStake) or gateway.settings.minDelegatedStake,
 			delegateRewardShareRatio = tonumber(msg.Tags.DelegateRewardShareRatio)
 				or gateway.settings.delegateRewardShareRatio,
@@ -612,7 +612,7 @@ Handlers.add(
 		if not status then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
+				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings", Error="Failed-Update-Gateway-Settings" },
 				Data = tostring(result),
 			})
 		else
@@ -737,7 +737,7 @@ Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
-	local gateway = gar.getGateway(msg.Tags.Address or msg.Tags.Target or msg.From)
+	local gateway = gar.getGateway(msg.Tags.Address or msg.From)
 	ao.send({
 		Target = msg.From,
 		Data = json.encode(gateway),

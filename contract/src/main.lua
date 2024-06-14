@@ -13,6 +13,7 @@ Vaults = Vaults or {}
 GatewayRegistry = GatewayRegistry or {}
 NameRegistry = NameRegistry or {}
 Epochs = Epochs or {}
+LastTickedEpoch = LastTickedEpoch or 0
 
 local utils = require("utils")
 local json = require("json")
@@ -215,7 +216,7 @@ end)
 Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.ExtendVault), function(msg)
 	local checkAssertions = function()
 		assert(tonumber(msg.Tags.ExtendLength) > 0, "Invalid extend length")
-		assert(utils.isValidArweaveTxId(msg.Tags.VaultId), "Invalid vault id")
+		assert(utils.isValidArweaveAddress(msg.Tags.VaultId), "Invalid vault id")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -248,7 +249,7 @@ end)
 Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.IncreaseVault), function(msg)
 	local function checkAssertions()
 		assert(tonumber(msg.Tags.Quantity) > 0, "Invalid quantity")
-		assert(utils.isValidArweaveTxId(msg.Tags.VaultId), "Invalid vault id")
+		assert(utils.isValidArweaveAddress(msg.Tags.VaultId), "Invalid vault id")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -394,7 +395,7 @@ Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.Joi
 	local observerAddress = msg.Tags.ObserverAddress or msg.Tags.From
 
 	local status, result =
-		pcall(gar.joinNetwork, msg.From, tonumber(msg.Tags.Stake), updatedSettings, observerAddress, msg.Timestamp)
+		pcall(gar.joinNetwork, msg.From, tonumber(msg.Tags.OperatorStake), updatedSettings, observerAddress, msg.Timestamp)
 	if not status then
 		ao.send({
 			Target = msg.From,
@@ -625,9 +626,11 @@ Handlers.add(
 )
 
 Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMap.SaveObservations), function(msg)
+	local reportTxId = msg.Tags.ReportTxId
+	local failedGateways = utils.splitString(msg.Tags.FailedGateways, ",")
 	local checkAssertions = function()
-		assert(utils.isValidArweaveTxId(msg.Data.reportTxId), "Invalid report tx id")
-		for _, gateway in ipairs(msg.Data.failedGateways) do
+		assert(utils.isValidArweaveAddress(reportTxId), "Invalid report tx id")
+		for _, gateway in ipairs(failedGateways) do
 			assert(utils.isValidArweaveAddress(gateway), "Invalid gateway address")
 		end
 	end
@@ -637,20 +640,20 @@ Handlers.add(ActionMap.SaveObservations, utils.hasMatchingTag("Action", ActionMa
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Save-Observations" },
+			Tags = { Error = "Invalid-Save-Observations", Action = ActionMap.SaveObservations},
 			Data = tostring(inputResult),
 		})
 		return
 	end
 
 	local status, result =
-		pcall(epochs.saveObservations, msg.From, msg.Data.reportTxId, msg.Data.failedGateways, msg.Timestamp)
+		pcall(epochs.saveObservations, msg.From, reportTxId, failedGateways, msg.Timestamp)
 	if status then
 		-- TODO: add tags for successfull save observation
-		ao.send({ Target = msg.From, Data = tostring(result) })
+		ao.send({ Target = msg.From, Data = json.encode(result) })
 	else
 		-- TODO: add additional tags for error
-		ao.send({ Target = msg.From, Data = json.encode(result) })
+		ao.send({ Target = msg.From, Error = "Invalid-Saved-Observations", Data = json.encode(result) })
 	end
 end)
 
@@ -658,37 +661,44 @@ end)
 Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 	local timestamp = tonumber(msg.Timestamp)
 	-- TODO: how do we make this update atomic so that the state is changed all or nothing (should we?)
-	local previousState = {
-		Balances = utils.deepCopy(Balances),
-		Vaults = utils.deepCopy(Vaults),
-		GatewayRegistry = utils.deepCopy(GatewayRegistry),
-		NameRegistry = utils.deepCopy(NameRegistry),
-		Epochs = utils.deepCopy(Epochs),
-		DemandFactor = utils.deepCopy(DemandFactor),
-	}
-	local function tickState(timestamp)
+	local lastTickedEpochIndex = LastTickedEpoch
+	local currentEpochIndex = epochs.getEpochIndexForTimestamp(timestamp)
+	local function tickState(timestamp, blockHeight, hashchain)
 		arns.pruneRecords(timestamp)
 		arns.pruneReservedNames(timestamp)
 		vaults.pruneVaults(timestamp)
 		gar.pruneGateways(timestamp)
 		demand.updateDemandFactor(timestamp)
 		epochs.distributeRewardsForEpoch(timestamp)
-		epochs.createEpoch(timestamp, tonumber(msg["Block-Height"]), msg["Hash-Chain"])
+		epochs.createEpoch(timestamp, tonumber(blockHeight), hashchain)
 	end
 
-	local status, result = pcall(tickState, timestamp)
-	if status then
-		ao.send({ Target = msg.From, Data = json.encode(result) })
-	else
-		-- reset the state to previous state
-		Balances = previousState.Balances
-		Vaults = previousState.Vaults
-		GatewayRegistry = previousState.GatewayRegistry
-		NameRegistry = previousState.NameRegistry
-		Epochs = previousState.Epochs
-		DemandFactor = previousState.DemandFactor
-
-		ao.send({ Target = msg.From, Data = json.encode(result) })
+	-- tick and distribute rewards for every index between the last ticked epoch and the current epoch
+	for i = lastTickedEpochIndex + 1, currentEpochIndex do
+		local previousState = {
+			Balances = utils.deepCopy(Balances),
+			Vaults = utils.deepCopy(Vaults),
+			GatewayRegistry = utils.deepCopy(GatewayRegistry),
+			NameRegistry = utils.deepCopy(NameRegistry),
+			Epochs = utils.deepCopy(Epochs),
+			DemandFactor = utils.deepCopy(DemandFactor),
+		}
+		local _, _, epochDistributionTimestamp = epochs.getEpochTimestampsForIndex(i)
+		-- TODO: if we need to "recover" epochs, we can't rely on just the current message hashchain and block height
+		local status, result = pcall(tickState, epochDistributionTimestamp, msg["Block-Height"], msg["Hash-Chain"])
+		if status then
+			ao.send({ Target = msg.From, Data = json.encode(result) })
+			LastTickedEpoch = i -- update the last ticked state
+		else
+			-- reset the state to previous state
+			Balances = previousState.Balances
+			Vaults = previousState.Vaults
+			GatewayRegistry = previousState.GatewayRegistry
+			NameRegistry = previousState.NameRegistry
+			Epochs = previousState.Epochs
+			DemandFactor = previousState.DemandFactor
+			ao.send({ Target = msg.From, Data = json.encode(result) })
+		end
 	end
 end)
 
@@ -772,7 +782,7 @@ end)
 Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Tags.Timestamp or msg.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -780,13 +790,13 @@ Handlers.add(ActionMap.Epoch, utils.hasMatchingTag("Action", ActionMap.Epoch), f
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Error = "Bad-Input", Action = ActionMap.PrescribedObservers },
+			Tags = { Error = "Bad-Input", Action = ActionMap.Epoch },
 			Data = tostring(inputResult),
 		})
 		return
 	end
 
-	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexForTimestamp(tonumber(msg.Tags.Timestamp or msg.Timestamp))
 	local epoch = epochs.getEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(epoch) })
 end)
@@ -799,7 +809,7 @@ end)
 Handlers.add(ActionMap.PrescribedObservers, utils.hasMatchingTag("Action", ActionMap.PrescribedObservers), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Timestamp or msg.Tags.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -821,7 +831,7 @@ end)
 Handlers.add(ActionMap.Observations, utils.hasMatchingTag("Action", ActionMap.Observations), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Timestamp or msg.Tags.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -835,7 +845,7 @@ Handlers.add(ActionMap.Observations, utils.hasMatchingTag("Action", ActionMap.Ob
 		return
 	end
 
-	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp or msg.Tags.Timestamp))
 	local observations = epochs.getObservationsForEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(observations) })
 end)
@@ -843,7 +853,7 @@ end)
 Handlers.add(ActionMap.PrescribedNames, utils.hasMatchingTag("Action", ActionMap.PrescribedNames), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Tags.Timestamp or msg.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -857,7 +867,7 @@ Handlers.add(ActionMap.PrescribedNames, utils.hasMatchingTag("Action", ActionMap
 		return
 	end
 
-	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexForTimestamp(tonumber(msg.Timestamp or msg.Tags.Timestamp))
 	local prescribedNames = epochs.getPrescribedNamesForEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(prescribedNames) })
 end)
@@ -865,7 +875,7 @@ end)
 Handlers.add(ActionMap.Distributions, utils.hasMatchingTag("Action", ActionMap.Distributions), function(msg)
 	-- check if the epoch number is provided, if not get the epoch number from the timestamp
 	local checkAssertions = function()
-		assert(msg.Tags.EpochIndex or msg.Timestamp, "Epoch index or timestamp is required")
+		assert(msg.Tags.EpochIndex or msg.Timestamp or msg.Tags.Timestamp, "Epoch index or timestamp is required")
 	end
 
 	local inputStatus, inputResult = pcall(checkAssertions)
@@ -879,7 +889,7 @@ Handlers.add(ActionMap.Distributions, utils.hasMatchingTag("Action", ActionMap.D
 		return
 	end
 
-	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp))
+	local epochIndex = tonumber(msg.Tags.EpochIndex) or epochs.getEpochIndexFromTimestamp(tonumber(msg.Timestamp or msg.Tags.Timestamp))
 	local distributions = epochs.getDistributionsForEpoch(epochIndex)
 	ao.send({ Target = msg.From, Data = json.encode(distributions) })
 end)

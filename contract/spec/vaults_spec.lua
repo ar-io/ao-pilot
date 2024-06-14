@@ -5,7 +5,7 @@ local startTimestamp = 0
 describe("vaults", function()
 	before_each(function()
 		_G.Balances = {
-			["test-wallet-address-1"] = 100,
+			["test-this-is-valid-arweave-wallet-address-1"] = 100,
 		}
 		_G.Vaults = {}
 	end)
@@ -13,7 +13,7 @@ describe("vaults", function()
 	it("should create vault", function()
 		local status, result = pcall(
 			vaults.createVault,
-			"test-wallet-address-1",
+			"test-this-is-valid-arweave-wallet-address-1",
 			100,
 			constants.MIN_TOKEN_LOCK_TIME,
 			startTimestamp,
@@ -26,14 +26,14 @@ describe("vaults", function()
 		}
 		assert.is_true(status)
 		assert.are.same(expectation, result)
-		assert.are.same(expectation, vaults.getVault("test-wallet-address-1", "msgId"))
+		assert.are.same(expectation, vaults.getVault("test-this-is-valid-arweave-wallet-address-1", "msgId"))
 	end)
 
 	it("should throw an insufficient balance error if not enough tokens to create the vault", function()
-		Balances["test-wallet-address-1"] = 50
+		Balances["test-this-is-valid-arweave-wallet-address-1"] = 50
 		local status, result = pcall(
 			vaults.createVault,
-			"test-wallet-address-1",
+			"test-this-is-valid-arweave-wallet-address-1",
 			100,
 			constants.MIN_TOKEN_LOCK_TIME,
 			startTimestamp,

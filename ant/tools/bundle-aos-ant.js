@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { bundle } = require('./lua-bundler.cjs');
+const { bundle } = require('./lua-bundler.js');
 
 async function main() {
   console.log('Bundling Lua...');
@@ -15,10 +15,7 @@ async function main() {
     path.join(__dirname, '../dist/aos-ant-bundled.lua'),
     bundledLua,
   );
-  console.log(
-    'Bundled Lua written to:',
-    path.join(__dirname, '../dist/aos-ant-bundled.lua'),
-  );
+  console.log('Doth Lua hath been bundled!');
 }
 
 main();

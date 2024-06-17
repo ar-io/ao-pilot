@@ -39,29 +39,19 @@ async function main() {
     ticker: 'ANT',
   });
 
-  //   const processId = await ao.spawn({
-  //     module: moduleId,
-  //     scheduler,
-  //     signer,
-  //   });
-  const processId = '-IUtRutnBYxqjcHsgmBQUWeRHYV5knX8Zjgoq3EuEY0';
+  const processId = await ao.spawn({
+    module: moduleId,
+    scheduler,
+    signer,
+  });
 
   console.log('Process ID:', processId);
   console.log('Waiting 20 seconds to ensure process is readied.');
   await new Promise((resolve) => setTimeout(resolve, 20_000));
   console.log('Loading ANT Lua code...');
 
-  //   const messageId = await ao.message({
-  //     process: processId,
-  //     data: luaCode,
-  //     tags: [{ name: 'Action', value: 'Eval' }],
-  //     signer,
-  //   });
-
-  //   console.log('Eval called. Message ID:', messageId);
-  //  console.log('Running test cases via dryrun');
-
   const testCases = [
+    ['Eval', {}, luaCode],
     ['Info', {}],
     ['Set-Controller', { Controller: ''.padEnd(43, '1') }],
     ['Remove-Controller', { Controller: ''.padEnd(43, '1') }],
@@ -98,13 +88,13 @@ async function main() {
     const tags = args
       ? Object.entries(args).map(([key, value]) => ({ name: key, value }))
       : [];
-    const result = await ao.message({
+    const result = await ao.dryrun({
       process: processId,
       tags: [...tags, { name: 'Action', value: method }],
       data,
       signer,
-      //   Owner: address,
-      //   From: address,
+      Owner: address,
+      From: address,
     });
 
     console.dir({ method, result }, { depth: null });

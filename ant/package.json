@@ -1,5 +1,4 @@
 {
-  "type": "module",
   "scripts": {
     "build:module": "cd src && ao build && cd .. && yarn load:module",
     "publish:module": "cd src && ao publish process.wasm -w ../tools/key.json --tag=\"Memory-Limit\" --value=\"1-gb\" --tag=\"Compute-Limit\" --value=\"9000000000000\" && cd ..",
@@ -8,7 +7,8 @@
     "build:aos-ant": "node tools/bundle-aos-ant.cjs",
     "publish:aos-ant": "node tools/bundle-aos-ant.cjs && node tools/publish-aos-ant.cjs",
     "load:aos-ant": "node tools/bundle-aos-ant.cjs && node tools/load-aos-ant.cjs",
-    "spawn:aos-ant": "node tools/spawn-aos-ant.cjs"
+    "spawn:aos-ant": "node tools/spawn-aos-ant.cjs",
+    "test": "node --test --test-concurrency 1 **/*.test.js"
   },
   "dependencies": {
     "@permaweb/ao-loader": "^0.0.35",

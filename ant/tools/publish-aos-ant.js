@@ -8,6 +8,10 @@ const arweave = Arweave.init({
   protocol: 'https',
 });
 async function main() {
+  const bundledLua = fs.readFileSync(
+    path.join(__dirname, '../dist/aos-ant-bundled.lua'),
+    'utf-8',
+  );
   const wallet = fs.readFileSync(path.join(__dirname, 'key.json'), 'utf-8');
   const jwk = JSON.parse(wallet);
   const address = await arweave.wallets.jwkToAddress(jwk);

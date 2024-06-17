@@ -266,10 +266,17 @@ end
 function gar.delegateStake(from, target, qty, currentTimestamp)
 	assert(type(qty) == "number", "Quantity is required and must be a number!")
 	assert(qty > 0, "Quantity must be greater than 0")
+	assert(type(target) == "string", "Target is required and must be a string!")
+	assert(type(from) == "string", "From is required and must be a string!")
 
 	local gateway = gar.getGateway(target)
 	if gateway == nil then
 		error("Gateway does not exist")
+	end
+
+	-- don't allow delegating to yourself
+	if from == target then
+		error("Cannot delegate to your own gateway, use increaseOperatorStake instead.")
 	end
 
 	if balances.getBalance(from) < qty then

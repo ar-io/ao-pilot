@@ -1,8 +1,8 @@
 -- Adjust package.path to include the current directory
 local process = { _version = "0.0.1" }
 
-Name = "Test IO"
-Ticker = "tIO"
+Name = "Devnet IO"
+Ticker = "dIO"
 Logo = "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
 Denomination = 6
 DemandFactor = DemandFactor or {}
@@ -586,7 +586,7 @@ Handlers.add(
 		if not gateway then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
+				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings", Error="Failed-Update-Gateway-Settings"  },
 				Data = "Gateway not found",
 			})
 			return
@@ -599,7 +599,7 @@ Handlers.add(
 			fqdn = msg.Tags.FQDN or gateway.settings.fqdn,
 			port = tonumber(msg.Tags.Port) or gateway.settings.port,
 			protocol = msg.Tags.Protocol or gateway.settings.protocol,
-			allowDelegatedStaking = msg.Tags.AllowDelegatedStaking == "true" or gateway.settings.allowDelegatedStaking,
+			allowDelegatedStaking = not msg.Tags.AllowDelegatedStaking and gateway.settings.allowDelegatedStaking or msg.Tags.AllowDelegatedStaking == "true",
 			minDelegatedStake = tonumber(msg.Tags.MinDelegatedStake) or gateway.settings.minDelegatedStake,
 			delegateRewardShareRatio = tonumber(msg.Tags.DelegateRewardShareRatio)
 				or gateway.settings.delegateRewardShareRatio,
@@ -612,7 +612,7 @@ Handlers.add(
 		if not status then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings" },
+				Tags = { Action = "GAR-Invalid-Update-Gateway-Settings", Error="Failed-Update-Gateway-Settings" },
 				Data = tostring(result),
 			})
 		else
@@ -674,7 +674,7 @@ Handlers.add("tick", utils.hasMatchingTag("Action", "Tick"), function(msg)
 	end
 
 	-- tick and distribute rewards for every index between the last ticked epoch and the current epoch
-	for i = lastTickedEpochIndex + 1, currentEpochIndex do
+	for i = lastTickedEpochIndex + 1, currentEpochIndex - 1 do
 		local previousState = {
 			Balances = utils.deepCopy(Balances),
 			Vaults = utils.deepCopy(Vaults),
@@ -737,7 +737,7 @@ Handlers.add(ActionMap.Gateways, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Gateway, Handlers.utils.hasMatchingTag("Action", ActionMap.Gateway), function(msg)
-	local gateway = gar.getGateway(msg.Tags.Address)
+	local gateway = gar.getGateway(msg.Tags.Address or msg.From)
 	ao.send({
 		Target = msg.From,
 		Data = json.encode(gateway),
@@ -752,10 +752,14 @@ Handlers.add(ActionMap.Balances, Handlers.utils.hasMatchingTag("Action", ActionM
 end)
 
 Handlers.add(ActionMap.Balance, Handlers.utils.hasMatchingTag("Action", ActionMap.Balance), function(msg)
-	local balance = balances.getBalance(msg.Tags.Address)
+	-- TODO: arconnect et. all expect to accept Target
+	local balance = balances.getBalance(msg.Tags.Target or msg.Tags.Address or msg.From)
+	-- must adhere to token.lua spec for arconnect compatibility
 	ao.send({
 		Target = msg.From,
-		Data = tostring(balance),
+		Data = balance,
+		Balance = balance, 
+		Ticker = Ticker, 
 	})
 end)
 

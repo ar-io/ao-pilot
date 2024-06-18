@@ -89,7 +89,7 @@ Handlers.add(ActionMap.Transfer, utils.hasMatchingTag("Action", ActionMap.Transf
 	if not status then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Transfer-Error" },
+			Tags = { Action = ActionMap.Transfer, Error = "Transfer-Error"},
 			Data = tostring(result),
 		})
 	else
@@ -145,7 +145,7 @@ Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.Cre
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Create-Vault" },
+			Tags = { Action = "Invalid-Create-Vault", Error = "Bad-Input"},
 			Data = tostring(inputResult),
 		})
 		return
@@ -155,7 +155,7 @@ Handlers.add(ActionMap.CreateVault, utils.hasMatchingTag("Action", ActionMap.Cre
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Create-Vault" },
+			Tags = { Action = "Invalid-Create-Vault", Error = "Invalid-Create-Vault" },
 			Data = tostring(err),
 		})
 	else
@@ -179,7 +179,7 @@ Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Vaulted-Transfer" },
+			Tags = { Action = "Invalid-Vaulted-Transfer", Error = "Bad-Input"},
 			Data = tostring(inputResult),
 		})
 		return
@@ -196,7 +196,7 @@ Handlers.add(ActionMap.VaultedTransfer, utils.hasMatchingTag("Action", ActionMap
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Vaulted-Transfer" },
+			Tags = { Action = "Invalid-Vaulted-Transfer", Error = "Invalid-Vaulted-Transfer"},
 			Data = tostring(err),
 		})
 	else
@@ -224,7 +224,7 @@ Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.Ext
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Extend-Vault" },
+			Tags = { Action = "Invalid-Extend-Vault", Error = "Bad-Input"},
 			Data = tostring(inputResult),
 		})
 		return
@@ -234,7 +234,7 @@ Handlers.add(ActionMap.ExtendVault, utils.hasMatchingTag("Action", ActionMap.Ext
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Extend-Vault" },
+			Tags = { Action = "Invalid-Extend-Vault", Error = "Invalid-Extend-Vault"},
 			Data = tostring(err),
 		})
 	else
@@ -257,7 +257,7 @@ Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.I
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Increase-Vault" },
+			Tags = { Action = "Invalid-Increase-Vault", Error = "Bad-Input"},
 			Data = tostring(inputResult),
 		})
 		return
@@ -267,7 +267,7 @@ Handlers.add(ActionMap.IncreaseVault, utils.hasMatchingTag("Action", ActionMap.I
 	if err then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Increase-Vault" },
+			Tags = { Action = "Invalid-Increase-Vault", Error = "Invalid-Increase-Vault"},
 			Data = tostring(err),
 		})
 	else
@@ -298,7 +298,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 	if not inputStatus then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "ArNS-Invalid-Buy-Record-Notice" },
+			Tags = { Action = "ArNS-Invalid-Buy-Record-Notice", Error = "Bad-Input"},
 			Data = tostring(inputResult),
 		})
 		return
@@ -318,7 +318,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 			Target = msg.From,
 			Tags = {
 				Action = "ArNS-Invalid-Buy-Record-Notice",
-				Sender = msg.From,
+				Error = "Invalid-Buy-Record",
 			},
 			Data = tostring(result),
 		})
@@ -326,7 +326,7 @@ Handlers.add(ActionMap.BuyRecord, utils.hasMatchingTag("Action", ActionMap.BuyRe
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "ArNS-Purchase-Notice", Sender = msg.From },
+			Tags = { Action = "ArNS-Purchase-Notice" },
 			Data = tostring(json.encode(result)),
 		})
 	end
@@ -342,7 +342,7 @@ Handlers.add(ActionMap.ExtendLease, utils.hasMatchingTag("Action", ActionMap.Ext
 	if not status then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "Invalid-Extend-Lease" },
+			Tags = { Action = "Invalid-Extend-Lease", Error = "Invalid-Extend-Lease"},
 			Data = tostring(result),
 		})
 	else
@@ -366,7 +366,7 @@ Handlers.add(
 		if not status then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "Invalid-Undername-Increase" },
+				Tags = { Action = "Invalid-Undername-Increase", Error = "Invalid-Undername-Increase"},
 				Data = tostring(result),
 			})
 		else
@@ -399,13 +399,13 @@ Handlers.add(ActionMap.JoinNetwork, utils.hasMatchingTag("Action", ActionMap.Joi
 	if not status then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "GAR-Invalid-Network-Join" },
+			Tags = { Action = "GAR-Invalid-Network-Join", Error = "Invalid-Network-Join"},
 			Data = tostring(result),
 		})
 	else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "GAR-Joined-Network", EndTimeStamp = tostring(result.endTimestamp) },
+			Tags = { Action = "GAR-Joined-Network" },
 			Data = tostring(json.encode(result)),
 		})
 	end
@@ -416,8 +416,8 @@ Handlers.add(ActionMap.LeaveNetwork, utils.hasMatchingTag("Action", ActionMap.Le
 	if not status then
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = "GAR-Invalid-Network-Leave" },
-			Data = tostring(err),
+			Tags = { Action = "GAR-Invalid-Network-Leave", Error = "Invalid-Network-Leave"},
+			Data = tostring(result),
 		})
 	else
 		ao.send({
@@ -441,7 +441,7 @@ Handlers.add(
 		if not inputStatus then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Stake-Increase" },
+				Tags = { Action = "GAR-Invalid-Stake-Increase", Error = "Bad-Input"},
 				Data = tostring(inputResult),
 			})
 			return
@@ -477,7 +477,7 @@ Handlers.add(
 		if not inputStatus then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Stake-Decrease" },
+				Tags = { Action = "GAR-Invalid-Stake-Decrease", Error = "Bad-Input"},
 				Data = tostring(inputResult),
 			})
 			return
@@ -487,7 +487,7 @@ Handlers.add(
 		if not status then
 			ao.send({
 				Target = msg.From,
-				Tags = { Action = "GAR-Invalid-Stake-Decrease" },
+				Tags = { Action = "GAR-Invalid-Stake-Decrease", Error = "Invalid-Stake-Decrease" },
 				Data = tostring(result),
 			})
 		else
@@ -548,7 +548,7 @@ Handlers.add(
 		if not inputStatus then
 			ao.send({
 				Target = msg.From,
-				Tags = { Error = "BadInput", Action = ActionMap.DecreaseDelegateStake },
+				Tags = { Error = "Bad-Input", Action = ActionMap.DecreaseDelegateStake },
 				Data = tostring(inputResult),
 			})
 			return

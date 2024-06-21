@@ -2,17 +2,14 @@ local json = require("json")
 
 -- Constants
 -- Used to determine when to require name resolution
-ID_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
-DATA_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
+ID_TTL_MS = 24 * 60 * 60 * 1000    -- 24 hours by default
+DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
 OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
 
--- URL configurations
-SW_CACHE_URL = "https://api.arns.app/v1/contract/"
-
 -- Process IDs for interacting with other services or processes
-ARNS_PROCESS_ID = "TyduW6spZTr3gkdIsdktduJhgtilaR_ex5JukK8gI9o"
-_0RBIT_SEND_PROCESS_ID = "WSXUI2JjYUldJ7CKq9wE1MGwXs-ldzlUlHOQszwQe0s"
-_0RBIT_RECEIVE_PROCESS_ID = "8aE3_6NJ_MU_q3fbhz2S6dA8PKQOSCe95Gt7suQ3j7U"
+AR_IO_DEVNET_PROCESS_ID = "GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc"
+AR_IO_TESTNET_PROCESS_ID = ""
+PROCESS_ID = AR_IO_DEVNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
@@ -44,7 +41,7 @@ local arnsMeta = {
 		if key == "resolve" then
 			return function(name)
 				name = string.lower(name)
-				ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+				ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 				return "Getting information for name: " .. name
 			end
 		elseif key == "data" then
@@ -52,13 +49,13 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
 					print(name .. " has not been resolved yet.  Resolving now...")
 					return nil
 				elseif rootName and underName == nil then
 					if NAMES[rootName].process and NAMES[rootName].process.records["@"] then
 						if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
@@ -66,7 +63,7 @@ local arnsMeta = {
 						end
 					elseif NAMES[rootName].contract and NAMES[rootName].contract.records["@"] then
 						if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name contract now...")
 							return nil
 						else
@@ -79,7 +76,7 @@ local arnsMeta = {
 				elseif rootName and underName then
 					if NAMES[rootName].process and NAMES[rootName].process.records[underName] then
 						if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
@@ -87,7 +84,7 @@ local arnsMeta = {
 						end
 					elseif NAMES[rootName].contract and NAMES[rootName].contract.records[underName] then
 						if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name contract now...")
 							return nil
 						else
@@ -105,12 +102,12 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = rootName })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
 					print(name .. " has not been resolved yet.  Cannot get owner.  Resolving now...")
 					return nil
 				elseif NAMES[rootName].process and NAMES[rootName].process.owner then
 					if Now - NAMES[rootName].process.lastUpdated >= OWNER_TTL_MS then
-						ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 						print(name .. " is stale.  Refreshing name process now...")
 						return nil
 					else
@@ -118,7 +115,7 @@ local arnsMeta = {
 					end
 				elseif NAMES[rootName].contract and NAMES[rootName].contract.owner then
 					if Now - NAMES[rootName].contract.lastUpdated >= OWNER_TTL_MS then
-						ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 						print(name .. " is stale.  Refreshing name contract now...")
 						return nil
 					else
@@ -133,11 +130,11 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 					print(name .. " has not been resolved yet.  Cannot get id.  Resolving now...")
 					return nil
 				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
-					ao.send({ Target = ARNS_PROCESS_ID, Action = "Get-Record", Name = name })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 					print(name .. " is stale.  Refreshing name data now...")
 					return nil
 				else
@@ -147,6 +144,11 @@ local arnsMeta = {
 		elseif key == "clear" then
 			NAMES = {}
 			return "ArNS local name cache cleared."
+		elseif key == "resolveAll" then
+			return function()
+				ao.send({ Target = PROCESS_ID, Action = "Records" })
+				return "Getting entire ArNS registry"
+			end
 		else
 			return nil
 		end
@@ -155,23 +157,11 @@ local arnsMeta = {
 
 ARNS = setmetatable({}, arnsMeta)
 
---- Requests JSON data from a specified URL via the Orbit process, an external service.
--- @param url The URL from which JSON data is to be fetched.
-function fetchJsonDataFromOrbit(url)
-	-- Validate URL to prevent sending invalid requests
-	if type(url) ~= "string" or url == "" then
-		print("Invalid URL provided for fetching JSON data.")
-		return
-	end
-	-- Send a request to the Orbit process with the specified URL.
-	ao.send({ Target = _0RBIT_SEND_PROCESS_ID, Action = "Get-Real-Data", Url = url })
-end
-
 --- Determines if a given message is a record response from the ARNS process.
 -- @param msg The message to evaluate.
 -- @return boolean True if the message is from the ARNS process and action is 'Record-Resolved', otherwise false.
 function isArNSGetRecordMessage(msg)
-	if msg.From == ARNS_PROCESS_ID and msg.Action == "Record-Resolved" then
+	if msg.From == PROCESS_ID then
 		return true
 	else
 		return false
@@ -190,15 +180,18 @@ function isANTInfoMessage(msg)
 	end
 end
 
---- Determines if a message is from the 0RBIT process with a 'Receive-data-feed' action.
--- @param msg The message object to check.
--- @return boolean True if the message is from the 0RBIT process and has the specified action, false otherwise.
-function is0rbitMessage(msg)
-	if msg.From == _0RBIT_RECEIVE_PROCESS_ID and msg.Action == "Receive-data-feed" then
-		return true
-	else
-		return false
+-- Function to decode JSON and check item count
+function jsonHasMoreThanOneItem(obj)
+	-- Count the number of items in the table
+	local count = 0
+	for k, v in pairs(obj) do
+		count = count + 1
+		if count > 1 then
+			return true
+		end
 	end
+
+	return false
 end
 
 Handlers.prepend("ArNS-Timers", function(msg)
@@ -211,43 +204,54 @@ end)
 -- Updates or initializes the record for the given name with the latest information.
 -- Fetches additional information from SmartWeave Cache or ANT-AO process if necessary.
 Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
+	print("Received message from ArNS Registry")
 	local data, err = json.decode(msg.Data)
 	if not data or err then
 		print("Error decoding JSON data: ", err)
 		return
 	end
 
-	-- Update or initialize the record with the latest information.
-	NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
-		or {
-			lastUpdated = msg.Timestamp,
-			contractTxId = data.contractTxId,
-			-- Assuming these fields are placeholders for future updates.
-			contractOwner = nil,
-			contract = nil,
-			processOwner = nil,
-			process = nil,
-		}
-	NAMES[msg.Tags.Name].processId = data.processId
-	NAMES[msg.Tags.Name].record = data
-	NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
-
-	print("Updated " .. msg.Tags.Name .. " with the latest ArNS-AO Registry info!")
-
-	-- Fetch additional information if contractTxId is provided.
-	if data.contractTxId then
-		local url = SW_CACHE_URL .. data.contractTxId
-		print("...fetching more info from SmartWeave Cache (via 0rbit): " .. url)
-		fetchJsonDataFromOrbit(url)
-		ID_NAME_MAPPING[data.contractTxId] = msg.Tags.Name
+	-- If a single record is returned, it must be a Record message
+	if jsonHasMoreThanOneItem(data) == false then
+		print("Received a Record response")
+		-- Update or initialize the record with the latest information.
+		--NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
+		--	or {
+		--		lastUpdated = msg.Timestamp,
+		--		contractTxId = data.contractTxId,
+		--		-- Assuming these fields are placeholders for future updates.
+		--		contractOwner = nil,
+		--		contract = nil,
+		--		processOwner = nil,
+		--		process = nil,
+		--	}
+		--NAMES[msg.Tags.Name].processId = data.processId
+		--NAMES[msg.Tags.Name].record = data
+		--NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
+		print(data)
+	else
+		print("Received a Records response")
+		-- Update or initialize the record with the latest information.
+		--NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
+		--	or {
+		--		lastUpdated = msg.Timestamp,
+		--		contractTxId = data.contractTxId,
+		--		-- Assuming these fields are placeholders for future updates.
+		--		contractOwner = nil,
+		--		contract = nil,
+		--		processOwner = nil,
+		--		process = nil,
+		--	}
+		--NAMES[msg.Tags.Name].processId = data.processId
+		--NAMES[msg.Tags.Name].record = data
+		--NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
+		print(data)
 	end
 
-	-- Request more information if processId is provided and not empty.
-	if data.processId then
-		print("...fetching more info from ANT-AO process: " .. data.processId)
-		ID_NAME_MAPPING[data.processId] = msg.Tags.Name
-		ao.send({ Target = data.processId, Action = "Info" })
-	end
+
+
+
+	print("Updated with the latest ArNS Registry info!")
 end)
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
@@ -277,41 +281,5 @@ Handlers.add("ReceiveANTProcessInfoMessage", isANTInfoMessage, function(msg)
 
 		-- Clear the mapping after updating to prevent redundant updates.
 		ID_NAME_MAPPING[msg.From] = nil
-	end
-end)
-
---- Processes messages from the 0rbit process to update contract information stored in NAMES.
--- @param msg The message object received from the 0rbit process.
-Handlers.add("Receive0rbitMessage", is0rbitMessage, function(msg)
-	-- Decode the JSON data from the message.
-	local data, err = json.decode(msg.Data)
-	if err then
-		print("Error decoding data from 0rbit message: ", err)
-		return
-	end
-
-	-- Validate that the decoded data contains a contractTxId that is currently being tracked.
-	local nameKey = ID_NAME_MAPPING[data.contractTxId]
-	if nameKey and NAMES[nameKey] then
-		local updatedInfo = NAMES[nameKey]
-
-		-- Ensure the data contains 'state' information for the contract before updating.
-		if type(data.state) == "table" then
-			updatedInfo.contract = data.state
-			updatedInfo.contract.owner = data.state.owner
-			updatedInfo.contract.lastUpdated = msg.Timestamp
-			NAMES[nameKey] = updatedInfo
-			print("Updated " .. nameKey .. " with the latest info from SmartWeave Cache (via 0rbit)!")
-		else
-			print(
-				"Received 0rbit message with invalid or missing 'state' information for contractTxId: "
-					.. tostring(data.contractTxId)
-			)
-		end
-
-		-- Clear the mapping to prevent repeated updates for the same contractTxId.
-		ID_NAME_MAPPING[data.contractTxId] = nil
-	else
-		print("Received 0rbit message for an untracked or invalid contractTxId: " .. tostring(data.contractTxId))
 	end
 end)

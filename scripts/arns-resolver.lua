@@ -13,7 +13,6 @@ PROCESS_ID = AR_IO_DEVNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
-ID_NAME_MAPPING = ID_NAME_MAPPING or {}
 Now = Now or 0
 
 --- Splits a string into two parts based on the last underscore character, intended to separate ARNS names into undername and rootname components.
@@ -161,37 +160,23 @@ ARNS = setmetatable({}, arnsMeta)
 -- @param msg The message to evaluate.
 -- @return boolean True if the message is from the ARNS process and action is 'Record-Resolved', otherwise false.
 function isArNSGetRecordMessage(msg)
-	if msg.From == PROCESS_ID then
+	if msg.From == PROCESS_ID and (msg.Tags.Action == 'Record-Notice' or msg.Tags.Action == 'Records-Notice') then
 		return true
 	else
 		return false
 	end
 end
 
---- Determines if a message is an 'Info' message from an ANT or related process.
+--- Determines if a message is an 'State' message from an ANT or related process.
 -- Checks if the sender's ID exists within the ID_NAME_MAPPING.
 -- @param msg The message object to check.
 -- @return boolean True if the sender's ID is recognized, false otherwise.
-function isANTInfoMessage(msg)
-	if ID_NAME_MAPPING[msg.From] then
+function isANTStateMessage(msg)
+	if msg.Tags.Action == 'State-Notice' then
 		return true
 	else
 		return false
 	end
-end
-
--- Function to decode JSON and check item count
-function jsonHasMoreThanOneItem(obj)
-	-- Count the number of items in the table
-	local count = 0
-	for k, v in pairs(obj) do
-		count = count + 1
-		if count > 1 then
-			return true
-		end
-	end
-
-	return false
 end
 
 Handlers.prepend("ArNS-Timers", function(msg)
@@ -211,9 +196,8 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 		return
 	end
 
-	-- If a single record is returned, it must be a Record message
-	if jsonHasMoreThanOneItem(data) == false then
-		print("Received a Record response")
+	if msg.Tags.Action == 'Record-Notice' then
+		print("Received a single Record response")
 		-- Update or initialize the record with the latest information.
 		--NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
 		--	or {
@@ -228,58 +212,64 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 		--NAMES[msg.Tags.Name].processId = data.processId
 		--NAMES[msg.Tags.Name].record = data
 		--NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
-		print(data)
-	else
-		print("Received a Records response")
-		-- Update or initialize the record with the latest information.
-		--NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
-		--	or {
-		--		lastUpdated = msg.Timestamp,
-		--		contractTxId = data.contractTxId,
-		--		-- Assuming these fields are placeholders for future updates.
-		--		contractOwner = nil,
-		--		contract = nil,
-		--		processOwner = nil,
-		--		process = nil,
-		--	}
-		--NAMES[msg.Tags.Name].processId = data.processId
-		--NAMES[msg.Tags.Name].record = data
-		--NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
-		print(data)
+	elseif msg.Tags.Action == 'Records-Notice' then
+		print("Received multiple Records responses")
+		for name, record in pairs(data) do
+			NAMES[name] = {
+				lastUpdated = msg.Timestamp,
+				processId = record.processId,
+				type = record.type,
+				startTimestamp = record.startTimestamp,
+				purchasePrice = record.purchasePrice,
+				undernameLimit = record.undernameLimit
+			}
+			if record.endTimestamp ~= nil then
+				NAMES[name].endTimestamp = record.endTimestamp
+			end
+			-- print('Resolving ' .. name .. ' to ANT: ' .. record.processId)
+			if NAMES[name].processId then
+				print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
+				ao.send({ Target = NAMES[name].processId, ["X-Resolved-Name"] = name, Action = "State" })
+			else
+				print('Cant resolve ' .. name .. ' without an AO ANT Process ID')
+			end
+		end
 	end
-
-
-
-
 	print("Updated with the latest ArNS Registry info!")
 end)
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
 -- @param msg The received message object containing updated process info.
-Handlers.add("ReceiveANTProcessInfoMessage", isANTInfoMessage, function(msg)
-	if msg.Action == "Info-Notice" and NAMES[ID_NAME_MAPPING[msg.From]] then
-		local nameKey = ID_NAME_MAPPING[msg.From]
-		local updatedInfo = NAMES[nameKey]
+Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
+	print('Got ANT State Notice from ANT ' .. msg.From)
 
-		-- Attempt to decode the JSON data from the message.
-		local processInfo, err = json.decode(msg.Data)
-		if err then
-			print("Error decoding process info: ", err)
-			return
-		end
+	-- Attempt to decode the JSON data from the message.
+	local state, err = json.decode(msg.Data)
+	if err then
+		print("Error decoding process info: ", err)
+		return
+	end
 
-		-- Ensure the decoded data is a valid table before updating.
-		if type(processInfo) == "table" then
-			updatedInfo.process = processInfo
-			updatedInfo.process.owner = msg.Tags.ProcessOwner
-			updatedInfo.process.lastUpdated = msg.Timestamp
-			NAMES[nameKey] = updatedInfo
-			print("Updated " .. nameKey .. " with the latest ANT-AO process info!")
-		else
-			print("Invalid process info format received from " .. nameKey)
-		end
+	-- Ensure it contains the X-Resolved-Name tag
+	-- Ensure the registered process matches
+	if ARNS[msg.Tags["X-Resolved-Name"]] ~= nil and msg.From ~= ARNS[msg.Tags["X-Resolved-Name"]].processId then
+		print("Name resolution is not authorized")
+	end
 
-		-- Clear the mapping after updating to prevent redundant updates.
-		ID_NAME_MAPPING[msg.From] = nil
+	local name = msg.Tags["X-Resolved-Name"]
+	local updatedInfo = NAMES[name]
+
+	-- Ensure the decoded data is a valid table before updating.
+	if type(state) == "table" and type(state.records) == "table" then
+		updatedInfo.process.Name = state.Name
+		updatedInfo.process.Ticker = state.Ticker
+		updatedInfo.process.Owner = state.Owner
+		updatedInfo.process.Controllers = state.Controllers
+		updatedInfo.process.Records = state.Records
+		updatedInfo.process.lastUpdated = msg.Timestamp
+		NAMES[name] = updatedInfo
+		print("Updated " .. name .. " with the latest state from AO ANT " .. msg.From)
+	else
+		print("Invalid process info format received from " .. msg.From)
 	end
 end)

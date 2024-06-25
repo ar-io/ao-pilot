@@ -139,7 +139,7 @@ local arnsMeta = {
 				else
 					local record = NAMES[rootName]
 					record.state = PROCESSES[NAMES[rootName].processId].state or
-					PROCESSES[NAMES[rootName].processId].State
+						PROCESSES[NAMES[rootName].processId].State
 					return record or nil
 				end
 			end
@@ -395,4 +395,23 @@ Handlers.add("Process", Handlers.utils.hasMatchingTag("Action", "Process"), func
 			},
 		})
 	end
+end)
+
+Handlers.add("Processes", Handlers.utils.hasMatchingTag("Action", "Processes"), function(msg)
+	local processes = {}
+	for processId, process in pairs(PROCESSES) do
+		local processNames = {}
+		for name, process in pairs(PROCESSES[processId].Names) do
+			processNames[name] = NAMES[name]
+			processNames[name].state = PROCESSES[processId].state
+		end
+		processes[processId] = processNames
+	end
+	ao.send({
+		Target = msg.From,
+		Tags = {
+			Action = "Processes-Notice",
+		},
+		Data = json.encode(processes),
+	})
 end)

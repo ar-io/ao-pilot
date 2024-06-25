@@ -11,7 +11,7 @@ OWNER_TTL_MS = 24 * 60 * 60 * 1000        -- 24 hours by default
 -- Process IDs for interacting with other services or processes
 AR_IO_DEVNET_PROCESS_ID = "GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc"
 AR_IO_TESTNET_PROCESS_ID = "agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA"
-PROCESS_ID = PROCESS_ID or AR_IO_DEVNET_PROCESS_ID
+PROCESS_ID = PROCESS_ID or AR_IO_TESTNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}

@@ -13,7 +13,8 @@ PROCESS_ID = PROCESS_ID or AR_IO_DEVNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
-OWNER_MAP = OWNER_MAP or {}
+PROCESSES = PROCESSES or {}
+ACL = ACL or {}
 Now = Now or 0
 
 --- Splits a string into two parts based on the last underscore character, intended to separate ARNS names into undername and rootname components.
@@ -61,23 +62,23 @@ local arnsMeta = {
 					print(name .. " has not been resolved yet.  Resolving now...")
 					return nil
 				elseif rootName and underName == nil then
-					if NAMES[rootName].process and NAMES[rootName].process.records["@"] then
-						if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
+					if PROCESSES[NAMES[rootName].processId] and PROCESSES[NAMES[rootName].processId].state.Records["@"] then
+						if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= DATA_TTL_MS then
 							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
-							return NAMES[rootName].process.records["@"].transactionId
+							return PROCESSES[NAMES[rootName].processId].state.Records["@"].transactionId
 						end
 					end
 				elseif rootName and underName then
-					if NAMES[rootName].process and NAMES[rootName].process.records[underName] then
-						if Now - NAMES[rootName].process.lastUpdated >= DATA_TTL_MS then
+					if PROCESSES[NAMES[rootName].processId] and PROCESSES[NAMES[rootName].processId].state.Records[underName] then
+						if Now - PROCESSES[NAMES[rootName].processId].lastUpdated >= DATA_TTL_MS then
 							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
-							return NAMES[rootName].process.records[underName].transactionId
+							return PROCESSES[NAMES[rootName].processId].Records[underName].transactionId
 						end
 					else
 						return nil
@@ -92,25 +93,25 @@ local arnsMeta = {
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
 					print(name .. " has not been resolved yet.  Cannot get owner.  Resolving now...")
 					return nil
-				elseif NAMES[rootName].process and NAMES[rootName].process.owner then
-					if Now - NAMES[rootName].process.lastUpdated >= OWNER_TTL_MS then
+				elseif PROCESSES[NAMES[rootName].processId] and PROCESSES[NAMES[rootName].processId].state.Owner then
+					if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= OWNER_TTL_MS then
 						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 						print(name .. " is stale.  Refreshing name process now...")
 						return nil
 					else
-						return NAMES[rootName].process.owner
+						return PROCESSES[NAMES[rootName].processId].state.Owner
 					end
 				else
 					return nil
 				end
 			end
-		elseif key == "id" then
+		elseif key == "process" then
 			return function(name)
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-					print(name .. " has not been resolved yet.  Cannot get id.  Resolving now...")
+					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
 					return nil
 				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
@@ -123,6 +124,8 @@ local arnsMeta = {
 		elseif key == "clear" then
 			return function()
 				NAMES = {}
+				ACL = {}
+				PROCESSES = {}
 				return "ArNS local name cache cleared."
 			end
 		elseif key == "resolveAll" then
@@ -158,7 +161,7 @@ end
 -- @param msg The message object to check.
 -- @return boolean True if the sender's ID is recognized, false otherwise.
 function isANTStateMessage(msg)
-	if msg.Tags.Action == 'State-Notice' then
+	if PROCESSES[msg.From] ~= nil and msg.Tags.Action == 'State-Notice' then
 		return true
 	else
 		return false
@@ -181,26 +184,36 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 		print("Error decoding JSON data: ", err)
 		return
 	end
-	local namesResolved = 0
+	local namesFetched = 0
+	local antsResolved = 0
 
-	if msg.Tags.Action == 'Record-Notice' then
-		-- Update or initialize the record with the latest information.
-		--NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
-		--	or {
-		--		lastUpdated = msg.Timestamp,
-		--		contractTxId = data.contractTxId,
-		--		-- Assuming these fields are placeholders for future updates.
-		--		contractOwner = nil,
-		--		contract = nil,
-		--		processOwner = nil,
-		--		process = nil,
-		--	}
-		--NAMES[msg.Tags.Name].processId = data.processId
-		--NAMES[msg.Tags.Name].record = data
-		--NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
-		namesResolved = namesResolved + 1
+	if msg.Tags.Action == 'Record-Notice' and msg.Tags.Name ~= nil then
+		NAMES[msg.Tags.Name] = {
+			lastUpdated = msg.Timestamp,
+			processId = data.processId,
+			type = data.type,
+			startTimestamp = data.startTimestamp,
+			purchasePrice = data.purchasePrice,
+			undernameLimit = data.undernameLimit
+		}
+		if data.endTimestamp ~= nil then
+			NAMES[msg.Tags.Name].endTimestamp = data.endTimestamp
+		end
+		if data.processId then
+			print('Resolving ' .. msg.Tags.Name .. ' to ANT: ' .. data.processId)
+			namesFetched = namesFetched + 1
+			if PROCESSES[data.processId] == nil then
+				PROCESSES[data.processId] = {
+					Names = {}
+				}
+			end
+			PROCESSES[data.processId].Names[msg.Tags.Name] = true
+			ao.send({ Target = data.processId, Action = "State" })
+			antsResolved = antsResolved + 1
+		end
 	elseif msg.Tags.Action == 'Records-Notice' then
 		for name, record in pairs(data) do
+			-- TODO: CHECK FOR A NEW NAME
 			NAMES[name] = {
 				lastUpdated = msg.Timestamp,
 				processId = record.processId,
@@ -212,17 +225,25 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			if record.endTimestamp ~= nil then
 				NAMES[name].endTimestamp = record.endTimestamp
 			end
-			-- print('Resolving ' .. name .. ' to ANT: ' .. record.processId)
 			if NAMES[name].processId then
 				print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
-				ao.send({ Target = NAMES[name].processId, ["X-Resolved-Name"] = name, Action = "State" })
-				namesResolved = namesResolved + 1
+				namesFetched = namesFetched + 1
+				if PROCESSES[NAMES[name].processId] == nil then
+					PROCESSES[NAMES[name].processId] = {
+						Names = {}
+					}
+				end
+				PROCESSES[NAMES[name].processId].Names[name] = true
 			else
 				print('Cant resolve ' .. name .. ' without an AO ANT Process ID')
 			end
 		end
+		for processId, process in pairs(PROCESSES) do
+			ao.send({ Target = processId, Action = "State" })
+			antsResolved = antsResolved + 1
+		end
 	end
-	print("Updated " .. namesResolved .. " name(s) with the latest ArNS Registry info!")
+	print("Updated " .. antsResolved .. " ANTs across " .. namesFetched .. " names with the latest ArNS Registry info!")
 end)
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
@@ -235,31 +256,121 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 		return
 	end
 
-	-- Ensure it contains the X-Resolved-Name tag
-	-- Ensure the registered process matches
-	print(msg)
-	if ARNS[msg.Tags["X-Resolved-Name"]] == nil or (ARNS[msg.Tags["X-Resolved-Name"]] ~= nil and msg.From ~= ARNS[msg.Tags["X-Resolved-Name"]].processId) then
-		print('NOT AUTHORIZED')
-		return
+	local owner = state.owner or state.Owner
+
+	if PROCESSES[msg.From] ~= nil and PROCESSES[msg.From].Owner ~= nil and PROCESSES[msg.From].Owner ~= owner then
+		ACL[PROCESSES[msg.From].Owner][msg.From] = nil
+	end
+	if ACL[owner] == nil then
+		ACL[owner] = {
+			[msg.From] = msg.Timestamp
+		}
+	else
+		ACL[owner][msg.From] = msg.Timestamp
+	end
+	PROCESSES[msg.From].state = state
+	PROCESSES[msg.From].state.lastUpdated = msg.Timestamp
+
+	print("Updated " .. msg.From .. " with the latest state.")
+end)
+
+Handlers.add("ACL", Handlers.utils.hasMatchingTag("Action", "ACL"), function(msg)
+	if ACL[msg.Tags.Address] ~= nil then
+		local ownedNames = {}
+		for processId, lastUpdated in pairs(ACL[msg.Tags.Address]) do
+			for name, process in pairs(PROCESSES[processId].Names) do
+				ownedNames[name] = NAMES[name]
+				ownedNames[name].state = PROCESSES[processId].state
+			end
+		end
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "ACL-Notice",
+				Address = msg.Tags.Address,
+			},
+			Data = json.encode(ownedNames),
+		})
+	else
+		-- Send an error response if the record name is not provided or the record does not exist.
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Invalid-ACL-Notice",
+				["Message-Id"] = msg.Id, -- Ensure message ID is passed for traceability.
+				Error = "Requested non-existent Owner",
+			},
+		})
+	end
+end)
+
+Handlers.add("Record", Handlers.utils.hasMatchingTag("Action", "Record"), function(msg)
+	if NAMES[msg.Tags.Name] ~= nil and PROCESSES[NAMES[msg.Tags.Name].processId] ~= nil and PROCESSES[NAMES[msg.Tags.Name].processId].state ~= nil then
+		local record = NAMES[msg.Tags.Name]
+		record.state = PROCESSES[NAMES[msg.Tags.Name].processId].state
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Record-Notice",
+				Name = msg.Tags.Name,
+			},
+			Data = json.encode(record),
+		})
+	else
+		-- Send an error response if the record name is not provided or the record does not exist.
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Invalid-Record-Notice",
+				["Message-Id"] = msg.Id, -- Ensure message ID is passed for traceability.
+				Error = "Requested non-existent Record",
+			},
+		})
+	end
+end)
+
+Handlers.add("Records", Handlers.utils.hasMatchingTag("Action", "Records"), function(msg)
+	local records = {}
+	for name, record in pairs(NAMES) do
+		records[name] = NAMES[name]
+		if PROCESSES[NAMES[name].processId] ~= nil then
+			records[name].state = PROCESSES[NAMES[name].processId].state
+		end
 	end
 
-	local name = msg.Tags["X-Resolved-Name"]
-	local updatedInfo = NAMES[name]
+	ao.send({
+		Target = msg.From,
+		Tags = {
+			Action = "Records-Notice",
+		},
+		Data = json.encode(records),
+	})
+end)
 
-	-- Ensure the decoded data is a valid table before updating.
-	if state.records then
-		updatedInfo.process = {
-			name = state.Name or state.name,
-			ticker = state.Ticker or state.ticker,
-			owner = state.Owner or state.owner,
-			controllers = state.Controllers or state.controllers,
-			records = state.Records or state.records,
-			lastUpdated = msg.Timestamp,
-		}
-		NAMES[name] = updatedInfo
-
-		print("Updated " .. name .. " with the latest state from AO ANT " .. msg.From)
+Handlers.add("Process", Handlers.utils.hasMatchingTag("Action", "Process"), function(msg)
+	if PROCESSES[msg.Tags.ProcessId] ~= nil and PROCESSES[msg.Tags.ProcessId].state ~= nil then
+		local processNames = {}
+		for name, process in pairs(PROCESSES[msg.Tags.ProcessId].Names) do
+			processNames[name] = NAMES[name]
+			processNames[name].state = PROCESSES[msg.Tags.ProcessId].state
+		end
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Process-Notice",
+				ProcessId = msg.Tags.ProcessId,
+			},
+			Data = json.encode(processNames),
+		})
 	else
-		print("Invalid process info format received from " .. msg.From)
+		-- Send an error response if the record name is not provided or the record does not exist.
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Invalid-Process-Notice",
+				["Message-Id"] = msg.Id, -- Ensure message ID is passed for traceability.
+				Error = "Requested non-existent Process",
+			},
+		})
 	end
 end)

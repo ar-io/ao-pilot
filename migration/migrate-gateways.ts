@@ -12,7 +12,7 @@ import { devnetContract, ioContract, jwk, migratedProcessId } from "./setup.js";
     },
   });
   const { message, result } = await connect();
-  const defaultStartTimestamp = new Date('06/25/2024').getTime()
+  const defaultStartTimestamp = new Date("06/25/2024").getTime();
   for (const [address, gateway] of Object.entries(gateways)) {
     if (gateway.status === "leaving") {
       continue;
@@ -21,7 +21,7 @@ import { devnetContract, ioContract, jwk, migratedProcessId } from "./setup.js";
     // exclude if we already migrated this gateway
     const gatewayData = await ioContract.getGateway({ address });
     if (gatewayData) {
-      console.log('Skipping already migrated gateway', address)
+      console.log("Skipping already migrated gateway", address);
       continue;
     }
 
@@ -68,7 +68,10 @@ import { devnetContract, ioContract, jwk, migratedProcessId } from "./setup.js";
   }
   // use the ar-io-sdk to get gateways from IO contract
   const allGateways = await ioContract.getGateways();
-  if (allGateways){
-    console.log('Migrated gateways. Total count:', Object.keys(allGateways).length)
+  if (allGateways) {
+    console.log(
+      "Migrated gateways. Total count:",
+      Object.keys(allGateways).length,
+    );
   }
 })();

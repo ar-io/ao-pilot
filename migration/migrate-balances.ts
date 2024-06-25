@@ -1,5 +1,10 @@
-import { IOToken, } from "@ar.io/sdk";
-import { devnetContract, excludeWallets, ioContract, teamMembers } from "./setup.js";
+import { IOToken } from "@ar.io/sdk";
+import {
+  devnetContract,
+  excludeWallets,
+  ioContract,
+  teamMembers,
+} from "./setup.js";
 
 (async () => {
   const balances = await devnetContract.getBalances({
@@ -96,28 +101,31 @@ import { devnetContract, excludeWallets, ioContract, teamMembers } from "./setup
       });
   }
 
-    for (const teamMember of teamMembers) {
-        await ioContract
-            .transfer(
-                {
-                    target: teamMember,
-                    qty: new IOToken(1_000_000).toMIO().valueOf(),
-                },
-                {
-                    tags: [{ name: "X-Transfer-Reason", value: "AR-IO-Team-Member" }],
-                },
-            )
-            .catch((e: any) => {
-                console.error("Failed to transfer tokens for team member:", e);
-            });
-    }
+  for (const teamMember of teamMembers) {
+    await ioContract
+      .transfer(
+        {
+          target: teamMember,
+          qty: new IOToken(1_000_000).toMIO().valueOf(),
+        },
+        {
+          tags: [{ name: "X-Transfer-Reason", value: "AR-IO-Team-Member" }],
+        },
+      )
+      .catch((e: any) => {
+        console.error("Failed to transfer tokens for team member:", e);
+      });
+  }
 
   // get the updated balances on io contract
   const updatedBalances = await ioContract.getBalances().catch((e: any) => {
     console.error("Failed to get updated balances:", e);
   });
 
-  if (updatedBalances){
-    console.log("Updated balances. Total count", Object.keys(updatedBalances).length);
+  if (updatedBalances) {
+    console.log(
+      "Updated balances. Total count",
+      Object.keys(updatedBalances).length,
+    );
   }
 })();

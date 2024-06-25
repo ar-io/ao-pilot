@@ -7,7 +7,7 @@ DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
 OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
 
 -- Process IDs for interacting with other services or processes
-AR_IO_DEVNET_PROCESS_ID = "DxzlVyR08GcfaY3jUTHN3XnRxBc4LJcuUpbSexb2q5w" --GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc
+AR_IO_DEVNET_PROCESS_ID = "GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc"
 AR_IO_TESTNET_PROCESS_ID = "agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA"
 PROCESS_ID = PROCESS_ID or AR_IO_DEVNET_PROCESS_ID
 
@@ -141,6 +141,23 @@ local arnsMeta = {
 					record.state = PROCESSES[NAMES[rootName].processId].state or
 						PROCESSES[NAMES[rootName].processId].State
 					return record or nil
+				end
+			end
+		elseif key == "records" then
+			return function()
+				if NAMES == nil or PROCESSES == nil then
+					ao.send({ Target = PROCESS_ID, Action = "Records" })
+					print("ArNS Records have not been resolved yet... Resolving now...")
+					return nil
+				else
+					local records = {}
+					for name, record in pairs(NAMES) do
+						records[name] = NAMES[name]
+						if PROCESSES[NAMES[name].processId].state ~= nil then
+							records[name].state = PROCESSES[NAMES[name].processId].state
+						end
+					end
+					return records or nil
 				end
 			end
 		elseif key == "clear" then

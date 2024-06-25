@@ -7,12 +7,13 @@ DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
 OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
 
 -- Process IDs for interacting with other services or processes
-AR_IO_DEVNET_PROCESS_ID = "GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc"
+AR_IO_DEVNET_PROCESS_ID = "DxzlVyR08GcfaY3jUTHN3XnRxBc4LJcuUpbSexb2q5w"
 AR_IO_TESTNET_PROCESS_ID = ""
-PROCESS_ID = AR_IO_DEVNET_PROCESS_ID
+PROCESS_ID = PROCESS_ID or AR_IO_DEVNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
+OWNER_MAP = OWNER_MAP or {}
 Now = Now or 0
 
 --- Splits a string into two parts based on the last underscore character, intended to separate ARNS names into undername and rootname components.
@@ -33,6 +34,14 @@ function splitIntoTwoNames(str)
 		-- return the original string as the first chunk and nil as the second
 		return str, nil
 	end
+end
+
+function countTableItems(tbl)
+	local count = 0
+	for _ in pairs(tbl) do
+		count = count + 1
+	end
+	return count
 end
 
 local arnsMeta = {
@@ -60,17 +69,6 @@ local arnsMeta = {
 						else
 							return NAMES[rootName].process.records["@"].transactionId
 						end
-					elseif NAMES[rootName].contract and NAMES[rootName].contract.records["@"] then
-						if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-							print(name .. " is stale.  Refreshing name contract now...")
-							return nil
-						else
-							return NAMES[rootName].contract.records["@"].transactionId
-								or NAMES[rootName].contract.records["@"]
-								or nil
-							-- NAMES[rootName].contract.records['@'] is used to capture old ANT contracts
-						end
 					end
 				elseif rootName and underName then
 					if NAMES[rootName].process and NAMES[rootName].process.records[underName] then
@@ -80,16 +78,6 @@ local arnsMeta = {
 							return nil
 						else
 							return NAMES[rootName].process.records[underName].transactionId
-						end
-					elseif NAMES[rootName].contract and NAMES[rootName].contract.records[underName] then
-						if Now - NAMES[rootName].contract.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-							print(name .. " is stale.  Refreshing name contract now...")
-							return nil
-						else
-							return NAMES[rootName].contract.records[underName].transactionId
-								or NAMES[rootName].contract.records[underName]
-							-- NAMES[rootName].contract.records[underName] is used to capture old ANT contracts
 						end
 					else
 						return nil
@@ -112,14 +100,6 @@ local arnsMeta = {
 					else
 						return NAMES[rootName].process.owner
 					end
-				elseif NAMES[rootName].contract and NAMES[rootName].contract.owner then
-					if Now - NAMES[rootName].contract.lastUpdated >= OWNER_TTL_MS then
-						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-						print(name .. " is stale.  Refreshing name contract now...")
-						return nil
-					else
-						return NAMES[rootName].contract.owner
-					end
 				else
 					return nil
 				end
@@ -137,16 +117,22 @@ local arnsMeta = {
 					print(name .. " is stale.  Refreshing name data now...")
 					return nil
 				else
-					return NAMES[rootName].processId or NAMES[rootName].contractTxId or nil
+					return NAMES[rootName].processId or nil
 				end
 			end
 		elseif key == "clear" then
-			NAMES = {}
-			return "ArNS local name cache cleared."
+			return function()
+				NAMES = {}
+				return "ArNS local name cache cleared."
+			end
 		elseif key == "resolveAll" then
 			return function()
 				ao.send({ Target = PROCESS_ID, Action = "Records" })
 				return "Getting entire ArNS registry"
+			end
+		elseif key == "count" then
+			return function()
+				return countTableItems(NAMES)
 			end
 		else
 			return nil
@@ -195,9 +181,9 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 		print("Error decoding JSON data: ", err)
 		return
 	end
+	local namesResolved = 0
 
 	if msg.Tags.Action == 'Record-Notice' then
-		print("Received a single Record response")
 		-- Update or initialize the record with the latest information.
 		--NAMES[msg.Tags.Name] = NAMES[msg.Tags.Name]
 		--	or {
@@ -212,8 +198,8 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 		--NAMES[msg.Tags.Name].processId = data.processId
 		--NAMES[msg.Tags.Name].record = data
 		--NAMES[msg.Tags.Name].lastUpdated = msg.Timestamp
+		namesResolved = namesResolved + 1
 	elseif msg.Tags.Action == 'Records-Notice' then
-		print("Received multiple Records responses")
 		for name, record in pairs(data) do
 			NAMES[name] = {
 				lastUpdated = msg.Timestamp,
@@ -230,19 +216,18 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			if NAMES[name].processId then
 				print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
 				ao.send({ Target = NAMES[name].processId, ["X-Resolved-Name"] = name, Action = "State" })
+				namesResolved = namesResolved + 1
 			else
 				print('Cant resolve ' .. name .. ' without an AO ANT Process ID')
 			end
 		end
 	end
-	print("Updated with the latest ArNS Registry info!")
+	print("Updated " .. namesResolved .. " name(s) with the latest ArNS Registry info!")
 end)
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
 -- @param msg The received message object containing updated process info.
 Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
-	print('Got ANT State Notice from ANT ' .. msg.From)
-
 	-- Attempt to decode the JSON data from the message.
 	local state, err = json.decode(msg.Data)
 	if err then
@@ -252,22 +237,27 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 
 	-- Ensure it contains the X-Resolved-Name tag
 	-- Ensure the registered process matches
-	if ARNS[msg.Tags["X-Resolved-Name"]] ~= nil and msg.From ~= ARNS[msg.Tags["X-Resolved-Name"]].processId then
-		print("Name resolution is not authorized")
+	print(msg)
+	if ARNS[msg.Tags["X-Resolved-Name"]] == nil or (ARNS[msg.Tags["X-Resolved-Name"]] ~= nil and msg.From ~= ARNS[msg.Tags["X-Resolved-Name"]].processId) then
+		print('NOT AUTHORIZED')
+		return
 	end
 
 	local name = msg.Tags["X-Resolved-Name"]
 	local updatedInfo = NAMES[name]
 
 	-- Ensure the decoded data is a valid table before updating.
-	if type(state) == "table" and type(state.records) == "table" then
-		updatedInfo.process.Name = state.Name
-		updatedInfo.process.Ticker = state.Ticker
-		updatedInfo.process.Owner = state.Owner
-		updatedInfo.process.Controllers = state.Controllers
-		updatedInfo.process.Records = state.Records
-		updatedInfo.process.lastUpdated = msg.Timestamp
+	if state.records then
+		updatedInfo.process = {
+			name = state.Name or state.name,
+			ticker = state.Ticker or state.ticker,
+			owner = state.Owner or state.owner,
+			controllers = state.Controllers or state.controllers,
+			records = state.Records or state.records,
+			lastUpdated = msg.Timestamp,
+		}
 		NAMES[name] = updatedInfo
+
 		print("Updated " .. name .. " with the latest state from AO ANT " .. msg.From)
 	else
 		print("Invalid process info format received from " .. msg.From)

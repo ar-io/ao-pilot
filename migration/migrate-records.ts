@@ -1,31 +1,12 @@
 import { createDataItemSigner, connect } from "@permaweb/aoconnect";
-import {
-  ANT,
-  ArIO,
-  ArweaveSigner,
-  IO,
-  spawnANT,
-} from "@ar.io/sdk";
-import Arweave from "arweave";
+import { ANT, spawnANT } from "@ar.io/sdk";
+import { devnetContract, jwk, migratedProcessId, teamMembers, signer, ioContract, arweave } from "./setup.js";
+import { queryObjects } from "v8";
 
-import fs from "fs";
-import path from "path";
-
-const dirname = new URL(import.meta.url).pathname;
-const jwk = JSON.parse(
-  fs.readFileSync(path.join(dirname, "../wallet.json")).toString(),
-);
-const migratedProcessId = "DxzlVyR08GcfaY3jUTHN3XnRxBc4LJcuUpbSexb2q5w";
 const defaultTxId = "UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk";
-const luaCodeTxId = 'wAvAD3KalWDEU_JB3QIX_Z27v8oCsnsfPtUDkGaPJns'
-const main = async () => {
-  // fetch gateways from contract
-  const devnetContract = ArIO.init({
-    contractTxId: 'bLAgYxAdX2Ry-nt6aH2ixgvJXbpsEYm28NgJgyqfs-U',
-  });
-  const aoContract = IO.init({
-    processId: migratedProcessId,
-  });
+const luaCodeTxId = 'wAvAD3KalWDEU_JB3QIX_Z27v8oCsnsfPtUDkGaPJns';
+
+(async () => {
   const records = await devnetContract.getArNSRecords({
     evaluationOptions: {
       evalTo: {
@@ -33,19 +14,68 @@ const main = async () => {
       },
     },
   });
-  const arweave = Arweave.init({
-    host: "arweave.net",
-    port: 443,
-    protocol: "https",
-  });
-  const owner = await arweave.wallets.jwkToAddress(jwk);
+
   const { message, result } = await connect();
-  const signer = new ArweaveSigner(jwk);
   const uniqueSetOfContractTxIds = new Set(
     Object.values(records).map((record) => record.contractTxId),
   );
   const mapOfContractTxIdToAntTxId: Record<string, string> = {};
   for (const contractTxId of uniqueSetOfContractTxIds) {
+
+    // search graphql for the AO process id of the contractTxId and if it's using the module 'txId' we can skip
+    const graphqlQuery = `
+      {
+    
+        transactions(
+          tags: [
+            { name: "State-Contract-TX-ID", values: ["${contractTxId}"] }
+            { name: "Action", values: ["Initialize-State"] }
+            { name: "Source-Code-TX-ID", values: ["${luaCodeTxId}"] }
+          ]
+        ) {
+          edges {
+            node {
+              id
+              tags {
+                name
+                value
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const res = await arweave.api.post('/graphql', { query: graphqlQuery });
+
+    if (res.status !== 200) {
+      console.error("Failed to query graphql for contract:", contractTxId);
+      continue;
+    }
+
+    const { data } = res.data;
+    if (data.transactions.edges.length) {
+      // parse out the process id
+      const processId = data.transactions.edges[0].node.tags.find(
+        (tag) => tag.name === "Process-Id",
+      );
+
+      // check the owner
+      const ioANT = ANT.init({ processId: processId.value });
+      const [owner, apexRecord] = await Promise.all([
+        ioANT.getOwner(), 
+        ioANT.getRecord({ undername: '@' })
+      ]);
+
+      // TODO: check that it's got the correct module id
+
+      if (owner && apexRecord) {
+        console.log('Skipping already migrated contract', contractTxId, processId.value);
+        mapOfContractTxIdToAntTxId[contractTxId] = processId.value;
+        continue;
+      }
+    }
+
     // get the smartweave state
     const smartweaveANT = ANT.init({ contractTxId });
     const state = await smartweaveANT.getState().catch((e) => {
@@ -61,19 +91,21 @@ const main = async () => {
       continue;
     }
 
-    // for now we'll override owner and controllers to be the calling wallet
-    state.owner = owner;
-    state.controllers = [owner];
-    state.balances = { [owner]: 1 };
     // override the owner to be the calling wallet
-    //  state.controllers = [(state as any).controller || owner] || [...state.controllers, owner]
-
     if ((state as any).controller) {
+      state.controllers = [(state as any).controller]
       delete (state as any).controller;
+    }
+
+    // for now - only migrate wallets owned by team members
+    if (!state.owner || !teamMembers.has(state.owner)) {
+      console.log("Skipping contract not owned by team member:", contractTxId);
+      continue;
     }
 
     // migrate any broken records
     for (const [undername, record] of Object.entries(state.records)) {
+      // if undername matches the name of the contract, skip
       if (typeof record === "string") {
         state.records[undername] = {
           transactionId: record || defaultTxId,
@@ -82,20 +114,19 @@ const main = async () => {
       } else {
         state.records[undername] = {
           transactionId: record.transactionId || defaultTxId,
-          ttlSeconds: record.ttlSeconds || 3600,
+          ttlSeconds: Math.min(record.ttlSeconds || 3600, 3600)
         };
       }
     }
-    console.log("Updated ANT state for contract:", contractTxId, state);
+
     const processId = await spawnANT({
       signer,
       luaCodeTxId,
       state,
       stateContractTxId: contractTxId,
     });
-    console.log('Spawned ANT process', processId, 'for contract', contractTxId)
+    console.log("Spawned process for contract:", contractTxId, processId);
     mapOfContractTxIdToAntTxId[contractTxId] = processId;
-    break;
   }
   // const currentBlock = await arweave.blocks.getCurrent();
   for (const [name, record] of Object.entries(records)) {
@@ -108,6 +139,28 @@ const main = async () => {
       );
       continue;
     }
+
+    // check that the record does not already exist
+    const existingRecord = await ioContract.getArNSRecord({
+      name: name,
+    });
+
+    if(existingRecord){
+
+      const aoIOAnt = ANT.init({ processId: existingRecord?.processId });
+
+      // confirm basic interactions
+      const [owner, apexRecord] = await Promise.all([
+        aoIOAnt.getOwner(),
+        aoIOAnt.getRecord({ undername: '@' })
+      ]);
+
+      if (owner && apexRecord && existingRecord?.processId === mapOfContractTxIdToAntTxId[record.contractTxId]){
+        console.log('Record already migrated skipping...', name)
+        continue;
+      }
+    }
+
     const updatedRecord = {
       type: record.type,
       startTimestamp: record.startTimestamp * 1000, // use existing start timestamp
@@ -145,17 +198,20 @@ const main = async () => {
       continue;
     }
     // get the update record
-    const newAORecord = await aoContract.getArNSRecord({ name });
+    const newAORecord = await ioContract.getArNSRecord({ name });
     if (!newAORecord) {
       console.error("Failed to get updated record:", name);
       continue;
     }
-    console.log("Updated record successfully!", name, newAORecord);
+    console.log('Migrated record successfully', {
+      name,
+      contractTxId: record.contractTxId,
+      processId: mapOfContractTxIdToAntTxId[record.contractTxId],
+    })
   }
 
-  console.log("Finished migrating records", 
-    mapOfContractTxIdToAntTxId,
-  )
+  const allRecords = await ioContract.getArNSRecords();
+  console.log("Migrated records. Total count:", Object.keys(allRecords).length);
 
   // // migrate reserved names
   const reservedNames = await devnetContract.getArNSReservedNames({});
@@ -173,13 +229,17 @@ const main = async () => {
           }),
           signer: createDataItemSigner(jwk),
       });
-      console.log('Sent data to process', messageTxId)
       const res = await result({
           message: messageTxId,
           process: migratedProcessId
       })
-      console.log('Result:', res)
-  }
-};
 
-main();
+      if ((res as any).error) {
+          console.error('Failed to add reserved name:', name, res)
+          continue;
+      }
+  }
+
+  const allReservedNames = await ioContract.getArNSReservedNames();
+  console.log('Migrated reserved names. Total count:', Object.keys(allReservedNames).length)
+})();

@@ -1,5 +1,10 @@
 {
   "type": "module",
+  "scripts": {
+    "migrate:balances": "ts-node --transpile-only --project tsconfig.json ./migrate-balances.ts",
+    "migrate:gateways": "ts-node --transpile-only --project tsconfig.json ./migrate-gateways.ts",
+    "migrate:records": "ts-node --transpile-only --project tsconfig.json ./migrate-records.ts"
+  },
   "dependencies": {
     "@ar.io/sdk": "1.2.0-alpha.12",
     "@permaweb/aoconnect": "^0.0.53",

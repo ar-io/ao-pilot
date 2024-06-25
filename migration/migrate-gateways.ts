@@ -1,24 +1,9 @@
 import { createDataItemSigner, connect } from "@permaweb/aoconnect";
-import { ArIO, IOToken, IO } from "@ar.io/sdk";
+import { IOToken } from "@ar.io/sdk";
+import { devnetContract, ioContract, jwk, migratedProcessId } from "./setup.js";
 
-import fs from "fs";
-import path from "path";
-
-const migratedProcessId = "DxzlVyR08GcfaY3jUTHN3XnRxBc4LJcuUpbSexb2q5w";
-const smartWeaveTxId = "bLAgYxAdX2Ry-nt6aH2ixgvJXbpsEYm28NgJgyqfs-U";
-const dirname = new URL(import.meta.url).pathname;
-const jwk = JSON.parse(
-  fs.readFileSync(path.join(dirname, "../wallet.json")).toString(),
-);
-
-const main = async () => {
+(async () => {
   // fetch gateways from contract
-  const devnetContract = ArIO.init({
-    contractTxId: smartWeaveTxId,
-  });
-  const ioContract = IO.init({
-    processId: migratedProcessId,
-  });
   const gateways = await devnetContract.getGateways({
     evaluationOptions: {
       evalTo: {
@@ -27,12 +12,19 @@ const main = async () => {
     },
   });
   const { message, result } = await connect();
-  const defaultStartTimestamp = 1719273600000;
+  const defaultStartTimestamp = new Date('06/25/2024').getTime()
   for (const [address, gateway] of Object.entries(gateways)) {
     if (gateway.status === "leaving") {
-      // console.log('Skipping leaving gateway', address)
       continue;
     }
+
+    // exclude if we already migrated this gateway
+    const gatewayData = await ioContract.getGateway({ address });
+    if (gatewayData) {
+      console.log('Skipping already migrated gateway', address)
+      continue;
+    }
+
     const messageTxId = await message({
       process: migratedProcessId,
       tags: [
@@ -42,7 +34,10 @@ const main = async () => {
       data: JSON.stringify({
         observerAddress: gateway.observerWallet,
         operatorStake: new IOToken(50_000).toMIO().valueOf(),
-        settings: gateway.settings,
+        settings: {
+          ...gateway.settings,
+          minDelegatedStake: new IOToken(500).toMIO().valueOf(),
+        },
         startTimestamp: defaultStartTimestamp, // 30 days ago
         status: "joined", // only joined are migrated
         totalDelegatedStake: 0, // result delegates,
@@ -73,7 +68,7 @@ const main = async () => {
   }
   // use the ar-io-sdk to get gateways from IO contract
   const allGateways = await ioContract.getGateways();
-  console.log("All gateways:", allGateways);
-};
-
-main();
+  if (allGateways){
+    console.log('Migrated gateways. Total count:', Object.keys(allGateways).length)
+  }
+})();

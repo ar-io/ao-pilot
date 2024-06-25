@@ -2,9 +2,11 @@ local json = require("json")
 
 -- Constants
 -- Used to determine when to require name resolution
-ID_TTL_MS = 24 * 60 * 60 * 1000    -- 24 hours by default
-DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
-OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
+REGISTRY_TTL_MS = 7 * 24 * 60 * 60 * 1000 -- 7 days hours by default
+REGISTRATION_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
+PROCESS_TTL_MS = 24 * 60 * 60 * 1000      -- 24 hours by default
+DATA_TTL_MS = 24 * 60 * 60 * 1000         -- 24 hours by default
+OWNER_TTL_MS = 24 * 60 * 60 * 1000        -- 24 hours by default
 
 -- Process IDs for interacting with other services or processes
 AR_IO_DEVNET_PROCESS_ID = "GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc"
@@ -58,6 +60,12 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
+					if PROCESSES[NAMES[rootName].processId] == nil then
+						PROCESSES[NAMES[name].processId] = {
+							Names = {}
+						}
+					end
+					PROCESSES[NAMES[name].processId].Names[name] = true
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
 					print(name .. " has not been resolved yet.  Resolving now...")
 					return nil
@@ -92,6 +100,12 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
+					if PROCESSES[NAMES[rootName].processId] == nil then
+						PROCESSES[NAMES[name].processId] = {
+							Names = {}
+						}
+					end
+					PROCESSES[NAMES[name].processId].Names[name] = true
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
 					print(name .. " has not been resolved yet.  Cannot get owner.  Resolving now...")
 					return nil
@@ -113,10 +127,16 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
+					if PROCESSES[NAMES[rootName].processId] == nil then
+						PROCESSES[NAMES[name].processId] = {
+							Names = {}
+						}
+					end
+					PROCESSES[NAMES[name].processId].Names[name] = true
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
 					return nil
-				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
+				elseif Now - NAMES[rootName].lastUpdated >= REGISTRATION_TTL_MS then
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 					print(name .. " is stale.  Refreshing name data now...")
 					return nil
@@ -128,11 +148,17 @@ local arnsMeta = {
 			return function(name)
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
-				if NAMES[rootName] == nil and PROCESSES[NAMES[rootName].processId].state == nil then
+				if NAMES[rootName] == nil then
+					if PROCESSES[NAMES[rootName].processId] == nil then
+						PROCESSES[NAMES[name].processId] = {
+							Names = {}
+						}
+					end
+					PROCESSES[NAMES[name].processId].Names[name] = true
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
 					return nil
-				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS or Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ID_TTL_MS then
+				elseif Now - NAMES[rootName].lastUpdated >= REGISTRATION_TTL_MS or Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= PROCESS_TTL_MS then
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 					print(name .. " is stale.  Refreshing name data now...")
 					return nil
@@ -145,7 +171,7 @@ local arnsMeta = {
 			end
 		elseif key == "records" then
 			return function()
-				if NAMES == nil or PROCESSES == nil then
+				if NAMES == {} or PROCESSES == {} then
 					ao.send({ Target = PROCESS_ID, Action = "Records" })
 					print("ArNS Records have not been resolved yet... Resolving now...")
 					return nil
@@ -165,12 +191,12 @@ local arnsMeta = {
 				NAMES = {}
 				ACL = {}
 				PROCESSES = {}
-				return "ArNS local name cache cleared."
+				return "ArNS local cache cleared."
 			end
 		elseif key == "resolveAll" then
 			return function()
 				ao.send({ Target = PROCESS_ID, Action = "Records" })
-				return "Getting entire ArNS registry"
+				return "Looking up and resolving all ArNS Records"
 			end
 		elseif key == "count" then
 			return function()
@@ -264,6 +290,7 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			if record.endTimestamp ~= nil then
 				NAMES[name].endTimestamp = record.endTimestamp
 			end
+
 			if NAMES[name].processId then
 				print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
 				namesFetched = namesFetched + 1
@@ -278,8 +305,14 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			end
 		end
 		for processId, process in pairs(PROCESSES) do
-			ao.send({ Target = processId, Action = "State" })
-			antsResolved = antsResolved + 1
+			if PROCESSES[processId].state and PROCESSES[processId].state.lastUpdated and Now - PROCESSES[processId].state.lastUpdated < REGISTRY_TTL_MS then
+				print('TTL has not expired yet for ' .. processId)
+			else
+				print('Updating state for ' .. processId)
+				print(PROCESSES[processId])
+				ao.send({ Target = processId, Action = "State" })
+				antsResolved = antsResolved + 1
+			end
 		end
 	end
 	print("Updated " .. antsResolved .. " ANTs across " .. namesFetched .. " names with the latest ArNS Registry info!")

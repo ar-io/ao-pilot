@@ -1,4 +1,4 @@
-## AO/IO Contract
+# AO/IO Contract
 
 [![codecov](https://codecov.io/github/ar-io/ao-pilot/graph/badge.svg?token=0VUJ3RH9X1)](https://codecov.io/github/ar-io/ao-pilot)
 
@@ -6,7 +6,7 @@ The implementation of the ar.io network contract is written in lua and deployed 
 
 Handlers:
 
-### Arweave Name Service (ArNS)
+## Arweave Name Service (ArNS)
 
 - `BuyRecord` - buy a record
 - `ExtendLease` - extend the lease of a record

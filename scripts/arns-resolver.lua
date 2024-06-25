@@ -7,8 +7,8 @@ DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
 OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
 
 -- Process IDs for interacting with other services or processes
-AR_IO_DEVNET_PROCESS_ID = "DxzlVyR08GcfaY3jUTHN3XnRxBc4LJcuUpbSexb2q5w"
-AR_IO_TESTNET_PROCESS_ID = ""
+AR_IO_DEVNET_PROCESS_ID = "DxzlVyR08GcfaY3jUTHN3XnRxBc4LJcuUpbSexb2q5w" --GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc
+AR_IO_TESTNET_PROCESS_ID = "agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA"
 PROCESS_ID = PROCESS_ID or AR_IO_DEVNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
@@ -62,23 +62,25 @@ local arnsMeta = {
 					print(name .. " has not been resolved yet.  Resolving now...")
 					return nil
 				elseif rootName and underName == nil then
-					if PROCESSES[NAMES[rootName].processId] and PROCESSES[NAMES[rootName].processId].state.Records["@"] then
+					if PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Records["@"] or PROCESSES[NAMES[rootName].processId].state.records["@"]) then
 						if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= DATA_TTL_MS then
 							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
-							return PROCESSES[NAMES[rootName].processId].state.Records["@"].transactionId
+							return PROCESSES[NAMES[rootName].processId].state.Records["@"].transactionId or
+								PROCESSES[NAMES[rootName].processId].state.records["@"].transactionId
 						end
 					end
 				elseif rootName and underName then
-					if PROCESSES[NAMES[rootName].processId] and PROCESSES[NAMES[rootName].processId].state.Records[underName] then
+					if PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Records[underName] or PROCESSES[NAMES[rootName].processId].state.records[underName]) then
 						if Now - PROCESSES[NAMES[rootName].processId].lastUpdated >= DATA_TTL_MS then
 							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
-							return PROCESSES[NAMES[rootName].processId].Records[underName].transactionId
+							return PROCESSES[NAMES[rootName].processId].Records[underName].transactionId or
+								PROCESSES[NAMES[rootName].processId].records[underName].transactionId
 						end
 					else
 						return nil
@@ -93,13 +95,14 @@ local arnsMeta = {
 					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
 					print(name .. " has not been resolved yet.  Cannot get owner.  Resolving now...")
 					return nil
-				elseif PROCESSES[NAMES[rootName].processId] and PROCESSES[NAMES[rootName].processId].state.Owner then
+				elseif PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Owner or PROCESSES[NAMES[rootName].processId].state.owner) then
 					if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= OWNER_TTL_MS then
 						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
 						print(name .. " is stale.  Refreshing name process now...")
 						return nil
 					else
-						return PROCESSES[NAMES[rootName].processId].state.Owner
+						return PROCESSES[NAMES[rootName].processId].state.Owner or
+							PROCESSES[NAMES[rootName].processId].state.owner
 					end
 				else
 					return nil
@@ -119,6 +122,25 @@ local arnsMeta = {
 					return nil
 				else
 					return NAMES[rootName].processId or nil
+				end
+			end
+		elseif key == "record" then
+			return function(name)
+				name = string.lower(name)
+				local rootName, underName = splitIntoTwoNames(name)
+				if NAMES[rootName] == nil and PROCESSES[NAMES[rootName].processId].state == nil then
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
+					return nil
+				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS or Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ID_TTL_MS then
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+					print(name .. " is stale.  Refreshing name data now...")
+					return nil
+				else
+					local record = NAMES[rootName]
+					record.state = PROCESSES[NAMES[rootName].processId].state or
+					PROCESSES[NAMES[rootName].processId].State
+					return record or nil
 				end
 			end
 		elseif key == "clear" then

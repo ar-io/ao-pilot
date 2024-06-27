@@ -349,7 +349,8 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			end
 		end
 	end
-	print("Updated " .. antsResolved .. " ANTs across " .. namesFetched .. " Records")
+	print("Fetched " ..
+		namesFetched .. " registered names across " .. antsResolved .. " ANTs.  Resolving new ANT processes now.")
 end)
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
@@ -364,7 +365,7 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 
 	local owner = state.owner or state.Owner
 
-	if PROCESSES[msg.From] ~= nil and PROCESSES[msg.From].Owner ~= nil and PROCESSES[msg.From].Owner ~= owner then
+	if PROCESSES[msg.From] ~= nil and PROCESSES[msg.From].state and PROCESSES[msg.From].state.Owner ~= nil and PROCESSES[msg.From].state.Owner ~= owner then
 		ACL[PROCESSES[msg.From].Owner][msg.From] = nil
 	end
 	if ACL[owner] == nil then
@@ -499,3 +500,11 @@ Handlers.add("Processes", Handlers.utils.hasMatchingTag("Action", "Processes"), 
 		Data = json.encode(processes),
 	})
 end)
+
+Handlers.add(
+	"CronResolveAll",                             -- handler name
+	Handlers.utils.hasMatchingTag("Action", "Cron"), -- handler pattern to identify cron message
+	function()                                    -- handler task to execute on cron message
+		ao.send({ Target = AR_IO_PROCESS_ID, Action = "Records" })
+	end
+)

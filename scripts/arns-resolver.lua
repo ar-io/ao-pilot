@@ -59,7 +59,7 @@ end
 
 function countResolvedProcesses()
 	local count = 0
-	for process, record in pairs(PROCESSES) do
+	for processId, process in pairs(PROCESSES) do
 		if process.state then
 			count = count + 1
 		end
@@ -229,11 +229,13 @@ local arnsMeta = {
 				elseif type == 'acl' then
 					return countTableItems(ACL)
 				elseif type == 'unresolvednames' then
-					return countTableItems(NAMES)
+					local unresolvedNames = countTableItems(NAMES) - countResolvedNames()
+					return unresolvedNames
 				elseif type == 'unresolvedprocesses' then
-					return countTableItems(PROCESSES)
+					local unresolvedProcesses = countTableItems(PROCESSES) - countResolvedProcesses()
+					return unresolvedProcesses
 				else
-					return 'Invalid type entered.  Can only count names, processes and acl.'
+					return 'Invalid type entered.  Can only count names, processes, acl, unresolvednames and unresolvedprocesses.'
 				end
 			end
 		else
@@ -325,7 +327,7 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			end
 
 			if NAMES[name].processId then
-				print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
+				-- print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
 				namesFetched = namesFetched + 1
 				if PROCESSES[NAMES[name].processId] == nil then
 					PROCESSES[NAMES[name].processId] = {
@@ -339,9 +341,9 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 		end
 		for processId, process in pairs(PROCESSES) do
 			if PROCESSES[processId].state and PROCESSES[processId].state.lastUpdated and Now - PROCESSES[processId].state.lastUpdated < ARNS_TTL_MS then
-				print('TTL has not expired yet for ' .. processId)
+				-- print('TTL has not expired yet for ' .. processId)
 			else
-				print('Updating state for ' .. processId)
+				-- print('Updating state for ' .. processId)
 				ao.send({ Target = processId, Action = "State" })
 				antsResolved = antsResolved + 1
 			end
@@ -375,7 +377,7 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 	PROCESSES[msg.From].state = state
 	PROCESSES[msg.From].state.lastUpdated = msg.Timestamp
 
-	print("Updated " .. msg.From .. " with the latest state.")
+	print("Resolved ANT " .. msg.From .. " with the latest state.")
 end)
 
 Handlers.add("ACL", Handlers.utils.hasMatchingTag("Action", "ACL"), function(msg)

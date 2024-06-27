@@ -378,7 +378,7 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 	PROCESSES[msg.From].state = state
 	PROCESSES[msg.From].state.lastUpdated = msg.Timestamp
 
-	print("Resolved ANT " .. msg.From .. " with the latest state.")
+	print("Resolved " .. state.Ticker .. " with Process ID " .. msg.From .. " with the latest state.")
 end)
 
 Handlers.add("ACL", Handlers.utils.hasMatchingTag("Action", "ACL"), function(msg)

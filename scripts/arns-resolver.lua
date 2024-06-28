@@ -74,7 +74,7 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
-				return "Getting information for name: " .. rootName
+				return "Looking up and resolving: " .. rootName
 			end
 		elseif key == "data" then
 			return function(name)

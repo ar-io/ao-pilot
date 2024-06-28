@@ -171,8 +171,8 @@ local arnsMeta = {
 			return function(name)
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
-				if NAMES[rootName] == nil then
-					print("Cannot get process id for name " ..
+				if NAMES[rootName] == nil or PROCESSES[NAMES[rootName].processId].state == nil then
+					print("Cannot get full record details for this name " ..
 						rootName .. ", it has not been looked up and resolved yet.  Resolving now...")
 					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil

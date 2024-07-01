@@ -2,14 +2,16 @@ local json = require("json")
 
 -- Constants
 -- Used to determine when to require name resolution
-ID_TTL_MS = 24 * 60 * 60 * 1000    -- 24 hours by default
-DATA_TTL_MS = 24 * 60 * 60 * 1000  -- 24 hours by default
-OWNER_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
+ARNS_TTL_MS = 7 * 24 * 60 * 60 * 1000    -- 7 days hours by default
+ARNS_RECORD_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
+ANT_PROCESS_TTL_MS = 24 * 60 * 60 * 1000 -- 24 hours by default
+ANT_DATA_TTL_MS = 24 * 60 * 60 * 1000    -- 24 hours by default
+ANT_OWNER_TTL_MS = 24 * 60 * 60 * 1000   -- 24 hours by default
 
 -- Process IDs for interacting with other services or processes
 AR_IO_DEVNET_PROCESS_ID = "GaQrvEMKBpkjofgnBi_B3IgIDmY_XYelVLB6GcRGrHc"
 AR_IO_TESTNET_PROCESS_ID = "agYcCFJtrMG6cqMuZfskIkFTGvUPddICmtQSBIoPdiA"
-PROCESS_ID = PROCESS_ID or AR_IO_DEVNET_PROCESS_ID
+AR_IO_PROCESS_ID = AR_IO_PROCESS_ID or AR_IO_TESTNET_PROCESS_ID
 
 -- Initialize the NAMES and ID_NAME_MAPPING tables
 NAMES = NAMES or {}
@@ -45,27 +47,52 @@ function countTableItems(tbl)
 	return count
 end
 
+function countResolvedNames()
+	local count = 0
+	for name, record in pairs(NAMES) do
+		if PROCESSES[NAMES[name].processId] and PROCESSES[NAMES[name].processId].state then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+function countResolvedProcesses()
+	local count = 0
+	for processId, process in pairs(PROCESSES) do
+		if process.state then
+			count = count + 1
+		end
+	end
+	return count
+end
+
 local arnsMeta = {
 	__index = function(t, key)
 		if key == "resolve" then
 			return function(name)
 				name = string.lower(name)
-				ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-				return "Getting information for name: " .. name
+				local rootName, underName = splitIntoTwoNames(name)
+				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
+				return "Looking up and resolving: " .. rootName
 			end
 		elseif key == "data" then
 			return function(name)
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
-					print(name .. " has not been resolved yet.  Resolving now...")
+					print("Cannot get data for name " ..
+						rootName .. ", it has not been looked up and resolved yet.  Resolving now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil
+				elseif PROCESSES[NAMES[rootName].processId].state == nil then
+					print("Cannot get data for name " .. name .. ", it has not been resolved yet.  Resolving now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 				elseif rootName and underName == nil then
 					if PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Records["@"] or PROCESSES[NAMES[rootName].processId].state.records["@"]) then
-						if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+						if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ANT_DATA_TTL_MS then
 							print(name .. " is stale.  Refreshing name process now...")
+							ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = name })
 							return nil
 						else
 							return PROCESSES[NAMES[rootName].processId].state.Records["@"].transactionId or
@@ -73,14 +100,19 @@ local arnsMeta = {
 						end
 					end
 				elseif rootName and underName then
-					if PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Records[underName] or PROCESSES[NAMES[rootName].processId].state.records[underName]) then
-						if Now - PROCESSES[NAMES[rootName].processId].lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-							print(name .. " is stale.  Refreshing name process now...")
-							return nil
+					if PROCESSES[NAMES[rootName].processId] then
+						if PROCESSES[NAMES[rootName].processId].state.Records[underName] ~= nil then
+							if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ANT_DATA_TTL_MS then
+								print(name .. " is stale.  Refreshing name process now...")
+								ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
+								return nil
+							else
+								return PROCESSES[NAMES[rootName].processId].state.Records[underName].transactionId or
+									PROCESSES[NAMES[rootName].processId].state.records[underName].transactionId
+							end
 						else
-							return PROCESSES[NAMES[rootName].processId].Records[underName].transactionId or
-								PROCESSES[NAMES[rootName].processId].records[underName].transactionId
+							print(underName .. ' is not a valid undername in the name ' .. rootName)
+							return nil
 						end
 					else
 						return nil
@@ -92,13 +124,17 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
-					print(name .. " has not been resolved yet.  Cannot get owner.  Resolving now...")
+					print("Cannot get owner for name " ..
+						rootName .. ", it has not been looked up and resolved yet.  Resolving now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil
+				elseif PROCESSES[NAMES[rootName].processId].state == nil then
+					print("Cannot get owner for name " .. rootName .. ", it has not been resolved yet.  Resolving now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 				elseif PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Owner or PROCESSES[NAMES[rootName].processId].state.owner) then
-					if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= OWNER_TTL_MS then
-						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+					if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ANT_OWNER_TTL_MS then
 						print(name .. " is stale.  Refreshing name process now...")
+						ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = name })
 						return nil
 					else
 						return PROCESSES[NAMES[rootName].processId].state.Owner or
@@ -113,12 +149,19 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
+					print("Cannot get process id for name " ..
+						rootName .. ", it has not been looked up and resolved yet.  Resolving now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil
-				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-					print(name .. " is stale.  Refreshing name data now...")
+				elseif Now - NAMES[rootName].lastUpdated >= ARNS_RECORD_TTL_MS then
+					if PROCESSES[NAMES[rootName].processId] == nil then
+						PROCESSES[NAMES[rootName].processId] = {
+							Names = {}
+						}
+						PROCESSES[NAMES[rootName].processId].Names[name] = true
+					end
+					print(rootName .. " is stale.  Refreshing name data now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil
 				else
 					return NAMES[rootName].processId or nil
@@ -128,13 +171,14 @@ local arnsMeta = {
 			return function(name)
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
-				if NAMES[rootName] == nil and PROCESSES[NAMES[rootName].processId].state == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
+				if NAMES[rootName] == nil or PROCESSES[NAMES[rootName].processId].state == nil then
+					print("Cannot get full record details for this name " ..
+						rootName .. ", it has not been looked up and resolved yet.  Resolving now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil
-				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS or Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ID_TTL_MS then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
-					print(name .. " is stale.  Refreshing name data now...")
+				elseif Now - NAMES[rootName].lastUpdated >= ARNS_RECORD_TTL_MS or Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= ANT_PROCESS_TTL_MS then
+					print(rootName .. " is stale.  Refreshing name data now...")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Record", Name = rootName })
 					return nil
 				else
 					local record = NAMES[rootName]
@@ -145,9 +189,11 @@ local arnsMeta = {
 			end
 		elseif key == "records" then
 			return function()
-				if NAMES == nil or PROCESSES == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Records" })
-					print("ArNS Records have not been resolved yet... Resolving now...")
+				if NAMES == {} or PROCESSES == {} then
+					print("ArNS Records have not been resolved yet...")
+					print("Looking up and resolving all Records from ArNS Registry: " ..
+						AR_IO_PROCESS_ID .. "...this may take a while!")
+					ao.send({ Target = AR_IO_PROCESS_ID, Action = "Records" })
 					return nil
 				else
 					local records = {}
@@ -165,16 +211,32 @@ local arnsMeta = {
 				NAMES = {}
 				ACL = {}
 				PROCESSES = {}
-				return "ArNS local name cache cleared."
+				return "ArNS local cache cleared."
 			end
 		elseif key == "resolveAll" then
 			return function()
-				ao.send({ Target = PROCESS_ID, Action = "Records" })
-				return "Getting entire ArNS registry"
+				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Records" })
+				return "Looking up and resolving all Records from ArNS Registry: " ..
+					AR_IO_PROCESS_ID .. "...this may take a while!"
 			end
 		elseif key == "count" then
-			return function()
-				return countTableItems(NAMES)
+			return function(type)
+				type = string.lower(type)
+				if type == 'names' then
+					return countResolvedNames()
+				elseif type == 'processes' then
+					return countResolvedProcesses()
+				elseif type == 'acl' then
+					return countTableItems(ACL)
+				elseif type == 'unresolvednames' then
+					local unresolvedNames = countTableItems(NAMES) - countResolvedNames()
+					return unresolvedNames
+				elseif type == 'unresolvedprocesses' then
+					local unresolvedProcesses = countTableItems(PROCESSES) - countResolvedProcesses()
+					return unresolvedProcesses
+				else
+					return 'Invalid type entered.  Can only count names, processes, acl, unresolvednames and unresolvedprocesses.'
+				end
 			end
 		else
 			return nil
@@ -188,7 +250,7 @@ ARNS = setmetatable({}, arnsMeta)
 -- @param msg The message to evaluate.
 -- @return boolean True if the message is from the ARNS process and action is 'Record-Resolved', otherwise false.
 function isArNSGetRecordMessage(msg)
-	if msg.From == PROCESS_ID and (msg.Tags.Action == 'Record-Notice' or msg.Tags.Action == 'Records-Notice') then
+	if msg.From == AR_IO_PROCESS_ID and (msg.Tags.Action == 'Record-Notice' or msg.Tags.Action == 'Records-Notice') then
 		return true
 	else
 		return false
@@ -217,10 +279,9 @@ end)
 -- Updates or initializes the record for the given name with the latest information.
 -- Fetches additional information from SmartWeave Cache or ANT-AO process if necessary.
 Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
-	print("Received message from ArNS Registry")
 	local data, err = json.decode(msg.Data)
 	if not data or err then
-		print("Error decoding JSON data: ", err)
+		print("Error decoding JSON data from ArNS Registry: ", err)
 		return
 	end
 	local namesFetched = 0
@@ -264,8 +325,9 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			if record.endTimestamp ~= nil then
 				NAMES[name].endTimestamp = record.endTimestamp
 			end
+
 			if NAMES[name].processId then
-				print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
+				-- print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
 				namesFetched = namesFetched + 1
 				if PROCESSES[NAMES[name].processId] == nil then
 					PROCESSES[NAMES[name].processId] = {
@@ -278,11 +340,17 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			end
 		end
 		for processId, process in pairs(PROCESSES) do
-			ao.send({ Target = processId, Action = "State" })
-			antsResolved = antsResolved + 1
+			if PROCESSES[processId].state and PROCESSES[processId].state.lastUpdated and Now - PROCESSES[processId].state.lastUpdated < ARNS_TTL_MS then
+				-- print('TTL has not expired yet for ' .. processId)
+			else
+				-- print('Updating state for ' .. processId)
+				ao.send({ Target = processId, Action = "State" })
+				antsResolved = antsResolved + 1
+			end
 		end
 	end
-	print("Updated " .. antsResolved .. " ANTs across " .. namesFetched .. " names with the latest ArNS Registry info!")
+	print("Fetched " ..
+		namesFetched .. " registered names across " .. antsResolved .. " ANTs.  Resolving new ANT processes now.")
 end)
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
@@ -297,7 +365,7 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 
 	local owner = state.owner or state.Owner
 
-	if PROCESSES[msg.From] ~= nil and PROCESSES[msg.From].Owner ~= nil and PROCESSES[msg.From].Owner ~= owner then
+	if PROCESSES[msg.From] ~= nil and PROCESSES[msg.From].state and PROCESSES[msg.From].state.Owner ~= nil and PROCESSES[msg.From].state.Owner ~= owner then
 		ACL[PROCESSES[msg.From].Owner][msg.From] = nil
 	end
 	if ACL[owner] == nil then
@@ -310,7 +378,7 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 	PROCESSES[msg.From].state = state
 	PROCESSES[msg.From].state.lastUpdated = msg.Timestamp
 
-	print("Updated " .. msg.From .. " with the latest state.")
+	print("Resolved " .. state.Ticker .. " with Process ID " .. msg.From .. " with the latest state.")
 end)
 
 Handlers.add("ACL", Handlers.utils.hasMatchingTag("Action", "ACL"), function(msg)
@@ -432,3 +500,11 @@ Handlers.add("Processes", Handlers.utils.hasMatchingTag("Action", "Processes"), 
 		Data = json.encode(processes),
 	})
 end)
+
+Handlers.add(
+	"CronResolveAll",                             -- handler name
+	Handlers.utils.hasMatchingTag("Action", "Cron"), -- handler pattern to identify cron message
+	function()                                    -- handler task to execute on cron message
+		ao.send({ Target = AR_IO_PROCESS_ID, Action = "Records" })
+	end
+)

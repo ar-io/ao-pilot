@@ -144,6 +144,32 @@ local arnsMeta = {
 					return nil
 				end
 			end
+		elseif key == "acl" then
+			return function(owner)
+				if ACL[owner] == nil then
+					print("This owner address does not own any registered ANTs.")
+					return nil
+				else
+					local result = {}
+					for processId, info in pairs(ACL[owner]) do
+						if Now - info.lastUpdated < ARNS_TTL_MS then
+							-- Include roles (owner or controller) in the returned data for clarity
+							result[processId] = {
+								processId = processId,
+								lastUpdated = info.lastUpdated,
+								isOwner = info.isOwner or false,
+								isController = info.isController or false
+							}
+						else
+							print(processId .. " data is stale. Refreshing process now...")
+							ao.send({ Target = processId, Action = "State" }) -- Resend the state request to update the data
+							-- Consider whether to immediately remove stale entries or wait for an update
+							-- ACL[owner][processId] = nil  -- Uncomment to remove stale entries immediately
+						end
+					end
+					return result
+				end
+			end
 		elseif key == "process" then
 			return function(name)
 				name = string.lower(name)
@@ -237,6 +263,30 @@ local arnsMeta = {
 				else
 					return 'Invalid type entered.  Can only count names, processes, acl, unresolvednames and unresolvedprocesses.'
 				end
+			end
+		elseif key == "help" then
+			return function()
+				return [[
+				ARNS Resolver Help:
+				
+				Available Commands:
+				- resolve(name): Resolves the given ARNS name. Returns process details about the name.
+				- resolveAll(): Resolves all names registered in the ARNS.
+				- data(name): Retrieves specific data associated with the ARNS name or undername.
+				- owner(name): Fetches the owner of the ARNS name.
+				- acl(owner): Fetches all registered ANT processes associated with this owner.
+				- process(name): Obtains the process ID associated with the ARNS name.
+				- record(name): Gets the detailed record for the ARNS name.
+				- clear(): Clears the local cache of names, processes and acls.
+				- count(type): Returns the count of items.
+					Valid types are 'names', 'processes', 'acl', 'unresolvednames', and 'unresolvedprocesses'.
+				- help(): Displays this help message.
+				
+				Usage Examples:
+				- ARNS.resolve("example.ar"): Resolves the ARNS name "example.ar".
+				- ARNS.data("example.ar"): Gets data for "example.ar".
+				- ARNS.owner("example.ar"): Finds the owner of "example.ar".
+								]]
 			end
 		else
 			return nil
@@ -363,22 +413,49 @@ Handlers.add("ReceiveANTProcessStateMessage", isANTStateMessage, function(msg)
 		return
 	end
 
-	local owner = state.owner or state.Owner
+	local owner = state.Owner or state.owner -- Normalize the owner property case
 
-	if PROCESSES[msg.From] ~= nil and PROCESSES[msg.From].state and PROCESSES[msg.From].state.Owner ~= nil and PROCESSES[msg.From].state.Owner ~= owner then
-		ACL[PROCESSES[msg.From].Owner][msg.From] = nil
+	-- Update the owner state if it has changed
+	if PROCESSES[msg.From] and PROCESSES[msg.From].state then
+		local currentOwner = PROCESSES[msg.From].state.Owner or PROCESSES[msg.From].state.owner
+		if currentOwner and currentOwner ~= owner then
+			-- Remove the old owner from ACL if it exists
+			if ACL[currentOwner] then
+				ACL[currentOwner][msg.From] = nil
+			end
+		end
 	end
-	if ACL[owner] == nil then
-		ACL[owner] = {
-			[msg.From] = msg.Timestamp
-		}
-	else
-		ACL[owner][msg.From] = msg.Timestamp
+
+	-- Update ACL for the new owner
+	if not ACL[owner] then
+		ACL[owner] = {}
 	end
+	ACL[owner][msg.From] = {
+		lastUpdated = msg.Timestamp,
+		isOwner = true
+	}
+
+	-- Handle Controllers
+	if state.Controllers and #state.Controllers > 0 then
+		for _, controller in ipairs(state.Controllers) do
+			if not ACL[controller] then
+				ACL[controller] = {}
+			end
+			-- Assign controller with reference to the ANT process it controls
+			ACL[controller][msg.From] = {
+				lastUpdated = msg.Timestamp,
+				isController = true
+			}
+		end
+	end
+
+	-- Update local state record for the ANT process
+	PROCESSES[msg.From] = PROCESSES[msg.From] or {}
 	PROCESSES[msg.From].state = state
 	PROCESSES[msg.From].state.lastUpdated = msg.Timestamp
 
-	print("Resolved " .. state.Ticker .. " with Process ID " .. msg.From .. " with the latest state.")
+	print("Resolved " ..
+		(state.Ticker or "UNKNOWN TICKER") .. " with Process ID " .. msg.From .. " with the latest state.")
 end)
 
 Handlers.add("ACL", Handlers.utils.hasMatchingTag("Action", "ACL"), function(msg)
@@ -410,6 +487,42 @@ Handlers.add("ACL", Handlers.utils.hasMatchingTag("Action", "ACL"), function(msg
 		})
 	end
 end)
+
+Handlers.add("UpdateACL", Handlers.utils.hasMatchingTag("Action", "Update-ACL"), function(msg)
+	local processId = msg.Tags.ProcessId or (NAMES[msg.Tags.Name] and NAMES[msg.Tags.Name].processId) or msg.From
+
+	-- Verify that the processId is a valid and active process
+	if not PROCESSES[processId] then
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Invalid-ACL-Update-Notice",
+				["Message-Id"] = msg.Id,
+				Error = "Invalid request: Process does not exist.",
+			},
+		})
+		return
+	end
+
+	-- Allow the process to update itself or check if msg.From is an owner or controller
+	if processId == msg.From or (ACL[msg.From] and ACL[msg.From][processId] and (ACL[msg.From][processId].isOwner or ACL[msg.From][processId].isController)) then
+		print(processId .. " data was requested to be updated by " .. msg.From .. ". Refreshing process now...")
+		ao.send({ Target = processId, Action = "State" }) -- Resend the state request to update the data
+	else
+		-- msg.From is not authorized to update the process
+		ao.send({
+			Target = msg.From,
+			Tags = {
+				Action = "Invalid-ACL-Update-Notice",
+				["Message-Id"] = msg.Id,
+				Error =
+				"Unauthorized access: You do not have owner or controller rights, nor are you the process itself.",
+			},
+		})
+	end
+end)
+
+
 
 Handlers.add("Record", Handlers.utils.hasMatchingTag("Action", "Record"), function(msg)
 	if NAMES[msg.Tags.Name] ~= nil and PROCESSES[NAMES[msg.Tags.Name].processId] ~= nil and PROCESSES[NAMES[msg.Tags.Name].processId].state ~= nil then

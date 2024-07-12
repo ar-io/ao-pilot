@@ -241,7 +241,7 @@ local arnsMeta = {
 			end
 		elseif key == "resolveAll" then
 			return function()
-				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Records" })
+				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Paginated-Records" })
 				return "Looking up and resolving all Records from ArNS Registry: " ..
 					AR_IO_PROCESS_ID .. "...this may take a while!"
 			end
@@ -296,17 +296,6 @@ local arnsMeta = {
 
 ARNS = setmetatable({}, arnsMeta)
 
---- Determines if a given message is a record response from the ARNS process.
--- @param msg The message to evaluate.
--- @return boolean True if the message is from the ARNS process and action is 'Record-Resolved', otherwise false.
-function isArNSGetRecordMessage(msg)
-	if msg.From == AR_IO_PROCESS_ID and (msg.Tags.Action == 'Record-Notice' or msg.Tags.Action == 'Records-Notice') then
-		return true
-	else
-		return false
-	end
-end
-
 --- Determines if a message is an 'State' message from an ANT or related process.
 -- Checks if the sender's ID exists within the ID_NAME_MAPPING.
 -- @param msg The message object to check.
@@ -325,19 +314,16 @@ end, function(msg)
 	Now = msg.Timestamp
 end)
 
---- Handles received ArNS "Record-Resolved" messages by updating the local NAMES table.
--- Updates or initializes the record for the given name with the latest information.
--- Fetches additional information from SmartWeave Cache or ANT-AO process if necessary.
-Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg)
+Handlers.add("ReceiveArNSSingleRecordMessage", function(msg)
+	return msg.From == AR_IO_PROCESS_ID and msg.Tags.Action == 'Record-Notice'
+end, function(msg)
 	local data, err = json.decode(msg.Data)
 	if not data or err then
 		print("Error decoding JSON data from ArNS Registry: ", err)
 		return
 	end
-	local namesFetched = 0
-	local antsResolved = 0
 
-	if msg.Tags.Action == 'Record-Notice' and msg.Tags.Name ~= nil then
+	if msg.Tags.Name then
 		NAMES[msg.Tags.Name] = {
 			lastUpdated = msg.Timestamp,
 			processId = data.processId,
@@ -346,62 +332,78 @@ Handlers.add("ReceiveArNSGetRecordMessage", isArNSGetRecordMessage, function(msg
 			purchasePrice = data.purchasePrice,
 			undernameLimit = data.undernameLimit
 		}
-		if data.endTimestamp ~= nil then
+		if data.endTimestamp then
 			NAMES[msg.Tags.Name].endTimestamp = data.endTimestamp
 		end
 		if data.processId then
 			print('Resolving ' .. msg.Tags.Name .. ' to ANT: ' .. data.processId)
-			namesFetched = namesFetched + 1
 			if PROCESSES[data.processId] == nil then
-				PROCESSES[data.processId] = {
-					Names = {}
-				}
+				PROCESSES[data.processId] = { Names = {} }
 			end
 			PROCESSES[data.processId].Names[msg.Tags.Name] = true
 			ao.send({ Target = data.processId, Action = "State" })
-			antsResolved = antsResolved + 1
-		end
-	elseif msg.Tags.Action == 'Records-Notice' then
-		for name, record in pairs(data) do
-			-- TODO: CHECK FOR A NEW NAME
-			NAMES[name] = {
-				lastUpdated = msg.Timestamp,
-				processId = record.processId,
-				type = record.type,
-				startTimestamp = record.startTimestamp,
-				purchasePrice = record.purchasePrice,
-				undernameLimit = record.undernameLimit
-			}
-			if record.endTimestamp ~= nil then
-				NAMES[name].endTimestamp = record.endTimestamp
-			end
-
-			if NAMES[name].processId then
-				-- print('Resolving ' .. name .. ' to ANT: ' .. NAMES[name].processId)
-				namesFetched = namesFetched + 1
-				if PROCESSES[NAMES[name].processId] == nil then
-					PROCESSES[NAMES[name].processId] = {
-						Names = {}
-					}
-				end
-				PROCESSES[NAMES[name].processId].Names[name] = true
-			else
-				print('Cant resolve ' .. name .. ' without an AO ANT Process ID')
-			end
-		end
-		for processId, process in pairs(PROCESSES) do
-			if PROCESSES[processId].state and PROCESSES[processId].state.lastUpdated and Now - PROCESSES[processId].state.lastUpdated < ARNS_TTL_MS then
-				-- print('TTL has not expired yet for ' .. processId)
-			else
-				-- print('Updating state for ' .. processId)
-				ao.send({ Target = processId, Action = "State" })
-				antsResolved = antsResolved + 1
-			end
 		end
 	end
-	print("Fetched " ..
-		namesFetched .. " registered names across " .. antsResolved .. " ANTs.  Resolving new ANT processes now.")
 end)
+
+Handlers.add("ReceiveArNSMultipleRecordsMessage", function(msg)
+	return msg.From == AR_IO_PROCESS_ID and msg.Tags.Action == 'Records-Notice'
+end, function(msg)
+	local data, err = json.decode(msg.Data)
+	if not data or err then
+		print("Error decoding JSON data from ArNS Registry: ", err)
+		return
+	end
+
+	local namesFetched = 0
+	for _, record in pairs(data.items) do
+		local name = record.name
+		NAMES[name] = {
+			lastUpdated = msg.Timestamp,
+			processId = record.processId,
+			type = record.type,
+			startTimestamp = record.startTimestamp,
+			purchasePrice = record.purchasePrice,
+			undernameLimit = record.undernameLimit,
+			endTimestamp = record.endTimestamp
+		}
+
+		-- Send state update if the process requires it
+		if not PROCESSES[record.processId] or (Now - (PROCESSES[record.processId].lastUpdated or 0) > ARNS_RECORD_TTL_MS) then
+			if not PROCESSES[record.processId] then
+				PROCESSES[record.processId] = { Names = {} }
+			end
+			PROCESSES[record.processId].Names[name] = true
+			ao.send({ Target = record.processId, Action = "State" })
+			namesFetched = namesFetched + 1
+			print('Resolving ' .. name .. ' to ANT: ' .. record.processId)
+		else
+			print(record.processId .. " is up-to-date and does not require resolving.")
+		end
+	end
+
+	print(namesFetched .. " names needed resolution and are being processed.")
+
+	-- Continue fetching more records if there are more pages
+	if data.hasMore then
+		print("Fetching more records from next page...")
+		ao.send({
+			Target = AR_IO_PROCESS_ID,
+			Action = "Paginated-Records",
+			Tags = {
+				Cursor = data.nextCursor,
+				Limit = tostring(data.limit),
+				["Sort-By"] = data.sortBy,
+				["Sort-Order"] = data.sortOrder
+			}
+		})
+	else
+		print("All records have been fetched.")
+	end
+end)
+
+
+
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
 -- @param msg The received message object containing updated process info.
@@ -522,8 +524,6 @@ Handlers.add("UpdateACL", Handlers.utils.hasMatchingTag("Action", "Update-ACL"),
 	end
 end)
 
-
-
 Handlers.add("Record", Handlers.utils.hasMatchingTag("Action", "Record"), function(msg)
 	if NAMES[msg.Tags.Name] ~= nil and PROCESSES[NAMES[msg.Tags.Name].processId] ~= nil and PROCESSES[NAMES[msg.Tags.Name].processId].state ~= nil then
 		local record = NAMES[msg.Tags.Name]
@@ -618,6 +618,6 @@ Handlers.add(
 	"CronResolveAll",                             -- handler name
 	Handlers.utils.hasMatchingTag("Action", "Cron"), -- handler pattern to identify cron message
 	function()                                    -- handler task to execute on cron message
-		ao.send({ Target = AR_IO_PROCESS_ID, Action = "Records" })
+		ao.send({ Target = AR_IO_PROCESS_ID, Action = "Paginated-Records" })
 	end
 )

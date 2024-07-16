@@ -241,19 +241,22 @@ local arnsMeta = {
 			end
 		elseif key == "resolveAll" then
 			return function()
-				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Paginated-Records" })
+				ao.send({ Target = AR_IO_PROCESS_ID, Action = "Paginated-Records", Limit = "50" })
 				return "Looking up and resolving all Records from ArNS Registry: " ..
 					AR_IO_PROCESS_ID .. "...this may take a while!"
 			end
 		elseif key == "count" then
 			return function(type)
 				type = string.lower(type)
-				if type == 'names' then
+				if type == 'resolvednames' then
 					return countResolvedNames()
 				elseif type == 'processes' then
 					return countResolvedProcesses()
 				elseif type == 'acl' then
 					return countTableItems(ACL)
+				elseif type == 'names' then
+					local names = countTableItems(NAMES)
+					return names
 				elseif type == 'unresolvednames' then
 					local unresolvedNames = countTableItems(NAMES) - countResolvedNames()
 					return unresolvedNames
@@ -261,7 +264,8 @@ local arnsMeta = {
 					local unresolvedProcesses = countTableItems(PROCESSES) - countResolvedProcesses()
 					return unresolvedProcesses
 				else
-					return 'Invalid type entered.  Can only count names, processes, acl, unresolvednames and unresolvedprocesses.'
+					return
+					'Invalid type entered.  Can only count names, resolvednames, unresolvednames, processes, unresolvedprocesses and acl.'
 				end
 			end
 		elseif key == "help" then
@@ -356,6 +360,8 @@ end, function(msg)
 	end
 
 	local namesFetched = 0
+	local totalNamesProcessed = #NAMES -- Assuming NAMES is storing all names processed so far
+
 	for _, record in pairs(data.items) do
 		local name = record.name
 		NAMES[name] = {
@@ -368,8 +374,7 @@ end, function(msg)
 			endTimestamp = record.endTimestamp
 		}
 
-		-- Send state update if the process requires it
-		if not PROCESSES[record.processId] or (Now - (PROCESSES[record.processId].lastUpdated or 0) > ARNS_RECORD_TTL_MS) then
+		if not PROCESSES[record.processId] or PROCESSES[record.processId].state == nil or (PROCESSES[record.processId].state and (Now - (PROCESSES[record.processId].state.lastUpdated or 0) > ARNS_RECORD_TTL_MS)) then
 			if not PROCESSES[record.processId] then
 				PROCESSES[record.processId] = { Names = {} }
 			end
@@ -378,15 +383,17 @@ end, function(msg)
 			namesFetched = namesFetched + 1
 			print('Resolving ' .. name .. ' to ANT: ' .. record.processId)
 		else
-			print(record.processId .. " is up-to-date and does not require resolving.")
+			print(name .. " is up-to-date and does not require resolving.")
 		end
 	end
 
-	print(namesFetched .. " names needed resolution and are being processed.")
+	print(string.format("%d names processed in this batch. %d names needed resolution and are being processed.",
+		#data.items, namesFetched))
 
 	-- Continue fetching more records if there are more pages
 	if data.hasMore then
-		print("Fetching more records from next page...")
+		print(string.format("Fetching more records from next page. Approximately %d items remaining.",
+			data.totalItems - totalNamesProcessed))
 		ao.send({
 			Target = AR_IO_PROCESS_ID,
 			Action = "Paginated-Records",
@@ -398,12 +405,9 @@ end, function(msg)
 			}
 		})
 	else
-		print("All records have been fetched.")
+		print("All records have been fetched. ")
 	end
 end)
-
-
-
 
 --- Updates stored information with the latest data from ANT-AO process "Info-Notice" messages.
 -- @param msg The received message object containing updated process info.
@@ -618,6 +622,6 @@ Handlers.add(
 	"CronResolveAll",                             -- handler name
 	Handlers.utils.hasMatchingTag("Action", "Cron"), -- handler pattern to identify cron message
 	function()                                    -- handler task to execute on cron message
-		ao.send({ Target = AR_IO_PROCESS_ID, Action = "Paginated-Records" })
+		ao.send({ Target = AR_IO_PROCESS_ID, Action = "Paginated-Records", Limit = "50" })
 	end
 )

@@ -10,11 +10,10 @@ constants.UNDERNAME_REGEXP = "^(?:@|[a-zA-Z0-9][a-zA-Z0-9-_]{0,"
 	.. (constants.MAX_UNDERNAME_LENGTH - 2)
 	.. "}[a-zA-Z0-9])$"
 
--- Setup the default record pointing to the ArNS landing page
 if not Records then
 	Records = {}
 	Records["@"] = {
-		transactionId = "UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk",
+		transactionId = "UyC5P5qKPZaltMmmZAWdakhlDXsBF6qmyrbWYFchRTk", -- Setup the default record pointing to the ArNS landing page
 		ttlSeconds = 3600,
 	}
 end
@@ -43,6 +42,7 @@ function records.getRecords()
 	return json.encode(Records)
 end
 
+-- ANP-Base-01 Handlers
 Handlers.add(ANPBaseSpecActionMap.Record, Handlers.utils.hasMatchingTag("Action", ANPBaseSpecActionMap.Record),
 	function(msg)
 		local nameStatus, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])

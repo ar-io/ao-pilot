@@ -1,9 +1,8 @@
 local json = require("json")
 local ao = require('ao')
 
--- ANP-BASE-01 Constants and Objects
+-- ANP-RESOLVE-01 Constants and Objects
 local constants = {}
-
 
 constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE = "Record does not exist!"
 constants.MAX_UNDERNAME_LENGTH = 61
@@ -27,7 +26,7 @@ if not Records then
 	}
 end
 
-local ANPBaseSpecActionMap = {
+local ANPResolveSpecActionMap = {
 	-- read actions
 	Record = "Record",
 	Records = "Records",
@@ -56,13 +55,13 @@ function records.getRecords()
 	return json.encode(Records)
 end
 
--- ANP-01 Constants and Objects
+-- ANP-CONTROL-01 Constants and Objects
 constants.ARWEAVE_ID_REGEXP = "^[a-zA-Z0-9-_]{43}$"
 constants.INVALID_ARWEAVE_ID_MESSAGE = "Invalid Arweave ID"
 
 Controllers = Controllers or { Owner }
 
-local ANPSpecActionMap = {
+local ANPControlSpecActionMap = {
 	-- read actions
 	Controllers = "Controllers",
 	-- write actions
@@ -155,8 +154,8 @@ function controllers.getControllers()
 	return json.encode(Controllers)
 end
 
--- ANP-Base-01 Handlers
-Handlers.add(ANPBaseSpecActionMap.Record, Handlers.utils.hasMatchingTag("Action", ANPBaseSpecActionMap.Record),
+-- ANP-RESOLVE-01 Handlers
+Handlers.add(ANPResolveSpecActionMap.Record, Handlers.utils.hasMatchingTag("Action", ANPResolveSpecActionMap.Record),
 	function(msg)
 		local nameStatus, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])
 
@@ -190,7 +189,7 @@ Handlers.add(ANPBaseSpecActionMap.Record, Handlers.utils.hasMatchingTag("Action"
 		ao.send(recordNotice)
 	end)
 
-Handlers.add(ANPBaseSpecActionMap.Records, Handlers.utils.hasMatchingTag("Action", ANPBaseSpecActionMap.Records),
+Handlers.add(ANPResolveSpecActionMap.Records, Handlers.utils.hasMatchingTag("Action", ANPResolveSpecActionMap.Records),
 	function(msg)
 		local records = records.getRecords()
 
@@ -213,7 +212,7 @@ Handlers.add(ANPBaseSpecActionMap.Records, Handlers.utils.hasMatchingTag("Action
 		ao.send(recordsNotice)
 	end)
 
-Handlers.add(ANPBaseSpecActionMap.State, Handlers.utils.hasMatchingTag("Action", ANPBaseSpecActionMap.State),
+Handlers.add(ANPResolveSpecActionMap.State, Handlers.utils.hasMatchingTag("Action", ANPResolveSpecActionMap.State),
 	function(msg)
 		local state = {
 			Records = Records,
@@ -238,8 +237,9 @@ Handlers.add(ANPBaseSpecActionMap.State, Handlers.utils.hasMatchingTag("Action",
 		ao.send(stateNotice)
 	end)
 
--- ANP-01 Handlers
-Handlers.add(ANPSpecActionMap.Controllers, Handlers.utils.hasMatchingTag("Action", ANPSpecActionMap.Controllers),
+-- ANP-CONTROL-01 Handlers
+Handlers.add(ANPControlSpecActionMap.Controllers,
+	Handlers.utils.hasMatchingTag("Action", ANPControlSpecActionMap.Controllers),
 	function(msg)
 		local controllersNotice = {
 			Target = msg.From,
@@ -259,7 +259,8 @@ Handlers.add(ANPSpecActionMap.Controllers, Handlers.utils.hasMatchingTag("Action
 		ao.send(controllersNotice)
 	end)
 
-Handlers.add(ANPSpecActionMap.AddController, Handlers.utils.hasMatchingTag("Action", ANPSpecActionMap.AddController),
+Handlers.add(ANPControlSpecActionMap.AddController,
+	Handlers.utils.hasMatchingTag("Action", ANPControlSpecActionMap.AddController),
 	function(msg)
 		local assertHasPermission, permissionErr = pcall(assertHasPermission, msg.From)
 		if assertHasPermission == false then
@@ -301,8 +302,8 @@ Handlers.add(ANPSpecActionMap.AddController, Handlers.utils.hasMatchingTag("Acti
 		ao.send(addControllerNotice)
 	end)
 
-Handlers.add(ANPSpecActionMap.RemoveController,
-	Handlers.utils.hasMatchingTag("Action", ANPSpecActionMap.RemoveController),
+Handlers.add(ANPControlSpecActionMap.RemoveController,
+	Handlers.utils.hasMatchingTag("Action", ANPControlSpecActionMap.RemoveController),
 	function(msg)
 		local assertHasPermission, permissionErr = pcall(assertHasPermission, msg.From)
 		if assertHasPermission == false then
@@ -344,7 +345,8 @@ Handlers.add(ANPSpecActionMap.RemoveController,
 		ao.send(removeControllerNotice)
 	end)
 
-Handlers.add(ANPSpecActionMap.SetRecord, Handlers.utils.hasMatchingTag("Action", ANPSpecActionMap.SetRecord),
+Handlers.add(ANPControlSpecActionMap.SetRecord,
+	Handlers.utils.hasMatchingTag("Action", ANPControlSpecActionMap.SetRecord),
 	function(msg)
 		local assertHasPermission, permissionErr = pcall(assertHasPermission, msg.From)
 		if assertHasPermission == false then
@@ -390,7 +392,8 @@ Handlers.add(ANPSpecActionMap.SetRecord, Handlers.utils.hasMatchingTag("Action",
 		ao.send(setRecordNotice)
 	end)
 
-Handlers.add(ANPSpecActionMap.RemoveRecord, Handlers.utils.hasMatchingTag("Action", ANPSpecActionMap.RemoveRecord),
+Handlers.add(ANPControlSpecActionMap.RemoveRecord,
+	Handlers.utils.hasMatchingTag("Action", ANPControlSpecActionMap.RemoveRecord),
 	function(msg)
 		local assertHasPermission, permissionErr = pcall(assertHasPermission, msg.From)
 		if assertHasPermission == false then
@@ -408,6 +411,7 @@ Handlers.add(ANPSpecActionMap.RemoveRecord, Handlers.utils.hasMatchingTag("Actio
 		else
 			local removeRecordNotice = {
 				Target = msg.From,
+				Action = 'Remove-Record-Notice',
 				Data = removeRecordResult
 			}
 

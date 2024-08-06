@@ -1,10 +1,17 @@
 local json = require("json")
+local bint = require('.bint')(256)
+local ao = require('ao')
 
 -- Update the below as needed
-Name = Name or "ANT-Base"
-Ticker = Ticker or "ANT-Base"
-Denomination = Denomination or 1
+Name = Name or "ANT-Base-Spec"
+Ticker = Ticker or "ANT-Base-Spec"
+Denomination = Denomination or 0
+TotalSupply = TotalSupply or 1
 Logo = Logo or "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A"
+
+-- Setup balances as needed
+Owner = Owner or ao.env.Process.Owner
+Balances = Balances or { [Owner] = 1 }
 
 -- Setup the default record pointing to the ArNS landing page
 if not Records then
@@ -15,50 +22,40 @@ if not Records then
 	}
 end
 
--- Set empty controllers
+-- Set empty controllers if needed
 if not Controllers then
 	Controllers = {}
 end
 
--- Custom validateSetRecord function in Lua
-function validateSetRecord(msg)
-	-- Check for required fields
-	local requiredFields = { "SubDomain", "TransactionId", "TtlSeconds" }
-	for _, field in ipairs(requiredFields) do
-		if not msg.Tags[field] then
-			return false, field .. " is required!"
-		end
-	end
+local ANTSpecActionMap = {
+	-- write
+	AddController = "Add-Controller",
+	RemoveController = "Remove-Controller",
+	SetRecord = "Set-Record",
+	RemoveRecord = "Remove-Record",
+	SetName = "Set-Name",
+	SetTicker = "Set-Ticker",
+	--- initialization method for bootstrapping the contract from other platforms ---
+	InitializeState = "Initialize-State",
+	-- read
+	Controllers = "Controllers",
+	Record = "Record",
+	Records = "Records",
+	State = "State",
+	Evolve = "Evolve",
+}
 
-	-- Validate subDomain (Record)
-	if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
-		return false, "Record (subDomain) pattern is invalid."
-	end
-
-	if msg.Tags.SubDomain == "www" then
-		return false, "Invalid ArNS Record Subdomain"
-	end
-
-	-- Validate transactionId
-	-- if not validArweaveId(msg.Tags.TransactionId) then
-	--    return false, "TransactionId pattern is invalid."
-	-- end
-
-	-- Validate ttlSeconds
-	local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
-	if not ttlSeconds or ttlSeconds < 900 or ttlSeconds > 2592000 or ttlSeconds % 1 ~= 0 then
-		return false, "TtlSeconds is invalid."
-	end
-
-	-- If all checks pass
-	return true, "Valid"
-end
-
--- Utility function to check if a string matches an arweave id
-function validArweaveId(inputString)
-	local pattern = "^[a-zA-Z0-9-_]{43}$"
-	return string.match(inputString, pattern) ~= nil
-end
+local TokenSpecActionMap = {
+	Info = "Info",
+	Balances = "Balances",
+	Balance = "Balance",
+	Transfer = "Transfer",
+	TotalSupply = "Total-Supply",
+	CreditNotice = "Credit-Notice",
+	-- not implemented
+	Mint = "Mint",
+	Burn = "Burn",
+}
 
 -- Custom validateSetRecord function in Lua
 function validateSetRecord(msg)
@@ -99,6 +96,110 @@ function validArweaveId(inputString)
 	local pattern = "^[a-zA-Z0-9-_]{43}$"
 	return string.match(inputString, pattern) ~= nil
 end
+
+-- Custom validateSetRecord function in Lua
+function validateSetRecord(msg)
+	-- Check for required fields
+	local requiredFields = { "SubDomain", "TransactionId", "TtlSeconds" }
+	for _, field in ipairs(requiredFields) do
+		if not msg.Tags[field] then
+			return false, field .. " is required!"
+		end
+	end
+
+	-- Validate subDomain (Record)
+	if not (msg.Tags.SubDomain == "@" or string.match(msg.Tags.SubDomain, "^[%w-_]+$")) then
+		return false, "Record (subDomain) pattern is invalid."
+	end
+
+	if msg.Tags.SubDomain == "www" then
+		return false, "Invalid ArNS Record Subdomain"
+	end
+
+	-- Validate transactionId
+	-- if not validArweaveId(msg.Tags.TransactionId) then
+	--    return false, "TransactionId pattern is invalid."
+	-- end
+
+	-- Validate ttlSeconds
+	local ttlSeconds = tonumber(msg.Tags.TtlSeconds)
+	if not ttlSeconds or ttlSeconds < 900 or ttlSeconds > 2592000 or ttlSeconds % 1 ~= 0 then
+		return false, "TtlSeconds is invalid."
+	end
+
+	-- If all checks pass
+	return true, "Valid"
+end
+
+-- Utility function to check if a string matches an arweave id
+function validArweaveId(inputString)
+	local pattern = "^[a-zA-Z0-9-_]{43}$"
+	return string.match(inputString, pattern) ~= nil
+end
+
+-- caller must own the process or be the process itself
+function validateOwner(caller)
+	local isOwner = false
+	if Owner == caller or ao.env.Process.Id == caller then
+		isOwner = true
+	end
+	assert(isOwner, "Sender is not the owner.")
+end
+
+Handlers.add(
+	TokenSpecActionMap.Transfer,
+	Handlers.utils.hasMatchingTag("Action", TokenSpecActionMap.Transfer),
+	function(msg)
+		local recipient = msg.Tags.Recipient
+		local function checkAssertions()
+			validArweaveId(recipient)
+			validateOwner(msg.From)
+		end
+
+		local inputStatus, inputResult = pcall(checkAssertions)
+
+		if not inputStatus then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = "Invalid-Transfer-Notice", Error = "Transfer-Error" },
+				Data = tostring(inputResult),
+				["Message-Id"] = msg.Id,
+			})
+			return
+		end
+		local transferStatus, transferResult = pcall(balances.transfer, recipient)
+
+		if not transferStatus then
+			ao.send({
+				Target = msg.From,
+				Tags = { Action = "Invalid-Transfer-Notice", Error = "Transfer-Error" },
+				["Message-Id"] = msg.Id,
+				Data = tostring(transferResult),
+			})
+			return
+		elseif not msg.Cast then
+			ao.send(utils.notices.debit(msg))
+			ao.send(utils.notices.credit(msg))
+			return
+		end
+		ao.send({
+			Target = msg.From,
+			Data = transferResult,
+		})
+	end
+)
+
+
+
+
+
+
+
+
+
+
+
+
 
 Handlers.add("info", Handlers.utils.hasMatchingTag("Action", "Info"), function(msg, env)
 	local info = {

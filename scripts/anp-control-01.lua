@@ -216,6 +216,7 @@ Handlers.add(ANPResolveSpecActionMap.State, Handlers.utils.hasMatchingTag("Actio
 	function(msg)
 		local state = {
 			Records = Records,
+			Controllers = Controllers,
 			Owner = Owner,
 		}
 

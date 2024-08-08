@@ -398,7 +398,14 @@ Handlers.add(ANPControlSpecActionMap.RemoveRecord,
 	function(msg)
 		local assertHasPermission, permissionErr = pcall(assertHasPermission, msg.From)
 		if assertHasPermission == false then
-			return ao.send({ Target = msg.From, Action = "Invalid-Remove-Record-Notice", Data = permissionErr })
+			ao.send({
+				Target = msg.From,
+				Action = "Invalid-Remove-Record-Notice",
+				Data = permissionErr,
+				Error = "Remove-Record-Error",
+				["Message-Id"] = msg.Id,
+			})
+			return
 		end
 		local removeRecordStatus, removeRecordResult = pcall(records.removeRecord, msg.Tags["Sub-Domain"])
 		if not removeRecordStatus then

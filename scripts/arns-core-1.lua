@@ -1,7 +1,7 @@
 local json = require("json")
 local ao = require('ao')
 
--- ANP-RESOLVE-01 Constants and Objects
+-- ARNS-CORE-1 Constants and Objects
 local constants = {}
 
 constants.UNDERNAME_DOES_NOT_EXIST_MESSAGE = "Record does not exist!"
@@ -18,7 +18,7 @@ if not Records then
 	}
 end
 
-local ANPResolveSpecActionMap = {
+local ARNSCoreSpecActionMap = {
 	-- read actions
 	Record = "Record",
 	Records = "Records",
@@ -42,8 +42,8 @@ function records.getRecords()
 	return json.encode(Records)
 end
 
--- ANP-Base-01 Handlers
-Handlers.add(ANPResolveSpecActionMap.Record, Handlers.utils.hasMatchingTag("Action", ANPResolveSpecActionMap.Record),
+-- ARNS-CORE-1 Handlers
+Handlers.add(ARNSCoreSpecActionMap.Record, Handlers.utils.hasMatchingTag("Action", ARNSCoreSpecActionMap.Record),
 	function(msg)
 		local nameStatus, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])
 
@@ -77,7 +77,7 @@ Handlers.add(ANPResolveSpecActionMap.Record, Handlers.utils.hasMatchingTag("Acti
 		ao.send(recordNotice)
 	end)
 
-Handlers.add(ANPResolveSpecActionMap.Records, Handlers.utils.hasMatchingTag("Action", ANPResolveSpecActionMap.Records),
+Handlers.add(ARNSCoreSpecActionMap.Records, Handlers.utils.hasMatchingTag("Action", ARNSCoreSpecActionMap.Records),
 	function(msg)
 		local records = records.getRecords()
 
@@ -100,7 +100,7 @@ Handlers.add(ANPResolveSpecActionMap.Records, Handlers.utils.hasMatchingTag("Act
 		ao.send(recordsNotice)
 	end)
 
-Handlers.add(ANPResolveSpecActionMap.State, Handlers.utils.hasMatchingTag("Action", ANPResolveSpecActionMap.State),
+Handlers.add(ARNSCoreSpecActionMap.State, Handlers.utils.hasMatchingTag("Action", ARNSCoreSpecActionMap.State),
 	function(msg)
 		local state = {
 			Records = Records,

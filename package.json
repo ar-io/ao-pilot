@@ -1,0 +1,18 @@
+{
+  "name": "ao-pilot",
+  "version": "1.0.0",
+  "description": "This repository contains the IO contract implementation on AO.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@ar.io/sdk": "^2.2.5",
+    "@iwsio/json-csv-node": "^6.1.7",
+    "@permaweb/aoconnect": "^0.0.59",
+    "arweave-graphql": "^0.0.5",
+    "plimit-lit": "^3.0.1"
+  }
+}

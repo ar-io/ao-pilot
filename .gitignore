@@ -9,6 +9,7 @@ node_modules
 /lua_modules
 /.luarocks
 wallet.json
+key.json
 .DS_Store
 luacov-html
 .luacov

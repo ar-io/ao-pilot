@@ -13,6 +13,7 @@
     "@iwsio/json-csv-node": "^6.1.7",
     "@permaweb/aoconnect": "^0.0.59",
     "arweave-graphql": "^0.0.5",
-    "plimit-lit": "^3.0.1"
+    "plimit-lit": "^3.0.1",
+    "prettier": "^3.3.3"
   }
 }

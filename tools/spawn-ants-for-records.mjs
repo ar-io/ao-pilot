@@ -14,6 +14,7 @@ const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const restart = process.argv.includes('--restart');
 const dryRun = process.argv.includes('--dry-run');
 const testnet = process.argv.includes('--testnet');
+const inputFilePath = process.argv.includes('--file') ? process.argv[process.argv.indexOf('--file') + 1] : null;
 const wallet = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'key.json'), 'utf8'),
 );
@@ -30,7 +31,7 @@ const { spawn } = aoClient;
 
 async function main() {
   const csv = fs.readFileSync(
-    path.join(__dirname, `arns-processid-mapping-${testnet ? 'testnet' : 'devnet'}.csv`),
+    path.join(__dirname, inputFilePath),
     'utf8',
   );
 

@@ -4,8 +4,14 @@ import { connect } from '@permaweb/aoconnect';
 import { pLimit } from 'plimit-lit';
 import { toCsvSync } from '@iwsio/json-csv-node';
 import arweaveGraphql from 'arweave-graphql';
+import path from 'path';
 
-const cleanSourceCodeId = 'RuoUVJOCJOvSfvvi_tn0UPirQxlYdC4_odqmORASP8g';
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+
+const cleanSourceCodeIds = [
+  'RuoUVJOCJOvSfvvi_tn0UPirQxlYdC4_odqmORASP8g',
+  'vS1Sj5mHyVPhSGW3AkvzMhctsOStAjBIKWyO_1eWxVM',
+];
 
 function createDomainLink(domain) {
   return `https://${domain}.arweave.net`;
@@ -16,10 +22,15 @@ function createEntityLink(processId) {
 
 async function getProcessEvalMessageIDsNotFromArIO(processId) {
   // Dcd4bnUAxJ
+  const abortSignal = new AbortController();
+  setTimeout(() => {
+    abortSignal.abort();
+  }, 120000);
   const messages = await fetch(
     `https://su-router.ao-testnet.xyz/${processId}?limit=100000`,
     {
       method: 'GET',
+      signal: abortSignal.signal,
     },
   ).then((res) => res.json());
   const evalMessages = messages.edges.reduce((acc, edge) => {
@@ -127,7 +138,7 @@ async function main() {
         return [];
       });
 
-      if (owner && sourceCodeId && sourceCodeId !== cleanSourceCodeId) {
+      if (owner && sourceCodeId && !cleanSourceCodeIds.includes(sourceCodeId)) {
         affectedDomains.push({
           ['ArNS Domain']: domain,
           ['Process ID']: antId,
@@ -145,17 +156,6 @@ async function main() {
       scannedCount++;
     } catch (error) {
       console.error('Error processing domain:', domain, error);
-      affectedDomains.push({
-        ['ArNS Domain']: domain,
-        ['Process ID']: antId,
-        ['Owner ID']: 'unknown',
-        ['Custom Eval Message Count']: 'unknown',
-        ['ArNS Domain Link']: createDomainLink(domain),
-        ['Process ID Link']: createEntityLink(antId),
-        ['Owner Link']: 'unknown',
-        ['Error']: 'Not reachable',
-        relatedManifestIds: [],
-      });
     }
   }
   await Promise.all(
@@ -190,7 +190,7 @@ async function main() {
   );
   // write json file
   fs.writeFileSync(
-    'affected-domains.json',
+    path.join(__dirname, 'affected-domains.json'),
     JSON.stringify(affectedDomains, null, 2),
   );
   // create csv
@@ -233,7 +233,14 @@ async function main() {
     ignoreHeader: false,
   });
 
-  fs.writeFileSync('affected-domains.csv', csv);
+  fs.writeFileSync(path.join(__dirname, 'affected-domains.csv'), csv);
+  const domainsToProvision = affectedDomains.map(
+    (domain) => domain['ArNS Domain'],
+  );
+  fs.writeFileSync(
+    path.join(__dirname, 'domains-to-provision.json'),
+    JSON.stringify(domainsToProvision, null, 2),
+  );
 }
 
 main();

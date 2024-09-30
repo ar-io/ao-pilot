@@ -8,11 +8,6 @@ import path from 'path';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
-const cleanSourceCodeIds = [
-  'RuoUVJOCJOvSfvvi_tn0UPirQxlYdC4_odqmORASP8g',
-  'vS1Sj5mHyVPhSGW3AkvzMhctsOStAjBIKWyO_1eWxVM',
-];
-
 function createDomainLink(domain) {
   return `https://${domain}.arweave.net`;
 }
@@ -117,7 +112,6 @@ async function main() {
       );
       const ant = ANT.init({ processId: antId });
       const state = await ant.getState();
-      const sourceCodeId = state?.['Source-Code-TX-ID'];
       const owner = state?.Owner;
 
       const relatedManifestIds = Object.values(state.Records)
@@ -138,7 +132,7 @@ async function main() {
         return [];
       });
 
-      if (owner && sourceCodeId && !cleanSourceCodeIds.includes(sourceCodeId)) {
+      if (owner) {
         affectedDomains.push({
           ['ArNS Domain']: domain,
           ['Process ID']: antId,

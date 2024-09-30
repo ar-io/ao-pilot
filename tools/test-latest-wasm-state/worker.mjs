@@ -55,7 +55,7 @@ export async function testProcessEvalCapability(id) {
         Timestamp: Date.now().toString(),
         Id: ''.padEnd(43, '1'),
         Tags: [{ name: 'Action', value: 'Eval' }],
-        Data: 'Send({ Target = ao.id, Action = "Info" })',
+        Data: 'Send({ Target = ao.id })',
         Module: ''.padEnd(43, '1'),
         ['Block-Height']: '1517003',
       },

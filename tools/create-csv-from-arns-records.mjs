@@ -18,6 +18,8 @@ async function main() {
 
   const arnsRecords = await io.getArNSRecords({
     limit: 100000,
+    sortBy: 'startTimestamp',
+    sortOrder: 'asc',
   });
   // create csv if not exists
   fs.writeFileSync(outputFilePath, 'domain,processId\n', { flag: 'w' });

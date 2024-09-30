@@ -1,8 +1,11 @@
 import {
   ANT,
   ANT_LUA_ID,
+  ANT_REGISTRY_ID,
   AOProcess,
+  AOS_MODULE_ID,
   ArweaveSigner,
+  DEFAULT_SCHEDULER_ID,
   createAoSigner,
   spawnANT,
 } from '@ar.io/sdk';
@@ -69,48 +72,70 @@ Script 2:
     return !provisionedDomains.includes(domain);
   });
 
-  const total = oldRecords.length;
-  let provisioned = Math.max(1, oldRecords.length - recordsToProvision.length);
-  let spawnTimePerAnt = 0;
-  for (const record of recordsToProvision) {
+const total = oldRecords.length;
+let provisioned = Math.max(1, oldRecords.length - recordsToProvision.length);
+let spawnTimePerAnt = 0;
+let totalSpawnTime = 0;
+for (const record of recordsToProvision) {
     const startTime = Date.now();
     try {
-      console.log(`Provisioning ${record[0]} | ${provisioned} / ${total}...`);
-      const [domain, processId] = record;
-      const ant = ANT.init({
-        process: new AOProcess({
-          processId,
-          ao: aoClient,
-        }),
-      });
-      const state = await ant.getState();
-      const newAntId = await spawnANT({
-        signer: createAoSigner(signer),
-        state: {
-          owner: state?.Owner,
-          balances: state?.Balances,
-          controllers: state?.Controllers,
-          records: state?.Records,
-          name: state?.Name,
-          ticker: state?.Ticker,
-        },
-        ao: aoClient,
-        stateContractTxId: record.processId,
-        luaCodeTxId: ANT_LUA_ID,
-      });
-      fs.writeFileSync(outputFilePath, `${domain},${newAntId}\n`, {
-        flag: 'a',
-      });
-      provisioned++;
+        console.log(`Provisioning ${record[0]} | ${provisioned} / ${total}...`);
+        const [domain, processId] = record;
+
+        async function spawnAntWithRetry() {
+            const controller = new AbortController();
+            const { signal } = controller;
+            const timeout = setTimeout(() => {
+                controller.abort();
+            }, 30_000);
+
+            try {
+                const newAntId = await Promise.race([
+                    aoClient.spawn({
+                        signer: createAoSigner(signer),
+                        module: AOS_MODULE_ID,
+                        scheduler: DEFAULT_SCHEDULER_ID,
+                        tags: [
+                            {
+                                name: 'ANT-Registry-Id',
+                                value: ANT_REGISTRY_ID,
+                            },
+                        ],
+                    }),
+                    new Promise((_, reject) => {
+                        signal.addEventListener('abort', () => {
+                            reject(new Error('Spawn request aborted, took longer than 30 seconds'));
+                        });
+                    }),
+                ]);
+
+                clearTimeout(timeout);
+                return newAntId;
+            } catch (error) {
+                clearTimeout(timeout);
+                console.error('Error:', error);
+                // Retry after abort
+                return spawnAntWithRetry();
+            }
+        }
+
+        const newAntId = await spawnAntWithRetry();
+        fs.writeFileSync(outputFilePath, `${domain},${newAntId}\n`, {
+            flag: 'a',
+        });
+        provisioned++;
+
+        const endTime = Date.now();
+        const spawnTime = endTime - startTime;
+        totalSpawnTime += spawnTime;
+        spawnTimePerAnt = totalSpawnTime / provisioned;
+        console.info(
+            `Estimated time remaining: ${(spawnTimePerAnt * (total - provisioned)) / 1000 / 60} minutes`,
+        );
     } catch (error) {
-      console.error('Error:', error);
+        console.error('Error:', error);
     }
-    const endTime = Date.now();
-    spawnTimePerAnt = endTime - startTime;
-    console.info(
-      `Estimated time remaining: ${(spawnTimePerAnt * (total - provisioned)) / 1000 / 60} minutes`,
-    );
-  }
+}
   // verify all the domains have been provisioned
   const [_, ...newProvisionedRecords] = fs
     .readFileSync(outputFilePath, 'utf8')

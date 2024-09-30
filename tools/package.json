@@ -1,0 +1,11 @@
+{
+  "name": "tools",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@ar.io/sdk": "^2.2.5",
+    "@permaweb/aoconnect": "^0.0.59",
+    "arweave": "^1.15.5"
+  }
+}

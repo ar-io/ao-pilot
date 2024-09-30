@@ -21,11 +21,22 @@ export async function testProcessEvalCapability(id) {
     const state = await ant.getState();
     const owner = state?.Owner;
 
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 30000);
+
     const wasmMemory = await fetch(`https://cu.ao-testnet.xyz/${id}`, {
       method: 'GET',
       retries: 10,
       retryDelay: 1000,
-    }).then((res) => res.arrayBuffer());
+      signal,
+    })
+      .then((res) => res.arrayBuffer())
+      .finally(() => {
+        clearTimeout(timeout);
+      });
 
     const handle = await AoLoader(AOS_WASM, {
       format: 'wasm64-unknown-emscripten-draft_2024_02_15',
@@ -66,6 +77,7 @@ export async function testProcessEvalCapability(id) {
         },
       },
     );
+    console.dir(evalRes?.Messages, { depth: null });
     evalCapable = evalRes?.Messages?.length > 0;
   } catch (error) {
     console.error(`Error fetching wasm memory for domain ${id}:`, error);

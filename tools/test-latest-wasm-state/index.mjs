@@ -8,7 +8,7 @@ import fs from 'fs';
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 const domainsToTest = fs.readFileSync(
-  path.join(__dirname, 'domains-to-provision.json'),
+  path.join(__dirname, 'domains-to-test.json'),
 );
 
 // initialize a worker pool
@@ -37,7 +37,7 @@ async function main() {
   let evalCapable = [];
   let notEvalCapable = [];
 
-  const limit = pLimit(50); // Set the concurrency limit to 10 workers
+  const limit = pLimit(30); // Set the concurrency limit to 10 workers
   const scanPromises = antIds.map(async (antId) => {
     console.log(`Scanning domain ${scanned} / ${antsToScan}: ${antId}`);
     await limit(() =>
@@ -58,10 +58,28 @@ async function main() {
 
     scanned++;
     console.log(
-      `Eval capable: ${evalCapable.length}, Not eval capable: ${notEvalCapable.length}`,
+      `Eval capable: ${evalCapable.length}, Not eval capable: ${notEvalCapable.length}, scanned ${scanned} / ${antsToScan}`,
     );
   });
   await Promise.all(scanPromises);
+
+  // tie ant IDs to domains for provisioning
+  console.log('Eval capable:', evalCapable);
+  console.log('Not eval capable:', notEvalCapable);
+
+  const domainsToProvision = [];
+
+  notEvalCapable.map((antId) => {
+    const domain = arnsRecords.items.forEach(
+      (record) => record.processId === antId,
+    );
+    domainsToProvision.push(domain);
+  });
+
+  fs.writeFileSync(
+    path.join(__dirname, 'domains-to-provision.json'),
+    JSON.stringify(domainsToProvision),
+  );
 }
 
 main().finally(() => {

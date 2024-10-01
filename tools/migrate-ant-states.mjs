@@ -153,6 +153,7 @@ async function main() {
           value: oldProcessId,
         },
       ],
+      data: JSON.stringify(migratedState),
     });
 
     // crank the MU to ensure eval is processed

@@ -3,10 +3,11 @@ import Arweave from "arweave";
 import { connect } from "@permaweb/aoconnect";
 import path from "path";
 import fs from "fs";
-
+import pLimit from "p-limit";
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const restart = process.argv.includes("--restart");
 const dryRun = process.argv.includes("--dry-run");
+const testnet = process.argv.includes("--testnet");
 const inputFilePath = process.argv.includes("--file")
   ? process.argv[process.argv.indexOf("--file") + 1]
   : null;
@@ -14,12 +15,7 @@ const wallet = JSON.parse(
   fs.readFileSync(path.join(__dirname, "key.json"), "utf8"),
 );
 const signer = new ArweaveSigner(wallet);
-const testnet = process.argv.includes("--testnet");
-const arweave = Arweave.init({
-  host: "arweave.net",
-  port: 443,
-  protocol: "https",
-});
+const arweave = Arweave.init({});
 const { message, result } = connect();
 
 async function main() {
@@ -75,103 +71,197 @@ async function main() {
       sourceCodeUpdated,
       sdkVerified,
       stateMigrated,
-      initializeStateMessageId
+      initializeStateMessageId,
     ] of existingRecords) {
       processMap.set(newProcessId, initializeStateMessageId);
     }
 
-    console.log(`Skipping ${Object.keys(processMap).length} ants that have already been migrated.`);
+    console.log(
+      `Skipping ${Object.keys(processMap).length} ants that have already been migrated.`,
+    );
   }
 
   // filter out messages in the process map and remove duplicates based on newProcessId
-  const processIdsToMigrate = antsToMigrateWithProcessIds.reduce((acc, [domain, oldProcessId, newProcessId, sourceCodeUpdated, sdkVerified, stateMigrated]) => {
-    if (!processMap.has(newProcessId) && !acc.some(item => item[2] === newProcessId)) {
-      acc.push([domain, oldProcessId, newProcessId, sourceCodeUpdated, sdkVerified, stateMigrated]);
-    }
-    return acc;
-  }, []);
+  const processIdsToMigrate = antsToMigrateWithProcessIds.reduce(
+    (
+      acc,
+      [
+        domain,
+        oldProcessId,
+        newProcessId,
+        sourceCodeUpdated,
+        sdkVerified,
+        stateMigrated,
+      ],
+    ) => {
+      if (
+        !processMap.has(newProcessId) &&
+        !acc.some((item) => item[2] === newProcessId)
+      ) {
+        acc.push([
+          domain,
+          oldProcessId,
+          newProcessId,
+          sourceCodeUpdated,
+          sdkVerified,
+          stateMigrated,
+        ]);
+      }
+      return acc;
+    },
+    [],
+  );
 
   console.log(`Migrating ${processIdsToMigrate.length} unique ants`);
 
   // process map - don't re-evaluate ants that have already been evaluated
+  const limit = pLimit(10);
 
-  await Promise.all(processIdsToMigrate.map(async ([domain, oldProcessId, newProcessId, sourceCodeUpdated, sdkVerified,stateMigrated]) => {
-    console.log(`Migrating state for ant ${oldProcessId} to ${newProcessId}`);
+  await Promise.all(
+    antsToMigrateWithProcessIds.map(
+      async ([
+        domain,
+        oldProcessId,
+        newProcessId,
+        sourceCodeUpdated,
+        sdkVerified,
+        stateMigrated,
+      ]) => {
+        return limit(async () => {
+          if (domain === undefined) {
+            console.error(`Skipping ${newProcessId} as it has no domain`);
+            return;
+          }
+          // don't eval if we already have on the process map
+          if (processMap.has(newProcessId)) {
+            console.log(
+              `Skipping ${newProcessId} as it has already been migrated`,
+            );
+            fs.promises.writeFile(
+              outputFilePath,
+              `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${stateMigrated},${processMap.get(newProcessId)}\n`,
+              {
+                flag: "a",
+              },
+            );
+            return;
+          }
 
-    // don't eval if we already have on the process map
-    if (processMap.has(newProcessId)) {
-      console.log(`Skipping ${newProcessId} as it has already been migrated`);
-      fs.promises.writeFile(
-        outputFilePath,
-        `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${stateMigrated},${processMap.get(newProcessId)}\n`,
-        {
-          flag: "a",
-        },
-      );
-      return;
-    }
+          // get the current AO state of the old process
+          const oldProcessANT = ANT.init({
+            processId: oldProcessId,
+          });
 
-    // get the current AO state of the old process
-    const oldProcessANT = ANT.init({
-      processId: oldProcessId
-    });
+          const oldProcessState = await Promise.race([
+            oldProcessANT.getState(),
+            new Promise((_, reject) =>
+              setTimeout(
+                () =>
+                  reject(
+                    new Error("Timeout getting state for " + oldProcessId),
+                  ),
+                15_000,
+              ),
+            ),
+          ])
+            .catch((error) => {
+              console.error(
+                `Error getting state for ${oldProcessId}: ${error}`,
+              );
+              return null;
+            })
+            .then((state) => {
+              return state;
+            });
 
-    const oldProcessState = await oldProcessANT.getState();
+          if (!oldProcessState) {
+            console.error(
+              `Failed to get state for ${oldProcessId}. Was not available on original ant, marking as migrated`,
+            );
+            processMap.set(newProcessId, "not-migrated");
+            fs.promises.writeFile(
+              outputFilePath,
+              `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${processMap.get(newProcessId)}\n`,
+              {
+                flag: "a",
+              },
+            );
+            return;
+          }
 
-    // required by Initialize-State in this format. Everything else will be defaulted
-    const migratedState = {
-        owner: oldProcessState.Owner,
-        controllers: oldProcessState.Controllers,
-        name: oldProcessState.Name,
-        ticker: oldProcessState.Ticker,
-        records: oldProcessState.Records,
-        balances: oldProcessState.Balances,
-    }
+          // required by Initialize-State in this format. Everything else will be defaulted
+          const migratedState = {
+            owner: oldProcessState.Owner,
+            controllers: oldProcessState.Controllers,
+            name: oldProcessState.Name,
+            ticker: oldProcessState.Ticker,
+            records: oldProcessState.Records,
+            balances: oldProcessState.Balances,
+          };
 
-    if (dryRun) {
-      console.log(`Dry run, skipping actual evaluation of ant ${newProcessId}. Migrated state: ${JSON.stringify(migratedState)}`);
-      processMap.set(newProcessId, 'fake-message-id-of-init-state');
-      fs.promises.writeFile(
-        outputFilePath,
-        `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${sourceCodeUpdated},${processMap.get(newProcessId)}\n`,
-        {
-          flag: "a",
-        },
-      );
-      return;
-    }
+          if (dryRun) {
+            console.log(
+              `Dry run, skipping actual evaluation of ant ${newProcessId}. Migrated state: ${JSON.stringify(migratedState)}`,
+            );
+            processMap.set(newProcessId, "fake-message-id-of-init-state");
+            fs.promises.writeFile(
+              outputFilePath,
+              `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${processMap.get(newProcessId)}\n`,
+              {
+                flag: "a",
+              },
+            );
+            return;
+          }
 
-    const migrateStateMessageId = await message({
-      signer: createAoSigner(signer),
-      tags: [
-        {
-          name: "Action",
-          value: "Initialize-State",
-        },
-        {
-          name: "Old-Process-Id",
-          value: oldProcessId,
-        },
-      ],
-      data: JSON.stringify(migratedState),
-    });
+          const migrateStateMessageId = await message({
+            signer: createAoSigner(signer),
+            process: newProcessId,
+            tags: [
+              {
+                name: "Action",
+                value: "Initialize-State",
+              },
+              {
+                name: "Old-Process-Id",
+                value: oldProcessId,
+              },
+            ],
+            data: JSON.stringify(migratedState),
+          }).catch((error) => {
+            console.error(
+              `Error sending message for ${newProcessId}: ${error}`,
+            );
+            return null;
+          });
 
-    // crank the MU to ensure eval is processed
-    await result({
-      message: evalMessageId,
-      process: newProcessId,
-    });
+          if (!migrateStateMessageId) {
+            console.error(`Failed to send message for ${newProcessId}`);
+            return;
+          }
 
-    fs.promises.writeFile(
-      outputFilePath,
-      `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${sdkVerified},${migrateStateMessageId}\n`,
-      {
-        flag: "a",
+          // crank the MU to ensure eval is processed
+          await result({
+            message: migrateStateMessageId,
+            process: newProcessId,
+          }).catch((error) => {
+            console.error(`Error getting result for ${newProcessId}: ${error}`);
+            return;
+          });
+
+          fs.promises.writeFile(
+            outputFilePath,
+            `${domain},${oldProcessId},${newProcessId},${sourceCodeUpdated},${sdkVerified},${migrateStateMessageId}\n`,
+            {
+              flag: "a",
+            },
+          );
+
+          processMap.set(newProcessId, migrateStateMessageId);
+          return;
+        });
       },
-    );
-
-      processMap.set(newProcessId, migrateStateMessageId);
-    }),
+    ),
   );
 }
 

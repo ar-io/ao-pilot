@@ -1148,7 +1148,7 @@ function ant.init()
 			Logo = Logo,
 			Denomination = tostring(Denomination),
 			Owner = Owner,
-			HandlerNames = utils.getHandlerNames(Handlers),
+			Handlers = utils.getHandlerNames(Handlers),
 			["Source-Code-TX-ID"] = SourceCodeTxId,
 		}
 		ao.send({
@@ -1235,7 +1235,7 @@ function ant.init()
 		end
 		local tags = msg.Tags
 		local name, transactionId, ttlSeconds =
-			tags["Sub-Domain"], tags["Transaction-Id"], tonumber(tags["TTL-Seconds"])
+			string.lower(tags["Sub-Domain"]), tags["Transaction-Id"], tonumber(tags["TTL-Seconds"])
 
 		local setRecordStatus, setRecordResult = pcall(records.setRecord, name, transactionId, ttlSeconds)
 		if not setRecordStatus then
@@ -1257,7 +1257,8 @@ function ant.init()
 		if assertHasPermission == false then
 			return ao.send({ Target = msg.From, Action = "Invalid-Remove-Record-Notice", Data = permissionErr })
 		end
-		local removeRecordStatus, removeRecordResult = pcall(records.removeRecord, msg.Tags["Sub-Domain"])
+		local name = string.lower(msg.Tags["Sub-Domain"])
+		local removeRecordStatus, removeRecordResult = pcall(records.removeRecord, name)
 		if not removeRecordStatus then
 			ao.send({
 				Target = msg.From,
@@ -1272,7 +1273,8 @@ function ant.init()
 	end)
 
 	Handlers.add(camel(ActionMap.Record), utils.hasMatchingTag("Action", ActionMap.Record), function(msg)
-		local nameStatus, nameRes = pcall(records.getRecord, msg.Tags["Sub-Domain"])
+		local name = string.lower(msg.Tags["Sub-Domain"])
+		local nameStatus, nameRes = pcall(records.getRecord, name)
 		if not nameStatus then
 			ao.send({
 				Target = msg.From,
@@ -1287,7 +1289,7 @@ function ant.init()
 		local recordNotice = {
 			Target = msg.From,
 			Action = "Record-Notice",
-			Name = msg.Tags["Sub-Domain"],
+			Name = name,
 			Data = nameRes,
 		}
 

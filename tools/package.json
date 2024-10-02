@@ -6,6 +6,7 @@
   "dependencies": {
     "@ar.io/sdk": "^2.2.5",
     "@permaweb/aoconnect": "^0.0.59",
-    "arweave": "^1.15.5"
+    "arweave": "^1.15.5",
+    "p-limit": "^6.1.0"
   }
 }

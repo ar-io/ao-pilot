@@ -8,6 +8,7 @@ node_modules
 /lua
 /lua_modules
 /.luarocks
+*.csv
 wallet.json
 .DS_Store
 luacov-html

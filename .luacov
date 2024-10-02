@@ -1,10 +1,8 @@
 return {
   statsfile = "coverage/luacov.stats.out", 
   reportfile = "coverage/coverage_report.out",
-  include = {                     
-    "src/*.lua",                  
-  },
-  exclude = {                                   
-    "spec/*.lua",                   
-  },
+  runreport = true,
+  deleteStatsFile = false,
+  include = {"contract"},
+  exclude = {"contract/spec", "crypto", "ao", "base64", "json"}
 }

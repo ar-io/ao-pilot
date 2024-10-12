@@ -32,6 +32,7 @@ Ticker = Ticker or 'tEXP'
 Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 LastBalanceLoadTimestamp = LastBalanceLoadTimestamp or 0
+SourceCodeTxId = SourceCodeTxId or "__INSERT_SOURCE_CODE_ID__"
 
 -- TEMPORARY SECURITY FIX
 function Trusted(msg)
@@ -60,20 +61,31 @@ end
 -- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
 	local info = {
-		name = Name,
-		ticker = Ticker,
-		logo = Logo,
-		owner = Owner,
-		denomination = tostring(Denomination),
-		controllers = json.encode(Controllers),
-		records = Records
+		Name = Name,
+		Ticker = Ticker,
+		Logo = Logo,
+		Denomination = tostring(Denomination),
+		Owner = Owner,
+		Controllers = json.encode(Controllers),
 	}
+	if msg.reply then
+		msg.reply({
+		  Name = Name,
+		  Ticker = Ticker,
+		  Logo = Logo,
+		  Denomination = tostring(Denomination),
+		  Owner = Owner,
+		  Controllers = json.encode(Controllers),
+		  Data = json.encode(info)
+		})
+	else
 	ao.send(
 		{
 			Target = msg.From,
-			Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
+			Tags = info,
 			Data = json.encode(info)
 		})
+	end
 end)
 
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)

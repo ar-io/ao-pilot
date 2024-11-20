@@ -4,11 +4,11 @@ if not Balances then
 	Balances = {}
 
 	-- ao.id is the protocol balance
-	Balances[ao.id] = 2000
-
+	Balances[ao.id] = 200000000
+	
 	-- Assignments for complex keys
-	Balances["iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA"] = 1000
-	Balances["QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"] = 500
+	Balances["iKryOeZQMONi2965nKz528htMMN_sBcjlhc-VncoRjA"] = 100000000
+	Balances["QGWqtJdLLgm2ehFWiiPzMaoFLD50CnGuzZIPEdoDRGQ"] = 100000000
 end
 
 -- Setup the default record pointing to the ArNS landing page
@@ -32,6 +32,7 @@ Ticker = Ticker or 'tEXP'
 Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 LastBalanceLoadTimestamp = LastBalanceLoadTimestamp or 0
+TotalSupply = TotalSupply or 0
 
 -- TEMPORARY SECURITY FIX
 function Trusted(msg)
@@ -58,7 +59,7 @@ local function isInteger(number)
 end
 
 -- Merged token info and ANT info
-Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg, env)
+Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
 	local info = {
 		name = Name,
 		ticker = Ticker,
@@ -68,12 +69,18 @@ Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(m
 		controllers = json.encode(Controllers),
 		records = Records
 	}
-	ao.send(
-		{
-			Target = msg.From,
-			Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, ProcessOwner = Owner, Denomination = tostring(Denomination), Controllers = json.encode(Controllers) },
+	if msg.reply then
+		msg.reply({
+			Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination), Owner = Owner, Controllers = json.encode(Controllers) },
 			Data = json.encode(info)
 		})
+	else
+		ao.send({
+			Target = msg.From,
+			Tags = { Action = 'Info-Notice', Name = Name, Ticker = Ticker, Logo = Logo, Denomination = tostring(Denomination), Owner = Owner, Controllers = json.encode(Controllers) },
+			Data = json.encode(info)
+		})
+	end
 end)
 
 Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), function(msg)
@@ -86,14 +93,33 @@ Handlers.add('balance', Handlers.utils.hasMatchingTag('Action', 'Balance'), func
 		bal = tostring(Balances[msg.From])
 	end
 
-	ao.send({
-		Target = msg.From,
-		Tags = { Target = msg.From, Balance = bal, Ticker = Ticker, Denomination = tostring(Denomination), Account = msg.Tags.Recipient or msg.From, Data = json.encode(tonumber(bal)) }
-	})
+	if msg.reply then
+		msg.reply({
+			Action = "Balance-Notice",
+			Balance = bal,
+			Ticker = Ticker,
+			Account = msg.Tags.Recipient or msg.From,
+			Data = bal,
+		})
+	else
+		ao.send({
+			Target = msg.From,
+			Action = "Balance-Notice",
+			Balance = bal,
+			Ticker = Ticker,
+			Account = msg.Tags.Recipient or msg.From,
+			Data = bal,
+		})
+	end
 end)
 
-Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'),
-	function(msg) ao.send({ Target = msg.From, Denomination = tostring(Denomination), Data = json.encode(Balances) }) end)
+Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'), function(msg) 
+	if msg.reply then
+		msg.reply({ Data = json.encode(Balances) })
+	else 
+		ao.send({ Target = msg.From, Denomination = tostring(Denomination), Data = json.encode(Balances) }) 
+	end
+end)
 
 Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
 	assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
@@ -150,32 +176,46 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 				end
 			end
 
-			-- Send Debit-Notice and Credit-Notice
-			ao.send(debitNotice)
+			if msg.reply then
+				msg.reply(debitNotice)
+			else
+				debitNotice.Target = msg.From
+				ao.send(debitNotice)
+			end
 			ao.send(creditNotice)
 		end
 	else
+		if msg.reply then
+			msg.reply({
+			  Action = 'Transfer-Error',
+			  ['Message-Id'] = msg.Id,
+			  Error = 'Insufficient Balance!'
+			})
+		else
 		ao.send({
 			Target = msg.From,
-			Tags = { Action = 'Transfer-Error', ['Message-Id'] = msg.Id, Error = 'Insufficient Balance!' }
+			Tags = { Action = 'Transfer-Error',
+			['Message-Id'] = msg.Id,
+			Error = 'Insufficient Balance!' }
 		})
+		end
 	end
 end)
 
-Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg, env)
+Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg)
 	assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
 	assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
-
-	if msg.From == env.Process.Id or Controllers[msg.From] == true then
+	
+	if msg.From == ao.id or msg.From == Owner or Controllers[msg.From] == true then
 		-- Add tokens to the token pool, according to Quantity
 		local qty = tonumber(msg.Tags.Quantity)
 		assert(type(qty) == 'number', 'qty must be number')
 		assert(qty > 0, 'Quantity must be greater than 0')
 		assert(isInteger(qty) == true, 'decimals not allowed in qty')
-		print("Minting " .. qty .. " EXP")
 		if not Balances[msg.Tags.Recipient] then Balances[msg.Tags.Recipient] = 0 end
 
 		Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
+		TotalSupply = TotalSupply + qty
 
 		-- Send Mint-Notice to the Sender
 		ao.send({
@@ -213,9 +253,45 @@ Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(m
 	end
 end)
 
-Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balances'), function(msg, env)
+Handlers.add('totalSupply', Handlers.utils.hasMatchingTag('Action', 'Total-Supply'), function(msg)
+	assert(msg.From ~= ao.id, 'Cannot call Total-Supply from the same process!')
+	if msg.reply then
+		msg.reply({
+		  Action = 'Total-Supply',
+		  Data = tostring(TotalSupply),
+		  Ticker = Ticker
+		})
+	  else
+		Send({
+		  Target = msg.From,
+		  Action = 'Total-Supply',
+		  Data = tostring(TotalSupply),
+		  Ticker = Ticker
+		})
+	  end
+end)
+
+function assertHasPermission(from)
+	for _, c in ipairs(Controllers) do
+		if c == from then
+			-- if is controller, return true
+			return
+		end
+	end
+	if Owner == from then
+		return
+	end
+	if ao.id == from then
+		return
+	end
+	assert(false, "Only controllers and owners can set controllers, records, and change metadata.")
+end
+
+Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balances'), function(msg)
 	-- Validate if the message is from the process owner to ensure that only authorized updates are processed.
-	if msg.From ~= env.Process.Id and msg.From ~= Owner and Controllers[msg.From] == nil then
+	local assertHasPermission, permissionErr = pcall(assertHasPermission, msg.From)
+
+	if assertHasPermission == false then
 		print("Unauthorized data update attempt detected from: " .. msg.From)
 		-- Sending an error notice back to the sender might be a security concern in some contexts, consider this based on your application's requirements.
 		ao.send({
@@ -243,6 +319,7 @@ Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balan
 				Balances[key] = tonumber(value)
 			elseif Balances[key] > 0 then
 				Balances[key] = Balances[key] + tonumber(value)
+				TotalSupply = TotalSupply + tonumber(value)
 			end
 		end
 
@@ -251,7 +328,7 @@ Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balan
 
 		-- Notify the process owner about the successful update.
 		ao.send({
-			Target = env.Process.Id,
+			Target = ao.id,
 			Tags = { Action = 'Loaded-Balances', BalancesUpdated = tostring(balancesAddedOrUpdated) }
 		})
 	else
@@ -259,7 +336,7 @@ Handlers.add('loadBalances', Handlers.utils.hasMatchingTag('Action', 'Load-Balan
 		print("The 'balances' field is missing or not in the expected format.")
 		-- Notify the process owner about the issue.
 		ao.send({
-			Target = env.Process.Id,
+			Target = ao.id,
 			Tags = { Action = 'Load-Balances-Failure', Error = "'balances' field missing or invalid" }
 		})
 	end
@@ -288,10 +365,10 @@ end)
 Handlers.add('getRecords', Handlers.utils.hasMatchingTag('Action', 'Get-Records'),
 	function(msg) ao.send({ Action = 'Records-Resolved', Target = msg.From, Data = json.encode(Records) }) end)
 
-Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'Set-Record'), function(msg, env)
+Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'Set-Record'), function(msg)
 	local isValidRecord, responseMsg = validateSetRecord(msg)
 	if isValidRecord then
-		if msg.From == env.Process.Id then
+		if msg.From == ao.id then
 			Records[msg.Tags.SubDomain] = {
 				transactionId = msg.Tags.TransactionId,
 				ttlSeconds = msg.Tags.TtlSeconds
@@ -316,7 +393,7 @@ Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'Set-Record'),
 				})
 				-- Send SetRecord-Notice to the Owner if cast is not provided
 				ao.send({
-					Target = env.Process.Id,
+					Target = ao.id,
 					Tags = { Action = 'SetRecord-Notice', Controller = msg.From, SubDomain = msg.Tags.SubDomain, TransactionId = msg.Tags.TransactionId, TtlSeconds = msg.Tags.TtlSeconds }
 				})
 			end
@@ -334,8 +411,8 @@ Handlers.add('setRecord', Handlers.utils.hasMatchingTag('Action', 'Set-Record'),
 	end
 end)
 
-Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'Remove-Record'), function(msg, env)
-	if msg.From == env.Process.Id or Controllers[msg.From] then
+Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'Remove-Record'), function(msg)
+	if msg.From == ao.id or Controllers[msg.From] then
 		if Records[msg.Tags.SubDomain] then
 			Records[msg.Tags.SubDomain] = nil
 			if not msg.Tags.Cast then
@@ -359,8 +436,8 @@ Handlers.add('removeRecord', Handlers.utils.hasMatchingTag('Action', 'Remove-Rec
 	end
 end)
 
-Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'Set-Controller'), function(msg, env)
-	if msg.From == env.Process.Id then
+Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'Set-Controller'), function(msg)
+	if msg.From == ao.id then
 		Controllers[msg.Tags.Target] = true
 		if not msg.Tags.Cast then
 			-- Send SetController-Notice to the Sender if cast is not provided
@@ -382,8 +459,8 @@ Handlers.add('setController', Handlers.utils.hasMatchingTag('Action', 'Set-Contr
 	end
 end)
 
-Handlers.add('removeController', Handlers.utils.hasMatchingTag('Action', 'Remove-Controller'), function(msg, env)
-	if msg.From == env.Process.Id then
+Handlers.add('removeController', Handlers.utils.hasMatchingTag('Action', 'Remove-Controller'), function(msg)
+	if msg.From == ao.id then
 		Controllers[msg.Tags.Target] = nil
 		if not msg.Tags.Cast then
 			-- Send RemoveController-Notice to the Sender if cast is not provided

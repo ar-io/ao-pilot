@@ -33,6 +33,7 @@ Denomination = Denomination or 6
 Logo = Logo or 'Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A'
 LastBalanceLoadTimestamp = LastBalanceLoadTimestamp or 0
 TotalSupply = TotalSupply or 0
+SourceCodeTxId = SourceCodeTxId or "__INSERT_SOURCE_CODE_ID__"
 
 -- TEMPORARY SECURITY FIX
 function Trusted(msg)

@@ -29,10 +29,10 @@ const aoClient = connect({
   CU_URL: 'https://cu.ar-io.dev',
 });
 
-const randomName = () => {
+const randomName = (length) => {
   let name = '';
   const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * characters.length);
     name += characters[randomIndex];
   }
@@ -47,7 +47,7 @@ async function main() {
       ao: aoClient,
       processId: IO_DEVNET_PROCESS_ID,
     }),
-    signer: liveEthSigner,
+    signer: liveSigner,
   });
   // transfer necessary funds to the test wallet
   const tempIo = IO.init({
@@ -112,6 +112,8 @@ async function main() {
       processId: ''.padEnd(43, '12'),
     },
   ];
+
+  
   buyRecordArgs.forEach((args) => {
     io.buyRecord(args).catch((error) => console.error(error));
   });
@@ -242,9 +244,15 @@ async function main() {
     io.increaseOperatorStake(args).catch((error) => console.error(error));
   });
   const decreaseDelegateStakeArgs = [
+     {
+      target: name,
+      decreaseQty: 100,
+      instant: true
+    },
     {
       target: name,
       decreaseQty: 1000,
+      instant: false
     },
     {
       target: name,
@@ -390,6 +398,28 @@ async function main() {
       observerAddress: gateway,
     },
   ];
+
+const vaults = await io.getVaults()
+console.log(vaults)
+// select a vault to instant withdraw from
+const instantWithdrawalVault = vaults.items[0]
+const invalidWithdrawStakeArgs = new Array(5).map(()=> {
+  return {
+    gatewayAddress: randomName(43),
+    vaultId: randomName(43)
+  }
+})
+  const withdrawStakeArgs = [
+    ...invalidWithdrawStakeArgs,
+    {
+      gatewayAddress: gateway,
+      vaultId: instantWithdrawalVault?.vaultId
+    }
+  ]
+
+  withdrawStakeArgs.forEach(args => {
+    io.instantWithdrawal(args)
+  })
 
   joinNetworkArgs.forEach((args) => {
     io.joinNetwork(args).catch((error) => console.error(error));

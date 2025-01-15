@@ -4,8 +4,9 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "@ar.io/sdk": "^2.2.5",
-    "@permaweb/aoconnect": "^0.0.59",
+    "@ar.io/sdk": "^2.4.0",
+    "@dha-team/arbundles": "^1.0.1",
+    "@permaweb/aoconnect": "^0.0.61",
     "arweave": "^1.15.5",
     "p-limit": "^6.1.0"
   }

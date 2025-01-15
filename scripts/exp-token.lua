@@ -59,6 +59,262 @@ local function isInteger(number)
 	return math.type(number) == "integer"
 end
 
+local function createLookupTable(tbl, valueFn)
+	local lookupTable = {}
+	valueFn = valueFn or function()
+		return true
+	end
+	for key, value in pairs(tbl or {}) do
+		lookupTable[value] = valueFn(key, value)
+	end
+	return lookupTable
+end
+
+local function deepCopy(original, excludedFields)
+	if not original then
+		return nil
+	end
+
+	if type(original) ~= "table" then
+		return original
+	end
+
+	-- Fast path: If no excluded fields, copy directly
+	if not excludedFields or #excludedFields == 0 then
+		local copy = {}
+		for key, value in pairs(original) do
+			if type(value) == "table" then
+				copy[key] = deepCopy(value) -- Recursive copy for nested tables
+			else
+				copy[key] = value
+			end
+		end
+		return copy
+	end
+
+	-- If excludes are provided, create a lookup table for excluded fields
+	local excluded = createLookupTable(excludedFields)
+
+	-- Helper function to check if a key path is excluded
+	local function isExcluded(keyPath)
+		for excludedKey in pairs(excluded) do
+			if keyPath == excludedKey or keyPath:match("^" .. excludedKey .. "%.") then
+				return true
+			end
+		end
+		return false
+	end
+
+	-- Recursive function to deep copy with nested field exclusion
+	local function deepCopyHelper(orig, path)
+		if type(orig) ~= "table" then
+			return orig
+		end
+
+		local result = {}
+		local isArray = true
+
+		-- Check if all keys are numeric and sequential
+		for key in pairs(orig) do
+			if type(key) ~= "number" or key % 1 ~= 0 then
+				isArray = false
+				break
+			end
+		end
+
+		if isArray then
+			-- Collect numeric keys in sorted order for sequential reindexing
+			local numericKeys = {}
+			for key in pairs(orig) do
+				table.insert(numericKeys, key)
+			end
+			table.sort(numericKeys)
+
+			local index = 1
+			for _, key in ipairs(numericKeys) do
+				local keyPath = path and (path .. "." .. key) or tostring(key)
+				if not isExcluded(keyPath) then
+					result[index] = deepCopyHelper(orig[key], keyPath) -- Sequentially reindex
+					index = index + 1
+				end
+			end
+		else
+			-- Handle non-array tables (dictionaries)
+			for key, value in pairs(orig) do
+				local keyPath = path and (path .. "." .. key) or key
+				if not isExcluded(keyPath) then
+					result[key] = deepCopyHelper(value, keyPath)
+				end
+			end
+		end
+
+		return result
+	end
+
+	-- Use the exclusion-aware deep copy helper
+	return deepCopyHelper(original, nil)
+end
+
+local function sortTableByFields(prevTable, fields)
+	-- Handle sorting for non-table values with possible nils
+	if fields[1].field == nil then
+		-- Separate non-nil values and count nil values
+		local nonNilValues = {}
+		local nilValuesCount = 0
+
+		for _, value in pairs(prevTable) do -- Use pairs instead of ipairs to include all elements
+			if value == nil then
+				nilValuesCount = nilValuesCount + 1
+			else
+				table.insert(nonNilValues, value)
+			end
+		end
+
+		-- Sort non-nil values
+		table.sort(nonNilValues, function(a, b)
+			if fields[1].order == "asc" then
+				return a < b
+			else
+				return a > b
+			end
+		end)
+
+		-- Append nil values to the end
+		for _ = 1, nilValuesCount do
+			table.insert(nonNilValues, nil)
+		end
+
+		return nonNilValues
+	end
+
+	-- Deep copy for sorting complex nested values
+	local tableCopy = deepCopy(prevTable) or {}
+
+	-- If no elements or no fields, return the copied table as-is
+	if #tableCopy == 0 or #fields == 0 then
+		return tableCopy
+	end
+
+	-- Helper function to retrieve a nested field value by path
+	local function getNestedValue(tbl, fieldPath)
+		local current = tbl
+		for segment in fieldPath:gmatch("[^.]+") do
+			if type(current) == "table" then
+				current = current[segment]
+			else
+				return nil
+			end
+		end
+		return current
+	end
+
+	-- Sort table using table.sort with multiple fields and specified orders
+	table.sort(tableCopy, function(a, b)
+		for _, fieldSpec in ipairs(fields) do
+			local fieldPath = fieldSpec.field
+			local order = fieldSpec.order
+			local aField, bField
+
+			-- Check if field is nil, treating a and b as simple values
+			if fieldPath == nil then
+				aField = a
+				bField = b
+			else
+				aField = getNestedValue(a, fieldPath)
+				bField = getNestedValue(b, fieldPath)
+			end
+
+			-- Validate order
+			if order ~= "asc" and order ~= "desc" then
+				error("Invalid sort order. Expected 'asc' or 'desc'")
+			end
+
+			-- Handle nil values to ensure they go to the end
+			if aField == nil and bField ~= nil then
+				return false
+			elseif aField ~= nil and bField == nil then
+				return true
+			elseif aField ~= nil and bField ~= nil then
+				-- Compare based on the specified order
+				if aField ~= bField then
+					if order == "asc" then
+						return aField < bField
+					else
+						return aField > bField
+					end
+				end
+			end
+		end
+		-- All fields are equal
+		return false
+	end)
+
+	return tableCopy
+end
+
+local function paginateTableWithCursor(tableArray, cursor, cursorField, limit, sortBy, sortOrder)
+	local sortedArray = sortTableByFields(tableArray, { { order = sortOrder, field = sortBy } })
+
+	if not sortedArray or #sortedArray == 0 then
+		return {
+			items = {},
+			limit = limit,
+			totalItems = 0,
+			sortBy = sortBy,
+			sortOrder = sortOrder,
+			nextCursor = nil,
+			hasMore = false,
+		}
+	end
+
+	local startIndex = 1
+
+	if cursor then
+		for i, obj in ipairs(sortedArray) do
+			if cursorField and obj[cursorField] == cursor or cursor == obj then
+				startIndex = i + 1
+				break
+			end
+		end
+	end
+
+	local items = {}
+	local endIndex = math.min(startIndex + limit - 1, #sortedArray)
+
+	for i = startIndex, endIndex do
+		table.insert(items, sortedArray[i])
+	end
+
+	local nextCursor = nil
+	if endIndex < #sortedArray then
+		nextCursor = cursorField and sortedArray[endIndex][cursorField] or sortedArray[endIndex]
+	end
+
+	return {
+		items = items,
+		limit = limit,
+		totalItems = #sortedArray,
+		sortBy = sortBy,
+		sortOrder = sortOrder,
+		nextCursor = nextCursor, -- the last item in the current page
+		hasMore = nextCursor ~= nil,
+	}
+end
+
+local function getPaginatedBalances(cursor, limit, sortBy, sortOrder)
+	local allBalances = deepCopy(Balances) or {}
+	local balancesArray = {}
+	local cursorField = "address" -- the cursor will be the wallet address
+	for address, balance in pairs(allBalances) do
+		table.insert(balancesArray, {
+			address = address,
+			balance = balance,
+		})
+	end
+
+	return paginateTableWithCursor(balancesArray, cursor, cursorField, limit, sortBy, sortOrder)
+end
+
 -- Merged token info and ANT info
 Handlers.add('info', Handlers.utils.hasMatchingTag('Action', 'Info'), function(msg)
 	local info = {
@@ -122,6 +378,18 @@ Handlers.add('balances', Handlers.utils.hasMatchingTag('Action', 'Balances'), fu
 	end
 end)
 
+Handlers.add('paginatedBalances', Handlers.utils.hasMatchingTag('Action', 'Paginated-Balances'), function(msg)
+	local cursor = msg.Tags.Cursor
+	local limit = tonumber(msg.Tags["Limit"]) or 100
+	local sortOrder = msg.Tags["Sort-Order"] and string.lower(msg.Tags["Sort-Order"]) or "desc"
+	local sortBy = msg.Tags["Sort-By"]
+	print('Getting paginated balances')
+	local walletBalances = getPaginatedBalances(cursor, limit, sortBy or "balance", sortOrder)
+	print('Got balances')
+	--print('Got paginated balances')
+	--ao.send({ Target = msg.From, Action = "Balances-Notice", Data = json.encode(walletBalances) })
+end)
+
 Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), function(msg)
 	assert(type(msg.Tags.Recipient) == 'string', 'Recipient is required!')
 	assert(type(msg.Tags.Quantity) == 'string', 'Quantity is required!')
@@ -135,15 +403,33 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 	assert(isInteger(qty) == true, 'decimals not allowed in qty')
 	assert(qty > 0, 'Quantity must be greater than 0')
 
+	local transferDisabledNotice = {
+		Target = msg.From,
+		Action = 'Transfer-Disabled-Notice',
+		Sender = msg.From,
+		Quantity = msg.Quantity,
+		Data = "EXP Token Transfers are currently disabled",
+	}
+	-- Add forwarded tags to the credit and debit notice messages
+	for tagName, tagValue in pairs(msg) do
+		-- Tags beginning with "X-" are forwarded
+		if string.sub(tagName, 1, 2) == "X-" then
+			transferDisabledNotice[tagName] = tagValue
+		end
+	end
+
+	if msg.reply then
+		msg.reply(transferDisabledNotice)
+	else
+		transferDisabledNotice.Target = msg.From
+		ao.send(transferDisabledNotice)
+	end
+
+	--[[ 
 	if Balances[msg.From] >= qty then
 		Balances[msg.From] = Balances[msg.From] - qty
 		Balances[msg.Tags.Recipient] = Balances[msg.Tags.Recipient] + qty
 
-		--[[
-        Only Send the notifications to the Sender and Recipient
-        if the Cast tag is not set on the Transfer message
-        ]]
-		--
 		if not msg.Cast then
 			-- Debit-Notice message template, that is sent to the Sender of the transfer
 			local debitNotice = {
@@ -200,7 +486,7 @@ Handlers.add('transfer', Handlers.utils.hasMatchingTag('Action', 'Transfer'), fu
 			Error = 'Insufficient Balance!' }
 		})
 		end
-	end
+	end	--]]
 end)
 
 Handlers.add('mint', Handlers.utils.hasMatchingTag('Action', 'Mint'), function(msg)

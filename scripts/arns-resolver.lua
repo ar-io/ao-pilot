@@ -58,13 +58,13 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName }) -- CHANGE TO STATE HANDLER
 					print(name .. " has not been resolved yet.  Resolving now...")
 					return nil
 				elseif rootName and underName == nil then
 					if PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Records["@"] or PROCESSES[NAMES[rootName].processId].state.records["@"]) then
 						if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name }) -- CHANGE TO STATE HANDLER
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
@@ -75,7 +75,7 @@ local arnsMeta = {
 				elseif rootName and underName then
 					if PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Records[underName] or PROCESSES[NAMES[rootName].processId].state.records[underName]) then
 						if Now - PROCESSES[NAMES[rootName].processId].lastUpdated >= DATA_TTL_MS then
-							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+							ao.send({ Target = PROCESS_ID, Action = "Record", Name = name }) -- CHANGE TO STATE HANDLER
 							print(name .. " is stale.  Refreshing name process now...")
 							return nil
 						else
@@ -92,12 +92,12 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = rootName }) -- CHANGE TO STATE HANDLER
 					print(name .. " has not been resolved yet.  Cannot get owner.  Resolving now...")
 					return nil
 				elseif PROCESSES[NAMES[rootName].processId] and (PROCESSES[NAMES[rootName].processId].state.Owner or PROCESSES[NAMES[rootName].processId].state.owner) then
 					if Now - PROCESSES[NAMES[rootName].processId].state.lastUpdated >= OWNER_TTL_MS then
-						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+						ao.send({ Target = PROCESS_ID, Action = "Record", Name = name }) -- CHANGE TO STATE HANDLER
 						print(name .. " is stale.  Refreshing name process now...")
 						return nil
 					else
@@ -113,7 +113,7 @@ local arnsMeta = {
 				name = string.lower(name)
 				local rootName, underName = splitIntoTwoNames(name)
 				if NAMES[rootName] == nil then
-					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name })
+					ao.send({ Target = PROCESS_ID, Action = "Record", Name = name }) -- CHANGE TO STATE HANDLER
 					print(name .. " has not been resolved yet.  Cannot get process id.  Resolving now...")
 					return nil
 				elseif Now - NAMES[rootName].lastUpdated >= ID_TTL_MS then
